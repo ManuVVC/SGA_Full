@@ -12,6 +12,7 @@ class Config:
     ORACLE_DSN = os.getenv("ORACLE_DSN")
     ORACLE_MIN = int(os.getenv("ORACLE_MIN", "1"))
     ORACLE_MAX = int(os.getenv("ORACLE_MAX", "5"))
+    ORACLE_CLIENT_PATH = os.getenv("ORACLE_CLIENT_PATH")
 
     @staticmethod
     def validate():

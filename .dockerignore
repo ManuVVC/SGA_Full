@@ -1,0 +1,16 @@
+# Evitar enviar archivos innecesarios al contexto de Docker
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+.venv
+venv/
+.idea/
+.vscode/
+Logica_SGA_Exportada/
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,18 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sga_backend_web
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mapea el directorio actual al contenedor para habilitar la actualización en caliente en desarrollo
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
