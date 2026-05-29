@@ -1,2 +1,2 @@
-from .exceptions import UserNotFoundError, InvalidPasswordError
+from .exceptions import UserNotFoundError, InvalidPasswordError, ArticuloNoEncontrado, EanNoEncontrado
 

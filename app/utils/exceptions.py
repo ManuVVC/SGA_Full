@@ -9,3 +9,15 @@ class InvalidPasswordError(Exception):
     def __init__(self, message="Contraseña incorrecta"):
         self.message = message
         super().__init__(self.message)
+
+class ArticuloNoEncontrado(Exception):
+    """Excepción cuando un artículo no se encuentra en el maestro o no tiene stock."""
+    def __init__(self, message="El artículo no existe o no tiene stock registrado"):
+        self.message = message
+        super().__init__(self.message)
+
+class EanNoEncontrado(Exception):
+    """Excepción cuando un código de barras (EAN) no se encuentra en el sistema."""
+    def __init__(self, message="El código EAN no está registrado"):
+        self.message = message
+        super().__init__(self.message)
