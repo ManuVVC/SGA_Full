@@ -1,21 +1,53 @@
+import logging
 from flask import Blueprint, jsonify, request
 from ..services.auth_service import AuthService
+from ..utils.exceptions import UserNotFoundError, InvalidPasswordError
 
 auth_bp = Blueprint("auth", __name__)
+logger = logging.getLogger(__name__)
 
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    data = request.get_json() or {}
-    username = data.get("username")
-    password = data.get("password")
+    try:
+        data = request.get_json() or {}
+        username = data.get("username")
+        password = data.get("password")
 
-    if AuthService.validate_credentials(username, password):
-        return jsonify({"message": "Login successful"}), 200
+        # Llamar al servicio de autenticación
+        result = AuthService.login(username, password)
 
-    return jsonify({"message": "Invalid credentials"}), 401
+        return jsonify({
+            "status": "success",
+            "message": "Autenticación exitosa",
+            "token": result["token"],
+            "permisos": result["permisos"]
+        }), 200
+
+    except UserNotFoundError as e:
+        return jsonify({
+            "status": "error",
+            "error": "Not Found",
+            "message": str(e)
+        }), 404
+
+    except InvalidPasswordError as e:
+        return jsonify({
+            "status": "error",
+            "error": "Unauthorized",
+            "message": str(e)
+        }), 401
+
+    except Exception as e:
+        logger.error(f"Error inesperado en endpoint de login: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "error": "Internal Server Error",
+            "message": "Error interno del servidor. Problema con la base de datos o procesamiento."
+        }), 500
 
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
-    return jsonify({"message": "Logout successful"}), 200
+    return jsonify({"message": "Logout exitoso"}), 200
+
