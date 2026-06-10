@@ -37,7 +37,7 @@ class AuthService:
         # Generar token JWT con validez de 8 horas
         ahora = datetime.datetime.now(datetime.timezone.utc)
         payload = {
-            "sub": operador["CODOPERADOR"],
+            "sub": str(operador["CODOPERADOR"]),
             "nombre": operador["NOMBRE"],
             "iat": ahora,
             "exp": ahora + datetime.timedelta(hours=8)

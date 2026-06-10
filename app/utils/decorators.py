@@ -1,53 +1,60 @@
+import jwt
+import logging
 from functools import wraps
 from flask import request, jsonify, current_app, g
-import jwt
+
+logger = logging.getLogger(__name__)
 
 
 def token_required(f):
-    """
-    Decorador para proteger rutas con autenticación JWT.
-    Busca el token en la cabecera 'Authorization' con formato 'Bearer <token>'.
-    Si el token es válido, almacena el CODOPERADOR en g.current_user y continúa.
-    """
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-
-        # Obtener cabecera Authorization
-        auth_header = request.headers.get("Authorization")
-        if auth_header:
-            parts = auth_header.split(" ")
-            if len(parts) == 2 and parts[0].lower() == "bearer":
+        # Buscar en cabecera 'Authorization'
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            # El formato debe ser "Bearer <token>"
+            parts = auth_header.split()
+            if len(parts) == 2 and parts[0].lower() == 'bearer':
                 token = parts[1]
-            else:
-                # Soporte de fallback si envían el token directamente sin Bearer
-                token = auth_header
-
+        
         if not token:
             return jsonify({
                 "status": "error",
                 "error": "Unauthorized",
-                "message": "Token de autenticación faltante."
+                "message": "Token de autenticación faltante o con formato inválido. Use Bearer <token>."
             }), 401
-
+            
         try:
             secret_key = current_app.config.get("SECRET_KEY", "change-me")
+            # Decodificar el token JWT
             payload = jwt.decode(token, secret_key, algorithms=["HS256"])
-            # Inyectar el código del operador en el contexto global de Flask (g)
-            g.current_user = payload.get("sub")
+            # Guardar la información del operador en el contexto g de Flask
+            g.operador = {
+                "cod_operador": payload.get("sub"),
+                "nombre": payload.get("nombre")
+            }
         except jwt.ExpiredSignatureError:
             return jsonify({
                 "status": "error",
                 "error": "Unauthorized",
-                "message": "El token ha expirado. Por favor, inicie sesión de nuevo."
+                "message": "El token ha expirado. Por favor, inicie sesión nuevamente."
             }), 401
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"Error de validación de token: {e}")
             return jsonify({
                 "status": "error",
                 "error": "Unauthorized",
-                "message": "Token de autenticación inválido."
+                "message": f"Token de autenticación inválido: {str(e)}"
             }), 401
 
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "error": "Internal Server Error",
+                "message": f"Error al procesar el token: {str(e)}"
+            }), 500
+            
         return f(*args, **kwargs)
-
+        
     return decorated
