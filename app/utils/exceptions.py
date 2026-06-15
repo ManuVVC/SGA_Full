@@ -28,3 +28,15 @@ class EanNoEncontrado(Exception):
     def __init__(self, message="El código EAN no está registrado"):
         self.message = message
         super().__init__(self.message)
+
+class TerminalNoAutorizado(Exception):
+    """Excepción cuando el terminal (IP) no está registrado o autorizado."""
+    def __init__(self, message="Terminal no autorizado"):
+        self.message = message
+        super().__init__(self.message)
+
+class TerminalBloqueado(Exception):
+    """Excepción cuando el terminal está marcado como bloqueado."""
+    def __init__(self, message="El terminal se encuentra bloqueado"):
+        self.message = message
+        super().__init__(self.message)

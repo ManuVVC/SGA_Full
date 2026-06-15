@@ -1,8 +1,9 @@
 import jwt
 import datetime
-from flask import current_app
+from flask import current_app, request
 from ..repositories.auth_repo import AuthRepository
 from ..utils.exceptions import UserNotFoundError, InvalidPasswordError
+from .terminal_service import TerminalService
 
 
 class AuthService:
@@ -14,6 +15,9 @@ class AuthService:
         """
         if not username:
             raise UserNotFoundError("El nombre de usuario no puede estar vacío.")
+
+        # Validar y obtener el terminal asociado a la IP
+        terminal_info = TerminalService.validar_y_obtener_terminal(request)
 
         # Obtener el operador desde la base de datos
         operador = AuthRepository.get_operador_por_codigo(username)
@@ -39,6 +43,7 @@ class AuthService:
         payload = {
             "sub": str(operador["CODOPERADOR"]),
             "nombre": operador["NOMBRE"],
+            "terminal": terminal_info.get("CODTERMINAL"),
             "iat": ahora,
             "exp": ahora + datetime.timedelta(hours=8)
         }
@@ -48,7 +53,8 @@ class AuthService:
 
         return {
             "token": token,
-            "permisos": operador["permisos"]
+            "permisos": operador["permisos"],
+            "terminal": terminal_info
         }
 
     @staticmethod

@@ -1,7 +1,8 @@
 import logging
 from flask import Blueprint, jsonify, request
 from ..services.auth_service import AuthService
-from ..utils.exceptions import UserNotFoundError, InvalidPasswordError
+from ..utils.exceptions import UserNotFoundError, InvalidPasswordError, TerminalNoAutorizado, TerminalBloqueado
+
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
@@ -37,6 +38,13 @@ def login():
             "error": "Unauthorized",
             "message": str(e)
         }), 401
+
+    except (TerminalNoAutorizado, TerminalBloqueado) as e:
+        return jsonify({
+            "status": "error",
+            "error": "Forbidden",
+            "message": str(e)
+        }), 403
 
     except Exception as e:
         logger.error(f"Error inesperado en endpoint de login: {e}", exc_info=True)
