@@ -1,70 +1,49 @@
 import logging
 from ..repositories.stock_repo import StockRepository
-from ..utils.exceptions import ArticuloNoEncontrado, EanNoEncontrado
+from ..utils.exceptions import ArticuloNotFoundError
 
 logger = logging.getLogger(__name__)
 
-
 class StockService:
     @staticmethod
-    def consultar_stock_articulo(cod_articulo: str) -> list:
+    def consultar_stock_articulo(cod_articulo: str) -> dict:
         """
-        Consulta el stock de un artículo.
-        Lanza la excepción personalizada ArticuloNoEncontrado si el artículo
-        no tiene stock o no existe en la base de datos.
-        """
-        if not cod_articulo or not cod_articulo.strip():
-            raise ValueError("El código de artículo es inválido o no puede estar vacío.")
-
-        cod_articulo = cod_articulo.strip()
-
-        # Consultar stock desglosado desde el repositorio
-        stock = StockRepository.get_stock_por_articulo(cod_articulo)
-
-        # Regla de negocio: si no se encontraron filas, lanzar excepción
-        if not stock:
-            logger.info(f"Consulta de stock vacía para el artículo '{cod_articulo}'. Lanzando ArticuloNoEncontrado.")
-            raise ArticuloNoEncontrado(f"El artículo '{cod_articulo}' no se encuentra en el stock o no existe.")
-
-        return stock
-
-    @staticmethod
-    def consultar_stock_ean(ean_leido: str) -> dict:
-        """
-        Consulta el stock de un artículo resolviéndolo mediante su código EAN.
-        Lanza la excepción EanNoEncontrado si el EAN no existe en el sistema.
-        Formatea el resultado estructurado de forma legible para un terminal Seypos.
-        """
-        if not ean_leido or not ean_leido.strip():
-            raise ValueError("El código EAN leído no puede estar vacío.")
-
-        ean_leido = ean_leido.strip()
-
-        # Consultar repositorio
-        stock = StockRepository.get_stock_por_ean(ean_leido)
-
-        if not stock:
-            logger.info(f"Resolución de EAN fallida o sin stock para: '{ean_leido}'")
-            raise EanNoEncontrado(f"El código EAN '{ean_leido}' no está registrado en el sistema o no tiene stock.")
-
-        # Agrupar los datos para el formato del terminal Seypos
-        first_row = stock[0]
+        Consulta el catálogo para verificar la existencia del artículo.
+        Si existe, obtiene su stock detallado por ubicación.
         
-        ubicaciones_list = [
-            {
-                "ubicacion": row["CODUBICACION"],
-                "lote": row["LOTE"],
-                "cantidad": row["CANTIDAD"]
-            }
-            for row in stock
-        ]
+        Lanza ArticuloNotFoundError si el artículo no existe en el maestro.
+        Retorna un diccionario estructurado con los detalles del stock.
+        """
+        if not cod_articulo:
+            raise ArticuloNotFoundError("El código del artículo no puede estar vacío.")
+
+        # 1. Verificar existencia en el maestro de artículos
+        articulo = StockRepository.get_articulo_por_codigo(cod_articulo)
+        if not articulo:
+            raise ArticuloNotFoundError(f"El artículo '{cod_articulo}' no existe en el maestro del sistema.")
+
+        # 2. Consultar el stock por ubicación
+        cod_articulo_int = articulo["CODARTICULO"]
+        ubicaciones = StockRepository.get_stock_por_articulo(cod_articulo_int)
+
+        # 3. Calcular el stock total y verificar si tiene stock
+        stock_total = sum(item["cantidad"] for item in ubicaciones)
+        tiene_stock = len(ubicaciones) > 0 and stock_total > 0
 
         resultado = {
-            "articulo_comercial": first_row["CODARTICULOAPLICACION"],
-            "nombre": first_row["NOMBREARTICULO"],
-            "ubicaciones": ubicaciones_list,
-            "stock": ubicaciones_list
+            "articulo": {
+                "cod_articulo": articulo["CODARTICULO"],
+                "cod_articulo_aplicacion": articulo["CODARTICULOAPLICACION"],
+                "nombre": articulo["NOMBREARTICULO"]
+            },
+            "tiene_stock": tiene_stock,
+            "stock_total": stock_total,
+            "ubicaciones": ubicaciones
         }
 
-        logger.info(f"Stock por EAN '{ean_leido}' resuelto. Estructura Seypos devuelta.")
+        if not tiene_stock:
+            logger.info(f"El artículo '{cod_articulo}' existe pero no tiene stock en ninguna ubicación.")
+        else:
+            logger.info(f"Consulta de stock exitosa para '{cod_articulo}': Total {stock_total} en {len(ubicaciones)} ubicaciones.")
+
         return resultado
