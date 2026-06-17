@@ -1,9 +1,14 @@
 import jwt
 import datetime
+import logging
 from flask import current_app, request
 from ..repositories.auth_repo import AuthRepository
+from ..repositories.terminal_repo import TerminalRepository
 from ..utils.exceptions import UserNotFoundError, InvalidPasswordError
 from .terminal_service import TerminalService
+
+logger = logging.getLogger(__name__)
+
 
 
 class AuthService:
@@ -37,6 +42,14 @@ class AuthService:
             # en Oracle (PassWord = p_Contraseña OR PassWord IS NULL) permite cualquier contraseña.
             # Seguiremos exactamente el comportamiento de Oracle.
             pass
+
+        # Actualizar último operario en el terminal
+        try:
+            cod_terminal = terminal_info.get("CODTERMINAL")
+            cod_operador = str(operador["CODOPERADOR"])
+            TerminalRepository.actualizar_ultimo_operario(cod_terminal, cod_operador)
+        except Exception as e:
+            logger.error(f"Fallo al actualizar último operario en terminal '{cod_terminal}': {e}. El login continuará.")
 
         # Generar token JWT con validez de 8 horas
         ahora = datetime.datetime.now(datetime.timezone.utc)

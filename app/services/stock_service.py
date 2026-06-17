@@ -47,3 +47,24 @@ class StockService:
             logger.info(f"Consulta de stock exitosa para '{cod_articulo}': Total {stock_total} en {len(ubicaciones)} ubicaciones.")
 
         return resultado
+
+    @staticmethod
+    def consultar_stock_ean(ean_leido: str) -> dict:
+        from ..utils.exceptions import EanNoEncontrado
+        if not ean_leido:
+            raise EanNoEncontrado("El código EAN no puede estar vacío.")
+
+        articulo = StockRepository.get_articulo_por_ean(ean_leido)
+        if not articulo:
+            raise EanNoEncontrado(f"El código EAN '{ean_leido}' no está registrado.")
+
+        cod_articulo_int = articulo["CODARTICULO"]
+        ubicaciones = StockRepository.get_stock_por_articulo(cod_articulo_int)
+
+        resultado = {
+            "articulo_comercial": articulo["CODARTICULOAPLICACION"],
+            "nombre": articulo["NOMBREARTICULO"],
+            "ubicaciones": ubicaciones
+        }
+
+        return resultado

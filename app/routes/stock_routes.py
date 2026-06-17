@@ -42,3 +42,28 @@ def get_stock(cod_articulo):
             "error": "Internal Server Error",
             "message": "Error interno del servidor al consultar el inventario."
         }), 500
+
+@stock_bp.route("/ean/<ean_leido>", methods=["GET"])
+@token_required
+def get_stock_ean(ean_leido):
+    from ..utils.exceptions import EanNoEncontrado
+    try:
+        logger.info(f"Petición de consulta de stock EAN recibida: {ean_leido}")
+        result = StockService.consultar_stock_ean(ean_leido)
+        return jsonify(result), 200
+
+    except EanNoEncontrado as e:
+        logger.warning(f"EAN no encontrado: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "error": "Not Found",
+            "message": str(e)
+        }), 404
+
+    except Exception as e:
+        logger.error(f"Error inesperado al consultar stock EAN '{ean_leido}': {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "error": "Internal Server Error",
+            "message": "Error interno del servidor al consultar el EAN."
+        }), 500

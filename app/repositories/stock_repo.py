@@ -91,20 +91,16 @@ class StockRepository:
             # Consulta eficiente retornando solo los campos requeridos
             query = """
                 SELECT 
-                    S.CodUbicacion AS COD_UBICACION,
+                    UA.CodUbicacion AS COD_UBICACION,
                     U.CODETIQUETA AS ETIQUETA,
                     L.NUMEROLOTE AS LOTE,
-                    S.Stock AS CANTIDAD,
-                    S.FechaCaducidad AS FECHA_CADUCIDAD
-                FROM GSM.VSYS_STOCKARTICULOPORUBICACION S
-                INNER JOIN GSM.TMST_ARTICULOS A ON S.CodArticulo = A.CodArticulo
-                LEFT JOIN GSM.TMST_UBICACIONES U ON S.CodUbicacion = U.CodUbicacion
-                LEFT JOIN GSM.VSYS_UBICACIONESARTICULO UA ON S.CodArticulo = UA.CodArticulo 
-                     AND S.CodUbicacion = UA.CodUbicacion 
-                     AND S.NumeroOrden = UA.NumeroOrden
+                    UA.Stock AS CANTIDAD,
+                    UA.FechaCaducidad AS FECHA_CADUCIDAD
+                FROM GSM.VSYS_UBICACIONESARTICULO UA
+                LEFT JOIN GSM.TMST_UBICACIONES U ON UA.CodUbicacion = U.CodUbicacion
                 LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES L ON UA.CodNumeroLote = L.CODNUMEROLOTE
-                WHERE S.CodArticulo = :cod_art AND S.Stock > 0
-                ORDER BY S.FechaCaducidad ASC, U.CODETIQUETA ASC
+                WHERE UA.CodArticulo = :cod_art AND UA.Stock > 0
+                ORDER BY UA.FechaCaducidad ASC, U.CODETIQUETA ASC
             """
             cursor.execute(query, cod_art=cod_articulo_int)
             rows = cursor.fetchall()
@@ -136,6 +132,54 @@ class StockRepository:
 
         except Exception as e:
             logger.error(f"Error al obtener stock del artículo ID {cod_articulo_int}: {e}", exc_info=True)
+            raise e
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if connection:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def get_articulo_por_ean(ean_leido: str) -> dict or None:
+        if not ean_leido:
+            return None
+
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+
+            query = """
+                SELECT A.CODARTICULO, A.CODARTICULOAPLICACION, A.NOMBREARTICULO 
+                FROM GSM.TMST_ARTICULOS A
+                INNER JOIN GSM.TMST_CODFACTURACION C ON A.CODARTICULO = C.CODARTICULO
+                WHERE UPPER(C.CODFACTURACION) = UPPER(:ean)
+            """
+            cursor.execute(query, ean=ean_leido)
+            row = cursor.fetchone()
+            if not row:
+                logger.info(f"Artículo con EAN '{ean_leido}' no encontrado.")
+                return None
+
+            columns = [col[0].upper() for col in cursor.description]
+            row_dict = dict(zip(columns, row))
+
+            articulo = {
+                "CODARTICULO": row_dict.get("CODARTICULO"),
+                "CODARTICULOAPLICACION": row_dict.get("CODARTICULOAPLICACION"),
+                "NOMBREARTICULO": row_dict.get("NOMBREARTICULO")
+            }
+            return articulo
+
+        except Exception as e:
+            logger.error(f"Error al buscar el EAN '{ean_leido}': {e}", exc_info=True)
             raise e
         finally:
             if cursor:
