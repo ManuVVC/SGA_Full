@@ -141,12 +141,24 @@ export default function StockResults() {
 
     return (
       <div className="flex flex-col gap-3 mt-4">
-        {tabData.map((eanItem, idx) => (
-          <div key={idx} className="bg-white p-4 rounded-lg shadow flex items-center gap-4 border-l-8 border-sga-secondary">
-            <Barcode className="text-gray-400 w-8 h-8 shrink-0" />
-            <span className="block text-2xl font-black text-sga-dark tracking-widest">{eanItem.CODFACTURACION || eanItem.codfacturacion || eanItem}</span>
-          </div>
-        ))}
+        {tabData.map((eanItem, idx) => {
+          const eanCode = eanItem.ean || eanItem.CODFACTURACION || eanItem.codfacturacion || String(eanItem);
+          const factor = eanItem.factor;
+          return (
+            <div key={idx} className="bg-white p-4 rounded-lg shadow flex items-center justify-between border-l-8 border-sga-secondary">
+              <div className="flex items-center gap-4">
+                <Barcode className="text-gray-400 w-8 h-8 shrink-0" />
+                <span className="block text-2xl font-black text-sga-dark tracking-widest">{eanCode}</span>
+              </div>
+              {factor && (
+                <div className="text-right flex flex-col items-end">
+                  <span className="text-xl font-bold text-sga-secondary">x{factor}</span>
+                  <span className="text-xs uppercase font-bold text-gray-400">Factor</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
