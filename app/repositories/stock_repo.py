@@ -194,11 +194,12 @@ class StockRepository:
                     pass
 
     @staticmethod
-    def search_articulos(query: str) -> list:
+    def search_articulos(search_type: str, query: str) -> list:
         """
-        Busca artículos por coincidencia exacta de EAN en TMST_CODFACTURACION,
-        coincidencia exacta/parcial de CODARTICULOAPLICACION, o coincidencia
-        parcial en NOMBREARTICULO.
+        Busca artículos basándose en el tipo de búsqueda especificado:
+        - codfacturacion: EAN
+        - codarticuloaplicacion: Código interno
+        - nombrearticulo: Descripción
         """
         if not query:
             return []
@@ -209,7 +210,7 @@ class StockRepository:
             connection = OracleDatabase.get_connection()
             cursor = connection.cursor()
 
-            sql = """
+            base_sql = """
                 SELECT DISTINCT 
                     A.CODARTICULO, 
                     A.CODARTICULOAPLICACION, 
@@ -217,12 +218,30 @@ class StockRepository:
                     (SELECT MAX(FACTORCONVERSION) FROM GSM.TMST_CODFACTURACION C2 WHERE C2.CODARTICULO = A.CODARTICULO AND UPPER(C2.CODFACTURACION) = UPPER(:q)) AS FACTOR_EAN
                 FROM GSM.TMST_ARTICULOS A
                 LEFT JOIN GSM.TMST_CODFACTURACION C ON A.CODARTICULO = C.CODARTICULO
-                WHERE UPPER(C.CODFACTURACION) = UPPER(:q)
-                   OR UPPER(A.CODARTICULOAPLICACION) LIKE UPPER(:q_like)
-                   OR UPPER(A.NOMBREARTICULO) LIKE UPPER(:q_like)
-                ORDER BY A.NOMBREARTICULO ASC
             """
-            cursor.execute(sql, q=query, q_like=f"%{query}%")
+
+            params = {"q": query}
+            
+            if search_type == "codfacturacion":
+                sql = base_sql + " WHERE UPPER(C.CODFACTURACION) = UPPER(:q)"
+            elif search_type == "codarticuloaplicacion":
+                sql = base_sql + " WHERE UPPER(A.CODARTICULOAPLICACION) LIKE UPPER(:q_like)"
+                params["q_like"] = f"%{query}%"
+            elif search_type == "nombrearticulo":
+                sql = base_sql + " WHERE UPPER(A.NOMBREARTICULO) LIKE UPPER(:q_like)"
+                params["q_like"] = f"%{query}%"
+            else:
+                # Fallback por defecto a búsqueda global
+                sql = base_sql + """
+                    WHERE UPPER(C.CODFACTURACION) = UPPER(:q)
+                       OR UPPER(A.CODARTICULOAPLICACION) LIKE UPPER(:q_like)
+                       OR UPPER(A.NOMBREARTICULO) LIKE UPPER(:q_like)
+                """
+                params["q_like"] = f"%{query}%"
+
+            sql += " ORDER BY A.NOMBREARTICULO ASC"
+
+            cursor.execute(sql, **params)
             rows = cursor.fetchall()
             
             columns = [col[0].upper() for col in cursor.description]

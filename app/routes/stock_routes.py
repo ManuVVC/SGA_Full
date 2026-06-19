@@ -74,8 +74,9 @@ from flask import request
 @token_required
 def search_stock():
     query = request.args.get("q", "")
+    search_type = request.args.get("type", "")
     try:
-        results = StockService.search_articulos(query)
+        results = StockService.search_articulos(search_type, query)
         return jsonify({
             "status": "success",
             "data": results

@@ -70,11 +70,11 @@ class StockService:
         return resultado
 
     @staticmethod
-    def search_articulos(query: str) -> list:
+    def search_articulos(search_type: str, query: str) -> list:
         if not query:
             return []
         
-        articulos = StockRepository.search_articulos(query)
+        articulos = StockRepository.search_articulos(search_type, query)
         
         # Formatear salida para el frontend
         resultados = []
