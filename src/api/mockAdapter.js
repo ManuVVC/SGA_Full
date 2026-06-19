@@ -50,21 +50,87 @@ mock.onGet('/stock/search').reply((config) => {
     return [401, { message: 'Unauthorized' }];
   }
 
-  // Simulamos que el query '12345' funciona para cualquier tipo en el mock
   if (q === '12345') {
     return [200, {
-      articulo_comercial: "12345",
-      nombre: `MOCK (${searchType}): DESCRIPCION DEL ARTICULO`,
+      status: "success",
+      data: [
+        {
+          cod_articulo: 123,
+          articulo_comercial: "12345",
+          nombre: `MOCK (${searchType}): ARTÍCULO ÚNICO`,
+          factor_conversion: 1
+        }
+      ]
+    }];
+  } else if (q === 'multiple') {
+    return [200, {
+      status: "success",
+      data: [
+        {
+          cod_articulo: 111,
+          articulo_comercial: "ART-111",
+          nombre: "MOCK: ARTÍCULO MÚLTIPLE 1",
+          factor_conversion: 1
+        },
+        {
+          cod_articulo: 222,
+          articulo_comercial: "ART-222",
+          nombre: "MOCK: ARTÍCULO MÚLTIPLE 2",
+          factor_conversion: 1
+        }
+      ]
+    }];
+  } else {
+    // Si no es el query conocido, simulamos 404
+    return [404, { message: 'ARTICULO NO ENCONTRADO' }];
+  }
+});
+
+// MOCK: GET /api/stock/:cod_articulo (Ubicaciones)
+mock.onGet(/\/stock\/\d+$/).reply((config) => {
+  const urlParts = config.url.split('/');
+  const codArticulo = parseInt(urlParts[urlParts.length - 1], 10);
+  
+  if (codArticulo === 222) {
+    return [200, {
+      status: "success",
+      data: {
+        ubicaciones: []
+      }
+    }];
+  }
+  
+  return [200, {
+    status: "success",
+    data: {
       ubicaciones: [
         { cod_ubicacion: "A-01", etiqueta: "P01-N1", lote: "L23", cantidad: 10 },
         { cod_ubicacion: "A-02", etiqueta: "P01-N2", lote: "L23", cantidad: 5 },
         { cod_ubicacion: "B-05", etiqueta: "P02-N1", lote: "L24", cantidad: 20 }
       ]
+    }
+  }];
+});
+
+// MOCK: GET /api/stock/article/:cod_articulo/eans
+mock.onGet(/\/stock\/article\/\d+\/eans$/).reply((config) => {
+  const match = config.url.match(/\/stock\/article\/(\d+)\/eans/);
+  const codArticulo = match ? parseInt(match[1], 10) : 0;
+  
+  if (codArticulo === 222) {
+    return [200, {
+      status: "success",
+      data: []
     }];
-  } else {
-    // Si no es el query 12345, simulamos 404
-    return [404, { message: 'ARTICULO NO ENCONTRADO o SIN STOCK' }];
   }
+  
+  return [200, {
+    status: "success",
+    data: [
+      { CODFACTURACION: "8412345678901" },
+      { CODFACTURACION: "8412345678902" }
+    ]
+  }];
 });
 
 export default mock;
