@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../api/apiService';
 import { LogIn, Monitor } from 'lucide-react';
+import { useKeyboard } from '../contexts/KeyboardContext';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -11,6 +12,7 @@ export default function Login() {
   const [terminal, setTerminal] = useState(null);
   const [terminalError, setTerminalError] = useState('');
   const navigate = useNavigate();
+  const { isKeyboardOpen } = useKeyboard();
   
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
@@ -113,6 +115,7 @@ export default function Login() {
                <input 
                  ref={usernameRef}
                  type="text" 
+                 inputMode={isKeyboardOpen ? "numeric" : "none"}
                  className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase disabled:opacity-50"
                  value={username}
                  onChange={(e) => setUsername(e.target.value.toUpperCase())}
@@ -126,6 +129,7 @@ export default function Login() {
                <input 
                  ref={passwordRef}
                  type="password" 
+                 inputMode={isKeyboardOpen ? "text" : "none"}
                  className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 disabled:opacity-50"
                  value={password}
                  onChange={(e) => setPassword(e.target.value)}

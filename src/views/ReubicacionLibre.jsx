@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react';
-import { validarUbicacion, validarArticulo, validarCantidad, grabarReubicacion } from '../api/reubicacionesService';
+import { validarUbicacion, validarCantidad, grabarReubicacion } from '../api/reubicacionesService';
 import TerminalHeader from '../components/TerminalHeader';
-import SearchTypeToggle from '../components/SearchTypeToggle';
+import ArticleSearchInput from '../components/ArticleSearchInput';
+import { useKeyboard } from '../contexts/KeyboardContext';
 
 export default function ReubicacionLibre() {
   const navigate = useNavigate();
+  const { isKeyboardOpen } = useKeyboard();
   
   // Maquina de estados: 1 = Origen, 2 = Articulo, 3 = Cantidad, 4 = Destino
   const [step, setStep] = useState(1);
@@ -16,8 +18,6 @@ export default function ReubicacionLibre() {
 
   // Inputs controlados
   const [origenInput, setOrigenInput] = useState('');
-  const [articuloInput, setArticuloInput] = useState('');
-  const [articuloSearchType, setArticuloSearchType] = useState('codfacturacion');
   const [cantidadInput, setCantidadInput] = useState('');
   const [destinoInput, setDestinoInput] = useState('');
 
@@ -31,16 +31,13 @@ export default function ReubicacionLibre() {
   const [posicionesDisponibles, setPosicionesDisponibles] = useState([]);
   const [ubicacionEnProceso, setUbicacionEnProceso] = useState(null);
 
-  // Referencias para focus automático
   const origenRef = useRef(null);
-  const articuloRef = useRef(null);
   const cantidadRef = useRef(null);
   const destinoRef = useRef(null);
 
   // Focus effect
   useEffect(() => {
     if (step === 1 && origenRef.current) origenRef.current.focus();
-    if (step === 2 && articuloRef.current) articuloRef.current.focus();
     if (step === 3 && cantidadRef.current) cantidadRef.current.focus();
     if (step === 4 && destinoRef.current) destinoRef.current.focus();
   }, [step]);
@@ -48,7 +45,6 @@ export default function ReubicacionLibre() {
   const resetProcess = () => {
     setStep(1);
     setOrigenInput('');
-    setArticuloInput('');
     setCantidadInput('');
     setDestinoInput('');
     setOrigenData(null);
@@ -93,24 +89,9 @@ export default function ReubicacionLibre() {
   };
 
   // ----- STEP 2: ARTICULO -----
-  const handleArticuloKeyDown = async (e) => {
-    if (e.key === 'Enter' && articuloInput.trim() !== '') {
-      setError(null);
-      setLoading(true);
-      try {
-        const res = await validarArticulo(articuloInput, articuloSearchType);
-        if (res.status === 'success') {
-          setArticuloData(res.articulo);
-          setStep(3);
-        } else {
-          setError(res.message || 'Artículo no encontrado');
-        }
-      } catch (err) {
-        setError(err.response?.data?.message || 'Error al validar el artículo.');
-      } finally {
-        setLoading(false);
-      }
-    }
+  const handleArticleSelected = (article) => {
+    setArticuloData(article);
+    setStep(3);
   };
 
   // ----- STEP 3: CANTIDAD -----
@@ -255,6 +236,7 @@ export default function ReubicacionLibre() {
             <input 
               ref={origenRef}
               type="text" 
+              inputMode={isKeyboardOpen ? "text" : "none"}
               className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
               placeholder="Escanee o escriba"
               value={origenInput}
@@ -270,21 +252,13 @@ export default function ReubicacionLibre() {
         {/* STEP 2: Articulo */}
         {step >= 2 && (
           <div className={`p-4 rounded shadow bg-white border-l-4 ${step === 2 ? 'border-sga-blue' : 'border-gray-300 opacity-60'}`}>
-            <label className="block text-sm font-bold text-gray-700 mb-1">2. Artículo (EAN / Código)</label>
+            <label className="block text-sm font-bold text-gray-700 mb-1">2. Artículo</label>
             {step === 2 ? (
-              <>
-                <SearchTypeToggle value={articuloSearchType} onChange={setArticuloSearchType} />
-                <input 
-                  ref={articuloRef}
-                type="text" 
-                className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
-                placeholder="Escanee artículo"
-                value={articuloInput}
-                onChange={(e) => setArticuloInput(e.target.value.toUpperCase())}
-                onKeyDown={handleArticuloKeyDown}
-                disabled={loading}
+              <ArticleSearchInput 
+                onArticleSelected={handleArticleSelected} 
+                disabled={loading} 
+                autoFocus={true} 
               />
-              </>
             ) : (
               <div>
                 <div className="text-lg font-bold text-sga-dark">{articuloData?.CODARTICULO}</div>
@@ -302,7 +276,8 @@ export default function ReubicacionLibre() {
               <div>
                 <input 
                   ref={cantidadRef}
-                  type="number" 
+                  type="text" 
+                  inputMode={isKeyboardOpen ? "numeric" : "none"}
                   className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
                   placeholder="Introduzca cantidad"
                   value={cantidadInput}
@@ -332,6 +307,7 @@ export default function ReubicacionLibre() {
               <input 
                 ref={destinoRef}
                 type="text" 
+                inputMode={isKeyboardOpen ? "text" : "none"}
                 className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
                 placeholder="Escanee destino"
                 value={destinoInput}

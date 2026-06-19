@@ -4,6 +4,7 @@ import { ScanLine, ArrowLeft } from 'lucide-react';
 import apiService from '../api/apiService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useScannerFocus } from '../hooks/useScannerFocus';
+import { useKeyboard } from '../contexts/KeyboardContext';
 import SearchTypeToggle from '../components/SearchTypeToggle';
 
 export default function StockQuery() {
@@ -12,6 +13,7 @@ export default function StockQuery() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { isKeyboardOpen } = useKeyboard();
   
   // Custom hook para forzar que el input reciba los datos del escáner
   const inputRef = useScannerFocus();
@@ -74,6 +76,7 @@ export default function StockQuery() {
             <input 
               ref={inputRef}
               type="text"
+              inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' ? 'text' : 'numeric') : 'none'}
               value={ean}
               onChange={(e) => setEan(e.target.value)}
               className="w-full p-4 text-2xl font-mono text-center border-2 border-gray-400 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase shadow-inner"
