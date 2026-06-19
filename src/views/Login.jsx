@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../api/apiService';
 import { LogIn, Monitor } from 'lucide-react';
@@ -11,13 +11,26 @@ export default function Login() {
   const [terminal, setTerminal] = useState(null);
   const [terminalError, setTerminalError] = useState('');
   const navigate = useNavigate();
+  
+  const usernameRef = useRef(null);
+  const passwordRef = useRef(null);
 
   useEffect(() => {
     const fetchTerminal = async () => {
       try {
         const response = await apiService.get('/auth/terminal');
         if (response.status === 200 && response.data.terminal) {
-          setTerminal(response.data.terminal);
+          const termData = response.data.terminal;
+          setTerminal(termData);
+          
+          if (termData.CODOPERADOR) {
+            setUsername(termData.CODOPERADOR);
+            // Autofocus password if operator is already set
+            setTimeout(() => passwordRef.current?.focus(), 50);
+          } else {
+            // Autofocus username
+            setTimeout(() => usernameRef.current?.focus(), 50);
+          }
         }
       } catch (err) {
         setTerminalError(err.response?.data?.message || 'Terminal no autorizado o IP desconocida');
@@ -98,12 +111,12 @@ export default function Login() {
             <div>
                <label className="block text-lg font-semibold text-sga-dark mb-1">Código de Operador</label>
                <input 
+                 ref={usernameRef}
                  type="text" 
                  className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase disabled:opacity-50"
                  value={username}
                  onChange={(e) => setUsername(e.target.value.toUpperCase())}
                  placeholder="EJ: 105"
-                 autoFocus
                  disabled={!terminal}
                />
             </div>
@@ -111,6 +124,7 @@ export default function Login() {
             <div>
                <label className="block text-lg font-semibold text-sga-dark mb-1">Contraseña</label>
                <input 
+                 ref={passwordRef}
                  type="password" 
                  className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 disabled:opacity-50"
                  value={password}
