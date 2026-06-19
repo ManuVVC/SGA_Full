@@ -8,6 +8,7 @@ import {
   SubMenuPrepara, SubMenuReubicar, SubMenuEntrada, 
   SubMenuInventario, SubMenuDevoluciones, SubMenuUtilidades 
 } from './views/SubMenus';
+import ReubicacionLibre from './views/ReubicacionLibre';
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('sga_token');
@@ -46,6 +47,7 @@ function App() {
               {/* Submenús */}
               <Route path="/prepara" element={<PrivateRoute><SubMenuPrepara /></PrivateRoute>} />
               <Route path="/reubicar" element={<PrivateRoute><SubMenuReubicar /></PrivateRoute>} />
+              <Route path="/reubicar/libre" element={<PrivateRoute><ReubicacionLibre /></PrivateRoute>} />
               <Route path="/entrada" element={<PrivateRoute><SubMenuEntrada /></PrivateRoute>} />
               <Route path="/inventario" element={<PrivateRoute><SubMenuInventario /></PrivateRoute>} />
               <Route path="/devoluciones" element={<PrivateRoute><SubMenuDevoluciones /></PrivateRoute>} />
