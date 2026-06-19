@@ -13,13 +13,20 @@ class ReubicacionesRepository:
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
-            query = "SELECT CODUBICACION, NOMBRECORTO FROM GSM.VMST_UBICACIONES WHERE CODUBICACION = :1"
+            query = """
+                SELECT U.CODUBICACION, U.NOMBRECORTO, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0)
+                FROM GSM.VMST_UBICACIONES U
+                LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
+                WHERE U.CODUBICACION = :1
+            """
             cursor.execute(query, [str(cod_ubicacion)])
             row = cursor.fetchone()
             if row:
                 return {
                     "CODUBICACION": row[0],
-                    "UBICACION": row[1]
+                    "UBICACION": row[1],
+                    "PRM_TRAZABILIDAD": row[2],
+                    "PRM_CADUCIDAD": row[3]
                 }
             return None
         except Exception as e:
@@ -51,14 +58,21 @@ class ReubicacionesRepository:
             resultados = []
             for hueco in huecos:
                 cod_hueco = hueco[0]
-                query_ubic = "SELECT CODUBICACION, NOMBRECORTO, POSICION FROM GSM.VMST_UBICACIONES WHERE CODHUECO = :1"
+                query_ubic = """
+                    SELECT U.CODUBICACION, U.NOMBRECORTO, U.POSICION, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0)
+                    FROM GSM.VMST_UBICACIONES U
+                    LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
+                    WHERE U.CODHUECO = :1
+                """
                 cursor.execute(query_ubic, [cod_hueco])
                 ubicaciones = cursor.fetchall()
                 for ub in ubicaciones:
                     resultados.append({
                         "CODUBICACION": ub[0],
                         "UBICACION": ub[1],
-                        "POSICION": ub[2]
+                        "POSICION": ub[2],
+                        "PRM_TRAZABILIDAD": ub[3],
+                        "PRM_CADUCIDAD": ub[4]
                     })
                     
             return resultados
@@ -80,13 +94,20 @@ class ReubicacionesRepository:
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
-            query = "SELECT CODARTICULO, FACTORCONVERSION FROM GSM.TMST_CODFACTURACION WHERE CODFACTURACION = :1"
+            query = """
+                SELECT C.CODARTICULO, C.FACTORCONVERSION, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0)
+                FROM GSM.TMST_CODFACTURACION C
+                JOIN GSM.TMST_ARTICULOS A ON C.CODARTICULO = A.CODARTICULO
+                WHERE C.CODFACTURACION = :1
+            """
             cursor.execute(query, [ean])
             row = cursor.fetchone()
             if row:
                 return {
                     "CODARTICULO": row[0],
-                    "UNIDADES": row[1]
+                    "UNIDADES": row[1],
+                    "PRM_TRAZABILIDAD": row[2],
+                    "GESTIONARCADUCIDAD": row[3]
                 }
             return None
         except Exception as e:
@@ -107,13 +128,19 @@ class ReubicacionesRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             # SPGET_CODARTICULO devuelve CODARTICULO
-            query = "SELECT GSM_ARTICULOS.SPGET_CODARTICULO(:1) FROM DUAL"
+            query = """
+                SELECT A.CODARTICULO, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0)
+                FROM DUAL
+                JOIN GSM.TMST_ARTICULOS A ON A.CODARTICULO = GSM_ARTICULOS.SPGET_CODARTICULO(:1)
+            """
             cursor.execute(query, [codigo])
             row = cursor.fetchone()
             if row and row[0]:
                 return {
                     "CODARTICULO": row[0],
-                    "UNIDADES": 1 # Por defecto para código interno asumimos unidad base (factor 1)
+                    "UNIDADES": 1,
+                    "PRM_TRAZABILIDAD": row[1],
+                    "GESTIONARCADUCIDAD": row[2]
                 }
             return None
         except Exception as e:
@@ -133,7 +160,11 @@ class ReubicacionesRepository:
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
-            query = "SELECT CODARTICULO, DESCRIPCION FROM TMST_ARTICULOS WHERE UPPER(DESCRIPCION) LIKE UPPER(:1)"
+            query = """
+                SELECT CODARTICULO, DESCRIPCION, NVL(PRM_TRAZABILIDAD, 0), NVL(GESTIONARCADUCIDAD, 0) 
+                FROM TMST_ARTICULOS 
+                WHERE UPPER(DESCRIPCION) LIKE UPPER(:1)
+            """
             cursor.execute(query, [f"%{descripcion}%"])
             rows = cursor.fetchall()
             resultados = []
@@ -141,7 +172,9 @@ class ReubicacionesRepository:
                 resultados.append({
                     "CODARTICULO": row[0],
                     "DESCRIPCION": row[1],
-                    "UNIDADES": 1
+                    "UNIDADES": 1,
+                    "PRM_TRAZABILIDAD": row[2],
+                    "GESTIONARCADUCIDAD": row[3]
                 })
             return resultados
         except Exception as e:
@@ -175,8 +208,44 @@ class ReubicacionesRepository:
                 conn.close()
 
     @staticmethod
+    def get_lotes_disponibles(cod_ubicacion: int, cod_articulo: int):
+        """
+        Retorna los lotes disponibles en una ubicación origen para un artículo concreto.
+        """
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT UA.CODNUMEROLOTE, NLP.NUMEROLOTE, NLP.FECHACADUCIDAD, SUM(UA.STOCK) as STOCK_TOTAL
+                FROM TMST_UBICACIONESARTICULO UA
+                LEFT JOIN TMST_NUMEROSLOTESPROVEEDORES NLP ON UA.CODNUMEROLOTE = NLP.CODNUMEROLOTE
+                WHERE UA.CODUBICACION = :1 AND UA.CODARTICULO = :2 AND UA.STOCK > 0
+                GROUP BY UA.CODNUMEROLOTE, NLP.NUMEROLOTE, NLP.FECHACADUCIDAD
+            """
+            cursor.execute(query, [cod_ubicacion, cod_articulo])
+            rows = cursor.fetchall()
+            resultados = []
+            for row in rows:
+                resultados.append({
+                    "CODNUMEROLOTE": row[0],
+                    "NUMEROLOTE": row[1],
+                    "FECHACADUCIDAD": row[2].strftime('%Y-%m-%d') if row[2] else None,
+                    "STOCK": row[3]
+                })
+            return resultados
+        except Exception as e:
+            logger.error(f"Error al obtener lotes disponibles: {e}")
+            raise
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+
+    @staticmethod
     def grabar_reubicacion(cod_terminal: int, cod_operador: int, cod_ubicacion_origen: int, 
-                           cod_articulo: int, cantidad: int, cod_ubicacion_destino: int):
+                           cod_articulo: int, cantidad: int, cod_ubicacion_destino: int,
+                           cod_numero_lote: int = None, fecha_caducidad = None):
         """
         Llama al procedimiento SPREU_REUBICARUBICARTICULO de la base de datos.
         """
@@ -193,7 +262,9 @@ class ReubicacionesRepository:
                     p_CodArticulo => :p_CodArticulo,
                     p_Cantidad => :p_Cantidad,
                     p_CodUbicacionDestino => :p_CodUbicacionDestino,
-                    p_CodOperador => :p_CodOperador
+                    p_CodOperador => :p_CodOperador,
+                    p_CodNumeroLote => :p_CodNumeroLote,
+                    p_FechaCaducidad => TO_DATE(:p_FechaCaducidad, 'YYYY-MM-DD')
                 );
             END;
             '''
@@ -207,7 +278,9 @@ class ReubicacionesRepository:
                 'p_CodArticulo': cod_articulo,
                 'p_Cantidad': cantidad,
                 'p_CodUbicacionDestino': cod_ubicacion_destino,
-                'p_CodOperador': cod_operador
+                'p_CodOperador': cod_operador,
+                'p_CodNumeroLote': cod_numero_lote,
+                'p_FechaCaducidad': fecha_caducidad
             })
             
             conn.commit()

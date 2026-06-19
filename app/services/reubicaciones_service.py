@@ -99,7 +99,18 @@ class ReubicacionesService:
         }
 
     @staticmethod
-    def grabar_reubicacion(origen: dict, destino: dict, articulo: dict, cantidad: float, terminal: int, operador: int):
+    def obtener_lotes_disponibles(cod_ubicacion: int, cod_articulo: int):
+        """
+        Retorna los lotes físicos disponibles en la ubicación para este artículo.
+        """
+        try:
+            lotes = ReubicacionesRepository.get_lotes_disponibles(cod_ubicacion, cod_articulo)
+            return {"status": "success", "lotes": lotes}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    @staticmethod
+    def grabar_reubicacion(origen: dict, destino: dict, articulo: dict, cantidad: float, terminal: int, operador: int, lote: dict = None):
         """
         Orquesta la grabación de la reubicación validando los parámetros finales y llamando a BD.
         """
@@ -110,6 +121,9 @@ class ReubicacionesService:
         if not all([cod_ubicacion_origen, cod_ubicacion_destino, cod_articulo, terminal, operador]):
             return {"status": "error", "message": "Faltan datos obligatorios para grabar la reubicación."}
             
+        cod_numero_lote = lote.get("CODNUMEROLOTE") if lote else None
+        fecha_caducidad = lote.get("FECHACADUCIDAD") if lote else None
+            
         # Ejecutar procedimiento
         try:
             ret_val = ReubicacionesRepository.grabar_reubicacion(
@@ -118,7 +132,9 @@ class ReubicacionesService:
                 cod_ubicacion_origen=cod_ubicacion_origen,
                 cod_articulo=cod_articulo,
                 cantidad=cantidad,
-                cod_ubicacion_destino=cod_ubicacion_destino
+                cod_ubicacion_destino=cod_ubicacion_destino,
+                cod_numero_lote=cod_numero_lote,
+                fecha_caducidad=fecha_caducidad
             )
             
             if ret_val == 0:

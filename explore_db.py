@@ -10,13 +10,9 @@ with app.app_context():
         conn = db.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT column_name FROM all_tab_columns WHERE table_name = 'TMST_CODFACTURACION'")
-        columns = cursor.fetchall()
+        cursor.execute("SELECT column_name FROM all_tab_columns WHERE table_name = 'TSYS_TIPOSHUECOS' AND owner = 'GSM'")
+        print("TSYS_TIPOSHUECOS (All columns):", [c[0] for c in cursor.fetchall()])
         
-        print("Columnas en TMST_CODFACTURACION:")
-        for col in columns:
-            print(f"- {col[0]}")
-            
     except Exception as e:
         print("Error:", e)
     finally:

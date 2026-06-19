@@ -69,6 +69,23 @@ def validar_cantidad():
     else:
         return jsonify(result), 400
 
+@reubicaciones_bp.route("/lotes-disponibles", methods=["POST"])
+@token_required
+def lotes_disponibles():
+    data = request.get_json() or {}
+    cod_ubicacion = data.get("cod_ubicacion")
+    cod_articulo = data.get("cod_articulo")
+
+    if cod_ubicacion is None or cod_articulo is None:
+        return jsonify({"status": "error", "message": "Faltan datos obligatorios."}), 400
+
+    result = ReubicacionesService.obtener_lotes_disponibles(cod_ubicacion, cod_articulo)
+    
+    if result["status"] == "success":
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 400
+
 @reubicaciones_bp.route("/grabar", methods=["POST"])
 @token_required
 def grabar_reubicacion():
@@ -77,6 +94,7 @@ def grabar_reubicacion():
     destino = data.get("destino")
     articulo = data.get("articulo")
     cantidad = data.get("cantidad")
+    lote = data.get("lote")
 
     if not all([origen, destino, articulo, cantidad]):
         return jsonify({"status": "error", "message": "Faltan datos en la petición."}), 400
@@ -100,7 +118,8 @@ def grabar_reubicacion():
         articulo=articulo, 
         cantidad=cantidad,
         terminal=cod_terminal,
-        operador=cod_operador
+        operador=cod_operador,
+        lote=lote
     )
     
     if result["status"] == "success":
