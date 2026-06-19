@@ -68,3 +68,30 @@ class StockService:
         }
 
         return resultado
+
+    @staticmethod
+    def search_articulos(query: str) -> list:
+        if not query:
+            return []
+        
+        articulos = StockRepository.search_articulos(query)
+        
+        # Formatear salida para el frontend
+        resultados = []
+        for a in articulos:
+            resultados.append({
+                "cod_articulo": a["CODARTICULO"],
+                "cod_articulo_aplicacion": a["CODARTICULOAPLICACION"],
+                "nombre": a["NOMBREARTICULO"],
+                "factor_conversion": a["FACTORCONVERSION"]
+            })
+            
+        return resultados
+
+    @staticmethod
+    def consultar_eans_articulo(cod_articulo: int) -> list:
+        if not cod_articulo:
+            return []
+            
+        eans = StockRepository.get_eans_por_articulo(cod_articulo)
+        return eans
