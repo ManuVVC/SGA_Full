@@ -67,7 +67,8 @@ class AuthService:
         return {
             "token": token,
             "permisos": operador["permisos"],
-            "terminal": terminal_info
+            "terminal": terminal_info,
+            "operador_nombre": operador["NOMBRE"]
         }
 
     @staticmethod

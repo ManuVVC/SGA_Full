@@ -67,3 +67,38 @@ def get_stock_ean(ean_leido):
             "error": "Internal Server Error",
             "message": "Error interno del servidor al consultar el EAN."
         }), 500
+
+from flask import request
+
+@stock_bp.route("/search", methods=["GET"])
+@token_required
+def search_stock():
+    query = request.args.get("q", "")
+    try:
+        results = StockService.search_articulos(query)
+        return jsonify({
+            "status": "success",
+            "data": results
+        }), 200
+    except Exception as e:
+        logger.error(f"Error en búsqueda: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Error al buscar artículos."
+        }), 500
+
+@stock_bp.route("/article/<int:cod_articulo>/eans", methods=["GET"])
+@token_required
+def get_article_eans(cod_articulo):
+    try:
+        eans = StockService.consultar_eans_articulo(cod_articulo)
+        return jsonify({
+            "status": "success",
+            "data": eans
+        }), 200
+    except Exception as e:
+        logger.error(f"Error al obtener EANs: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Error al obtener los EANs."
+        }), 500

@@ -50,7 +50,8 @@ def login():
             "message": "Autenticación exitosa",
             "token": result["token"],
             "permisos": result["permisos"],
-            "terminal": result["terminal"]
+            "terminal": result["terminal"],
+            "operador_nombre": result["operador_nombre"]
         }), 200
 
     except UserNotFoundError as e:

@@ -32,7 +32,8 @@ def token_required(f):
             # Guardar la información del operador en el contexto g de Flask
             g.operador = {
                 "cod_operador": payload.get("sub"),
-                "nombre": payload.get("nombre")
+                "nombre": payload.get("nombre"),
+                "terminal": payload.get("terminal")
             }
         except jwt.ExpiredSignatureError:
             return jsonify({
