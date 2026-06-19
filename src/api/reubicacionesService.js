@@ -27,15 +27,29 @@ export const validarCantidad = async (codUbicacion, codArticulo, cantidad, unida
   return response.data;
 };
 
-export const grabarReubicacion = async (origen, destino, articulo, cantidad) => {
+export const obtenerLotesDisponibles = async (codUbicacion, codArticulo) => {
+  const response = await apiService.post('/reubicaciones/lotes-disponibles', {
+    cod_ubicacion: codUbicacion,
+    cod_articulo: codArticulo
+  });
+  return response.data;
+};
+
+export const grabarReubicacion = async (origen, destino, articulo, cantidad, lote = null) => {
   // Cantidad negativa
   const cantidadNegativa = -Math.abs(cantidad);
   
-  const response = await apiService.post('/reubicaciones/grabar', {
+  const payload = {
     origen,
     destino,
     articulo,
     cantidad: cantidadNegativa
-  });
+  };
+
+  if (lote) {
+    payload.lote = lote;
+  }
+
+  const response = await apiService.post('/reubicaciones/grabar', payload);
   return response.data;
 };

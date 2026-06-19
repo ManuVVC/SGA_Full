@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react';
-import { validarUbicacion, validarCantidad, grabarReubicacion } from '../api/reubicacionesService';
+import { ArrowLeft, CheckCircle, AlertTriangle, Box } from 'lucide-react';
+import { validarUbicacion, validarCantidad, grabarReubicacion, obtenerLotesDisponibles } from '../api/reubicacionesService';
 import TerminalHeader from '../components/TerminalHeader';
 import ArticleSearchInput from '../components/ArticleSearchInput';
 import { useKeyboard } from '../contexts/KeyboardContext';
@@ -24,12 +24,17 @@ export default function ReubicacionLibre() {
   // Datos consolidados devueltos por la API
   const [origenData, setOrigenData] = useState(null);
   const [articuloData, setArticuloData] = useState(null);
+  const [loteData, setLoteData] = useState(null);
   const [destinoData, setDestinoData] = useState(null);
 
   // Modal para multiplicidad de posición
   const [showPosicionModal, setShowPosicionModal] = useState(false);
   const [posicionesDisponibles, setPosicionesDisponibles] = useState([]);
   const [ubicacionEnProceso, setUbicacionEnProceso] = useState(null);
+
+  // Modal para selección de lote
+  const [showLoteModal, setShowLoteModal] = useState(false);
+  const [lotesDisponibles, setLotesDisponibles] = useState([]);
 
   const origenRef = useRef(null);
   const cantidadRef = useRef(null);
@@ -49,6 +54,7 @@ export default function ReubicacionLibre() {
     setDestinoInput('');
     setOrigenData(null);
     setArticuloData(null);
+    setLoteData(null);
     setDestinoData(null);
     setError(null);
   };
@@ -89,8 +95,42 @@ export default function ReubicacionLibre() {
   };
 
   // ----- STEP 2: ARTICULO -----
-  const handleArticleSelected = (article) => {
+  const handleArticleSelected = async (article) => {
     setArticuloData(article);
+    
+    // Comprobar si gestiona lote (ambos origen y articulo deben tener trazabilidad != 0)
+    const gestionaLote = (article.PRM_TRAZABILIDAD !== 0) && (origenData.PRM_TRAZABILIDAD !== 0);
+
+    if (gestionaLote) {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await obtenerLotesDisponibles(origenData.CODUBICACION, article.CODARTICULO);
+        if (res.status === 'success' && res.lotes && res.lotes.length > 0) {
+          if (res.lotes.length === 1) {
+            setLoteData(res.lotes[0]);
+            setStep(3);
+          } else {
+            setLotesDisponibles(res.lotes);
+            setShowLoteModal(true);
+          }
+        } else {
+          setError('No hay lotes disponibles para este artículo en la ubicación origen.');
+        }
+      } catch (err) {
+        setError('Error al obtener los lotes disponibles.');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setLoteData(null);
+      setStep(3);
+    }
+  };
+
+  const handleSelectLote = (lote) => {
+    setLoteData(lote);
+    setShowLoteModal(false);
     setStep(3);
   };
 
@@ -151,7 +191,8 @@ export default function ReubicacionLibre() {
         origenData,
         destinoValidado,
         articuloData,
-        parseFloat(cantidadInput) * articuloData.UNIDADES
+        parseFloat(cantidadInput) * articuloData.UNIDADES,
+        loteData
       );
       if (resGrabar.status === 'success') {
         setSuccess('¡Reubicación grabada con éxito!');
@@ -263,6 +304,15 @@ export default function ReubicacionLibre() {
               <div>
                 <div className="text-lg font-bold text-sga-dark">{articuloData?.CODARTICULO}</div>
                 {articuloData?.DESCRIPCION && <div className="text-sm text-gray-600">{articuloData.DESCRIPCION}</div>}
+                {loteData && (
+                  <div className="mt-2 bg-blue-50 p-2 rounded border border-blue-200">
+                    <div className="flex items-center gap-2 text-sga-blue font-bold">
+                      <Box size={16} />
+                      <span>Lote: {loteData.NUMEROLOTE}</span>
+                    </div>
+                    {loteData.FECHACADUCIDAD && <div className="text-xs text-blue-800">Caducidad: {loteData.FECHACADUCIDAD}</div>}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -349,6 +399,48 @@ export default function ReubicacionLibre() {
             <div className="p-3 border-t bg-gray-50 flex justify-end">
               <button 
                 onClick={() => setShowPosicionModal(false)}
+                className="px-4 py-2 bg-gray-400 text-white rounded font-bold"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA SELECCION DE LOTE */}
+      {showLoteModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="bg-sga-blue text-white p-3 font-bold text-center">
+              Seleccione Lote
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              <p className="mb-3 text-sm text-gray-600 font-semibold text-center">
+                Múltiples lotes en la ubicación. ¿Cuál desea reubicar?
+              </p>
+              <div className="flex flex-col gap-2">
+                {lotesDisponibles.map((op, idx) => (
+                  <button 
+                    key={idx}
+                    onClick={() => handleSelectLote(op)}
+                    className="p-3 bg-gray-50 hover:bg-sga-blue hover:text-white border border-gray-300 rounded text-left transition-colors flex flex-col"
+                  >
+                    <span className="font-bold text-lg">{op.NUMEROLOTE}</span>
+                    <div className="flex justify-between text-sm mt-1 opacity-80">
+                      <span>{op.FECHACADUCIDAD ? `Cad: ${op.FECHACADUCIDAD}` : ''}</span>
+                      <span>Disp: {op.STOCK}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-3 border-t bg-gray-50 flex justify-end">
+              <button 
+                onClick={() => {
+                  setShowLoteModal(false);
+                  setStep(2); // Volver a artículo si cancela el lote
+                }}
                 className="px-4 py-2 bg-gray-400 text-white rounded font-bold"
               >
                 Cancelar
