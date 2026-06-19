@@ -112,16 +112,19 @@ Autentica a un usuario. El backend ya reconoce el terminal por la IP fija de ori
 
 Requiere que el usuario esté autenticado. Todas las peticiones deben incluir el token JWT obtenido en el login.
 
-### GET `/stock/<codigo_articulo>`
+### GET `/stock/search`
 
-Consulta el stock actual de un artículo y detalla sus ubicaciones.
+Consulta el stock actual de un artículo y detalla sus ubicaciones, permitiendo buscar por diferentes criterios (EAN, código interno, o descripción).
 
 **Cabeceras (Headers):**
 - `Content-Type: application/json`
 - `Authorization: Bearer <TU_TOKEN_JWT>`
 
-**Parámetros de Ruta:**
-- `codigo_articulo` (String): Código alfanumérico o ID interno del artículo a buscar.
+**Parámetros de Query (Query String):**
+- `type` (String): El tipo de búsqueda. Valores posibles: `codfacturacion` (EAN), `codarticuloaplicacion` (Interno), `nombrearticulo` (Descripción).
+- `q` (String): El término a buscar (el código EAN, el código interno o parte de la descripción).
+
+
 
 **Respuestas:**
 

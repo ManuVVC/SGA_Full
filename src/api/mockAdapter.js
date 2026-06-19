@@ -38,21 +38,23 @@ mock.onPost('/auth/login').reply((config) => {
   }
 });
 
-// MOCK: GET /api/stock/ean/<ean>
-mock.onGet(/\/stock\/ean\/.+/).reply((config) => {
-  // Extraer el EAN de la URL
-  const ean = config.url.split('/').pop();
-  
+// MOCK: GET /api/stock/search
+mock.onGet('/stock/search').reply((config) => {
+  const params = config.params || {};
+  const searchType = params.type;
+  const q = params.q;
+
   // Verificar token en headers
   const authHeader = config.headers['Authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return [401, { message: 'Unauthorized' }];
   }
 
-  if (ean === '12345') {
+  // Simulamos que el query '12345' funciona para cualquier tipo en el mock
+  if (q === '12345') {
     return [200, {
       articulo_comercial: "12345",
-      nombre: "MOCK: DESCRIPCION DEL ARTICULO DE PRUEBA",
+      nombre: `MOCK (${searchType}): DESCRIPCION DEL ARTICULO`,
       ubicaciones: [
         { cod_ubicacion: "A-01", etiqueta: "P01-N1", lote: "L23", cantidad: 10 },
         { cod_ubicacion: "A-02", etiqueta: "P01-N2", lote: "L23", cantidad: 5 },
@@ -60,8 +62,8 @@ mock.onGet(/\/stock\/ean\/.+/).reply((config) => {
       ]
     }];
   } else {
-    // Si no es el EAN 12345, simulamos 404
-    return [404, { message: 'EAN NO ENCONTRADO o SIN STOCK' }];
+    // Si no es el query 12345, simulamos 404
+    return [404, { message: 'ARTICULO NO ENCONTRADO o SIN STOCK' }];
   }
 });
 

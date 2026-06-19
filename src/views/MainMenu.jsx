@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, ArrowLeftRight, Download, Package, ClipboardList, Wrench, LogOut } from 'lucide-react';
 import apiService from '../api/apiService';
 
+import TerminalHeader from '../components/TerminalHeader';
+
 export default function MainMenu() {
   const navigate = useNavigate();
-  const [terminal, setTerminal] = useState('12');
-  const [operador, setOperador] = useState(localStorage.getItem('sga_operador') || '');
-  const [operadorNombre, setOperadorNombre] = useState(localStorage.getItem('sga_operador_nombre') || localStorage.getItem('sga_operador') || '');
   const [terminalPerms, setTerminalPerms] = useState({});
 
   useEffect(() => {
@@ -15,8 +14,6 @@ export default function MainMenu() {
       try {
         const response = await apiService.get('/auth/terminal');
         if (response.status === 200 && response.data.terminal) {
-          // Si el backend devuelve CODTERMINAL numérico o string
-          setTerminal(response.data.terminal.CODTERMINAL || '12');
           setTerminalPerms(response.data.terminal.permisos || {});
         }
       } catch (err) {
@@ -43,27 +40,7 @@ export default function MainMenu() {
 
   return (
     <div className="flex flex-col flex-1 h-full bg-brand-light">
-      {/* HEADER */}
-      <div className="bg-brand-olive text-white flex justify-between items-center px-2 py-2 shrink-0">
-        <div className="flex items-center gap-2">
-          {/* Logo Placeholder */}
-          <div className="bg-white rounded px-1.5 py-0.5 flex items-center justify-center">
-            <span className="text-brand-red font-bold text-sm tracking-tight leading-none">Alifoods</span>
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="font-bold text-sm">MENÚ PRINCIPAL</span>
-            <span className="text-xs text-gray-200">{operadorNombre}</span>
-          </div>
-        </div>
-        <div className="flex flex-col items-end text-[10px] font-bold gap-0.5">
-          <div className="bg-[#8b8e3a] px-1.5 py-0.5 rounded shadow-sm">
-            TERM: {terminal}
-          </div>
-          <div className="bg-[#8b8e3a] px-1.5 py-0.5 rounded shadow-sm">
-            Oper: {operador}
-          </div>
-        </div>
-      </div>
+      <TerminalHeader title="MENÚ PRINCIPAL" />
 
       {/* MENU ITEMS */}
       <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">

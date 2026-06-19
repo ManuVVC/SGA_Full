@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react';
 import { validarUbicacion, validarArticulo, validarCantidad, grabarReubicacion } from '../api/reubicacionesService';
+import TerminalHeader from '../components/TerminalHeader';
+import SearchTypeToggle from '../components/SearchTypeToggle';
 
 export default function ReubicacionLibre() {
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ export default function ReubicacionLibre() {
   // Inputs controlados
   const [origenInput, setOrigenInput] = useState('');
   const [articuloInput, setArticuloInput] = useState('');
+  const [articuloSearchType, setArticuloSearchType] = useState('codfacturacion');
   const [cantidadInput, setCantidadInput] = useState('');
   const [destinoInput, setDestinoInput] = useState('');
 
@@ -95,7 +98,7 @@ export default function ReubicacionLibre() {
       setError(null);
       setLoading(true);
       try {
-        const res = await validarArticulo(articuloInput);
+        const res = await validarArticulo(articuloInput, articuloSearchType);
         if (res.status === 'success') {
           setArticuloData(res.articulo);
           setStep(3);
@@ -214,17 +217,17 @@ export default function ReubicacionLibre() {
   };
 
   return (
-    <div className="flex flex-col flex-1 h-full p-4">
-      {/* Header unificado */}
-      <div className="flex items-center gap-2 mb-6">
-         <button onClick={handleBack} className="p-2 bg-gray-200 rounded text-sga-dark">
-           <ArrowLeft className="w-6 h-6" />
-         </button>
-         <h2 className="text-xl font-bold text-sga-dark">Reubicación Libre</h2>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-4">
+    <div className="flex flex-col flex-1 h-full bg-brand-light">
+      <TerminalHeader title="REUBICACIÓN LIBRE" />
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+        
+        {/* Botón volver */}
+        <div className="flex items-center gap-2 mb-2">
+           <button onClick={handleBack} className="p-2 bg-white shadow rounded border border-gray-300 text-sga-dark">
+             <ArrowLeft className="w-6 h-6" />
+           </button>
+           <span className="font-bold text-sga-dark">Volver</span>
+        </div>
 
         {/* Mensajes Globales */}
         {error && (
@@ -269,8 +272,10 @@ export default function ReubicacionLibre() {
           <div className={`p-4 rounded shadow bg-white border-l-4 ${step === 2 ? 'border-sga-blue' : 'border-gray-300 opacity-60'}`}>
             <label className="block text-sm font-bold text-gray-700 mb-1">2. Artículo (EAN / Código)</label>
             {step === 2 ? (
-              <input 
-                ref={articuloRef}
+              <>
+                <SearchTypeToggle value={articuloSearchType} onChange={setArticuloSearchType} />
+                <input 
+                  ref={articuloRef}
                 type="text" 
                 className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
                 placeholder="Escanee artículo"
@@ -279,6 +284,7 @@ export default function ReubicacionLibre() {
                 onKeyDown={handleArticuloKeyDown}
                 disabled={loading}
               />
+              </>
             ) : (
               <div>
                 <div className="text-lg font-bold text-sga-dark">{articuloData?.CODARTICULO}</div>

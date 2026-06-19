@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Box } from 'lucide-react';
+import TerminalHeader from '../components/TerminalHeader';
 
 export default function StockResults() {
   const location = useLocation();
@@ -18,7 +19,9 @@ export default function StockResults() {
   if (!stockData) return null;
 
   return (
-    <div className="flex flex-col flex-1 h-full relative p-4 pb-20">
+    <div className="flex flex-col flex-1 h-full bg-brand-light">
+      <TerminalHeader title="RESULTADOS DE STOCK" />
+      <div className="flex flex-col flex-1 relative p-4 pb-20">
       <div className="bg-white p-4 rounded-lg shadow border-b-4 border-sga-primary mb-4 shrink-0">
         <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide">
           {stockData.articulo_comercial}
@@ -65,6 +68,7 @@ export default function StockResults() {
           <Box className="w-8 h-8" />
           Nueva Consulta
         </button>
+      </div>
       </div>
     </div>
   );
