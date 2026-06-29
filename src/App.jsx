@@ -10,6 +10,7 @@ import {
 } from './views/SubMenus';
 import ReubicacionLibre from './views/ReubicacionLibre';
 import ReubicacionEntrada from './views/ReubicacionEntrada';
+import EntradaMercancia from './views/EntradaMercancia';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function PrivateRoute({ children }) {
@@ -53,6 +54,7 @@ function App() {
                 <Route path="/reubicar/libre" element={<PrivateRoute><ReubicacionLibre /></PrivateRoute>} />
                 <Route path="/reubicar/entrada" element={<PrivateRoute><ReubicacionEntrada /></PrivateRoute>} />
                 <Route path="/entrada" element={<PrivateRoute><SubMenuEntrada /></PrivateRoute>} />
+                <Route path="/entrada/recepcion" element={<PrivateRoute><EntradaMercancia /></PrivateRoute>} />
                 <Route path="/inventario" element={<PrivateRoute><SubMenuInventario /></PrivateRoute>} />
                 <Route path="/devoluciones" element={<PrivateRoute><SubMenuDevoluciones /></PrivateRoute>} />
                 <Route path="/utilidades" element={<PrivateRoute><SubMenuUtilidades /></PrivateRoute>} />

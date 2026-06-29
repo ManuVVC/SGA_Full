@@ -9,7 +9,8 @@ import {
   PackageSearch, PackageOpen, 
   Undo2, Reply, 
   Info, QrCode, ScanBarcode, BoxSelect, Blocks,
-  RefreshCcw, Layers, Printer, BarChart2, SlidersHorizontal, Scissors
+  RefreshCcw, Layers, Printer, BarChart2, SlidersHorizontal, Scissors,
+  LogIn, PackagePlus
 } from 'lucide-react';
 
 export function SubMenuPrepara() {
@@ -40,12 +41,13 @@ export function SubMenuReubicar() {
 export function SubMenuEntrada() {
   const { hasPermission } = usePermissions();
   const items = [
-    { label: 'Entrada Mercan', icon: ArrowDownToLine, path: '', show: hasPermission('PRM_ENTRADADEMERCANCIAS') },
-    { label: 'Entrada xDock', icon: Inbox, path: '', show: false },
-    { label: 'Reparto xDock', icon: Truck, path: '', show: false },
-    { label: 'Fin Ent.Mercan', icon: CheckSquare, path: '', show: hasPermission('PRM_FINALIZARENTRADAMERCANCIA') },
+    { label: 'Entrada Mercan', icon: LogIn, path: '/entrada/recepcion', show: hasPermission('PRM_ENTRADADEMERCANCIAS') },
+    { label: 'Finalizar', icon: CheckSquare, path: '', show: true },
+    { label: 'Recepcion Inter.', icon: ArrowLeftRight, path: '', show: hasPermission('PRM_REC_MERCANCIA_INTERCOMPANY') },
+    { label: 'Ent. Devolucion', icon: Undo2, path: '', show: hasPermission('PRM_ENTRADADEVOLUCION') },
+    { label: 'Ent. Prod. Fabrica', icon: PackagePlus, path: '', show: hasPermission('PRM_ENTRADA_PROD_FABRICA') },
   ].filter(i => i.show);
-  return <SubMenuLayout title="ENTRADA MERC." items={items} />;
+  return <SubMenuLayout title="ENTRADAS" items={items} />;
 }
 
 export function SubMenuInventario() {
