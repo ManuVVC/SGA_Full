@@ -10,9 +10,9 @@ with app.app_context():
         conn = db.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT argument_name, data_type FROM all_arguments WHERE object_name = 'SPREU_REUBICARPALET'")
-        args = cursor.fetchall()
-        print("SPREU_REUBICARPALET args:", args)
+        cursor.execute("SELECT column_name FROM all_tab_columns WHERE table_name = 'TMST_ARTICULOS'")
+        cols = cursor.fetchall()
+        print("TMST_ARTICULOS cols:", [c[0] for c in cols])
         
     except Exception as e:
         print("Error:", e)

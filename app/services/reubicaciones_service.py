@@ -168,3 +168,82 @@ class ReubicacionesService:
                 
         except Exception as e:
             return {"status": "error", "message": f"Excepción en BD al grabar: {str(e)}"}
+
+    @staticmethod
+    def validar_palet(sscc: str):
+        """
+        Valida que un SSCC exista en TMST_PALETS y devuelve su info.
+        Elimina prefijos (00) o 00 de GS1-128.
+        """
+        clean_sscc = sscc.strip()
+        
+        # Eliminar posible identificador de simbología GS1-128
+        if clean_sscc.startswith("]C1"):
+            clean_sscc = clean_sscc[3:]
+
+        # Si empieza por (00) y le siguen 18 dígitos (total 22)
+        if clean_sscc.startswith("(00)") and len(clean_sscc) >= 22:
+            clean_sscc = clean_sscc[4:22]
+        # Si empieza por 00 y el total son 20 dígitos
+        elif clean_sscc.startswith("00") and len(clean_sscc) >= 20:
+            clean_sscc = clean_sscc[2:20]
+
+        palet = ReubicacionesRepository.get_palet_by_sscc(clean_sscc)
+        
+        if palet:
+            return {"status": "success", "palet": palet}
+            
+        # Fallback: intentar con el original por si acaso
+        if clean_sscc != sscc.strip():
+            palet_orig = ReubicacionesRepository.get_palet_by_sscc(sscc.strip())
+            if palet_orig:
+                return {"status": "success", "palet": palet_orig}
+
+        return {"status": "error", "message": "No se ha encontrado ningún palet con la matrícula indicada."}
+
+    @staticmethod
+    def grabar_reubicacion_palet(palet: dict, destino: dict, terminal: int, operador: int):
+        """
+        Orquesta la grabación de reubicación de entrada de mercancía (palet completo).
+        """
+        cod_palet = palet.get("CODPALET")
+        cod_ubicacion_destino = destino.get("CODUBICACION")
+        
+        if not cod_palet or not cod_ubicacion_destino or not terminal or not operador:
+            return {"status": "error", "message": "Faltan datos obligatorios para grabar la reubicación del palet."}
+            
+        tipo_dato_maestro_ori = palet.get("CODTIPODATOMAESTRO")
+        dato_maestro_ori = palet.get("CODDATOMAESTRO")
+
+        tipo_dato_maestro_loc_dest = destino.get("CODTIPODATOMAESTRO")
+        dato_maestro_loc_dest = destino.get("CODDATOMAESTRO")
+
+        # Control: Evitar mover mercancía de un propietario a la ubicación de otro
+        if tipo_dato_maestro_ori and dato_maestro_ori and tipo_dato_maestro_loc_dest and dato_maestro_loc_dest:
+            if tipo_dato_maestro_ori != tipo_dato_maestro_loc_dest or dato_maestro_ori != dato_maestro_loc_dest:
+                return {
+                    "status": "error", 
+                    "message": "No puede reubicar este palet en una ubicación reservada para otro propietario."
+                }
+
+        # Si el origen no los tiene, usamos los de la ubicación destino (si existen)
+        tipo_dato_maestro_dest = tipo_dato_maestro_ori if tipo_dato_maestro_ori else tipo_dato_maestro_loc_dest
+        dato_maestro_dest = dato_maestro_ori if dato_maestro_ori else dato_maestro_loc_dest
+
+        try:
+            ret_val = ReubicacionesRepository.grabar_reubicacion_palet(
+                cod_terminal=terminal,
+                cod_operador=operador,
+                cod_palet=cod_palet,
+                cod_ubicacion_destino=cod_ubicacion_destino,
+                tipo_dato_maestro_dest=tipo_dato_maestro_dest,
+                dato_maestro_dest=dato_maestro_dest
+            )
+            
+            if ret_val == 0:
+                return {"status": "success", "message": "Palet reubicado correctamente."}
+            else:
+                return {"status": "error", "message": f"Error al grabar reubicación del palet (código {ret_val})."}
+                
+        except Exception as e:
+            return {"status": "error", "message": f"Excepción en BD al grabar palet: {str(e)}"}

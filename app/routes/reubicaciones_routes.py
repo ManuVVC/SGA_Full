@@ -126,3 +126,49 @@ def grabar_reubicacion():
         return jsonify(result), 200
     else:
         return jsonify(result), 400
+
+@reubicaciones_bp.route("/validar-palet", methods=["POST"])
+@token_required
+def validar_palet():
+    data = request.get_json() or {}
+    sscc = data.get("sscc")
+
+    if not sscc:
+        return jsonify({"status": "error", "message": "Debe proporcionar una matrícula (SSCC)."}), 400
+
+    result = ReubicacionesService.validar_palet(str(sscc))
+    
+    if result["status"] == "success":
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 404
+
+@reubicaciones_bp.route("/grabar-palet", methods=["POST"])
+@token_required
+def grabar_reubicacion_palet():
+    data = request.get_json() or {}
+    palet = data.get("palet")
+    destino = data.get("destino")
+
+    if not all([palet, destino]):
+        return jsonify({"status": "error", "message": "Faltan datos en la petición (palet o destino)."}), 400
+
+    # Obtener info del contexto
+    operador_info = g.get("operador", {})
+    cod_operador = operador_info.get("cod_operador")
+    cod_terminal = operador_info.get("terminal")
+
+    if not cod_operador or not cod_terminal:
+        return jsonify({"status": "error", "message": "Falta información del operador o terminal en el token."}), 401
+
+    result = ReubicacionesService.grabar_reubicacion_palet(
+        palet=palet, 
+        destino=destino, 
+        terminal=cod_terminal,
+        operador=cod_operador
+    )
+    
+    if result["status"] == "success":
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 400

@@ -336,3 +336,92 @@ class ReubicacionesRepository:
                 cursor.close()
             if 'conn' in locals():
                 conn.close()
+
+    @staticmethod
+    def get_palet_by_sscc(sscc: str):
+        """
+        Busca la información de un palet por su matrícula (SSCC).
+        """
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT P.CODPALET, P.SSCC, P.CODARTICULO, A.NOMBREARTICULO, P.UNIDADES, 
+                       P.CODNUMEROLOTE, NLP.NUMEROLOTE, P.FECHACADUCIDAD, 
+                       P.CODTIPODATOMAESTRO, P.CODDATOMAESTRO
+                FROM GSM.TMST_PALETS P
+                JOIN GSM.TMST_ARTICULOS A ON P.CODARTICULO = A.CODARTICULO
+                LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES NLP ON P.CODNUMEROLOTE = NLP.CODNUMEROLOTE
+                WHERE P.SSCC = :1
+            """
+            cursor.execute(query, [sscc])
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "CODPALET": row[0],
+                    "SSCC": row[1],
+                    "CODARTICULO": row[2],
+                    "DESCRIPCION": row[3],
+                    "UNIDADES": row[4],
+                    "CODNUMEROLOTE": row[5],
+                    "NUMEROLOTE": row[6],
+                    "FECHACADUCIDAD": row[7].strftime('%Y-%m-%d') if row[7] else None,
+                    "CODTIPODATOMAESTRO": row[8],
+                    "CODDATOMAESTRO": row[9]
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error al buscar palet por SSCC {sscc}: {e}")
+            raise
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+
+    @staticmethod
+    def grabar_reubicacion_palet(cod_terminal: int, cod_operador: int, cod_palet: int, 
+                                 cod_ubicacion_destino: int, tipo_dato_maestro_dest: int = None, 
+                                 dato_maestro_dest: int = None):
+        """
+        Llama al procedimiento SPREU_REUBICARPALET de la base de datos.
+        """
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            
+            query = '''
+            BEGIN
+                :ret := SPREU_REUBICARPALET(
+                    p_CodTerminal => :p_CodTerminal,
+                    p_CodPalet => :p_CodPalet,
+                    p_CodUbicacionDestino => :p_CodUbicacionDestino,
+                    p_CodOperador => :p_CodOperador,
+                    p_CodConceptoEstadistico => 1,
+                    p_CodTipoDatoMaestroDest => :p_CodTipoDatoMaestroDest,
+                    p_CodDatoMaestroDest => :p_CodDatoMaestroDest
+                );
+            END;
+            '''
+            ret_val = cursor.var(int)
+            
+            cursor.execute(query, {
+                'ret': ret_val,
+                'p_CodTerminal': cod_terminal,
+                'p_CodPalet': cod_palet,
+                'p_CodUbicacionDestino': cod_ubicacion_destino,
+                'p_CodOperador': cod_operador,
+                'p_CodTipoDatoMaestroDest': tipo_dato_maestro_dest,
+                'p_CodDatoMaestroDest': dato_maestro_dest
+            })
+            
+            conn.commit()
+            return ret_val.getvalue()
+        except Exception as e:
+            logger.error(f"Error al grabar reubicación de palet: {e}")
+            raise
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
