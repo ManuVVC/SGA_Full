@@ -124,6 +124,26 @@ class ReubicacionesService:
         cod_numero_lote = lote.get("CODNUMEROLOTE") if lote else None
         fecha_caducidad = lote.get("FECHACADUCIDAD") if lote else None
             
+        # Obtenemos el master data del stock origen
+        stock_md = ReubicacionesRepository.get_stock_master_data(cod_ubicacion_origen, cod_articulo, cod_numero_lote)
+        tipo_dato_maestro_ori = stock_md.get("CODTIPODATOMAESTRO") if stock_md else None
+        dato_maestro_ori = stock_md.get("CODDATOMAESTRO") if stock_md else None
+
+        tipo_dato_maestro_loc_dest = destino.get("CODTIPODATOMAESTRO")
+        dato_maestro_loc_dest = destino.get("CODDATOMAESTRO")
+
+        # Control: Evitar mover mercancía de un propietario a la ubicación de otro
+        if tipo_dato_maestro_ori and dato_maestro_ori and tipo_dato_maestro_loc_dest and dato_maestro_loc_dest:
+            if tipo_dato_maestro_ori != tipo_dato_maestro_loc_dest or dato_maestro_ori != dato_maestro_loc_dest:
+                return {
+                    "status": "error", 
+                    "message": "No puede reubicar mercancía de este propietario en una ubicación reservada para otro propietario."
+                }
+
+        # Si el origen no los tiene, usamos los de la ubicación destino (si existen)
+        tipo_dato_maestro_dest = tipo_dato_maestro_ori if tipo_dato_maestro_ori else tipo_dato_maestro_loc_dest
+        dato_maestro_dest = dato_maestro_ori if dato_maestro_ori else dato_maestro_loc_dest
+
         # Ejecutar procedimiento
         try:
             ret_val = ReubicacionesRepository.grabar_reubicacion(
@@ -134,7 +154,11 @@ class ReubicacionesService:
                 cantidad=cantidad,
                 cod_ubicacion_destino=cod_ubicacion_destino,
                 cod_numero_lote=cod_numero_lote,
-                fecha_caducidad=fecha_caducidad
+                fecha_caducidad=fecha_caducidad,
+                tipo_dato_maestro_ori=tipo_dato_maestro_ori,
+                dato_maestro_ori=dato_maestro_ori,
+                tipo_dato_maestro_dest=tipo_dato_maestro_dest,
+                dato_maestro_dest=dato_maestro_dest
             )
             
             if ret_val == 0:

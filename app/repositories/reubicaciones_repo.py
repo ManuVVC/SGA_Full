@@ -14,7 +14,7 @@ class ReubicacionesRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT U.CODUBICACION, U.NOMBRECORTO, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0)
+                SELECT U.CODUBICACION, U.NOMBRECORTO, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO
                 FROM GSM.VMST_UBICACIONES U
                 LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
                 WHERE U.CODUBICACION = :1
@@ -26,7 +26,9 @@ class ReubicacionesRepository:
                     "CODUBICACION": row[0],
                     "UBICACION": row[1],
                     "PRM_TRAZABILIDAD": row[2],
-                    "PRM_CADUCIDAD": row[3]
+                    "PRM_CADUCIDAD": row[3],
+                    "CODTIPODATOMAESTRO": row[4],
+                    "CODDATOMAESTRO": row[5]
                 }
             return None
         except Exception as e:
@@ -59,7 +61,7 @@ class ReubicacionesRepository:
             for hueco in huecos:
                 cod_hueco = hueco[0]
                 query_ubic = """
-                    SELECT U.CODUBICACION, U.NOMBRECORTO, U.POSICION, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0)
+                    SELECT U.CODUBICACION, U.NOMBRECORTO, U.POSICION, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO
                     FROM GSM.VMST_UBICACIONES U
                     LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
                     WHERE U.CODHUECO = :1
@@ -72,7 +74,9 @@ class ReubicacionesRepository:
                         "UBICACION": ub[1],
                         "POSICION": ub[2],
                         "PRM_TRAZABILIDAD": ub[3],
-                        "PRM_CADUCIDAD": ub[4]
+                        "PRM_CADUCIDAD": ub[4],
+                        "CODTIPODATOMAESTRO": ub[5],
+                        "CODDATOMAESTRO": ub[6]
                     })
                     
             return resultados
@@ -243,9 +247,39 @@ class ReubicacionesRepository:
                 conn.close()
 
     @staticmethod
+    def get_stock_master_data(cod_ubicacion: int, cod_articulo: int, cod_numero_lote: int = None):
+        """
+        Obtiene el tipo de dato maestro y dato maestro del stock de la ubicación.
+        """
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            if cod_numero_lote:
+                query = "SELECT MAX(CODTIPODATOMAESTRO), MAX(CODDATOMAESTRO) FROM TMST_UBICACIONESARTICULO WHERE CODUBICACION = :1 AND CODARTICULO = :2 AND CODNUMEROLOTE = :3"
+                cursor.execute(query, [cod_ubicacion, cod_articulo, cod_numero_lote])
+            else:
+                query = "SELECT MAX(CODTIPODATOMAESTRO), MAX(CODDATOMAESTRO) FROM TMST_UBICACIONESARTICULO WHERE CODUBICACION = :1 AND CODARTICULO = :2"
+                cursor.execute(query, [cod_ubicacion, cod_articulo])
+                
+            row = cursor.fetchone()
+            if row:
+                return {"CODTIPODATOMAESTRO": row[0], "CODDATOMAESTRO": row[1]}
+            return None
+        except Exception as e:
+            logger.error(f"Error al obtener master data del stock: {e}")
+            return None
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+
+    @staticmethod
     def grabar_reubicacion(cod_terminal: int, cod_operador: int, cod_ubicacion_origen: int, 
                            cod_articulo: int, cantidad: int, cod_ubicacion_destino: int,
-                           cod_numero_lote: int = None, fecha_caducidad = None):
+                           cod_numero_lote: int = None, fecha_caducidad = None,
+                           tipo_dato_maestro_ori: int = None, dato_maestro_ori: int = None,
+                           tipo_dato_maestro_dest: int = None, dato_maestro_dest: int = None):
         """
         Llama al procedimiento SPREU_REUBICARUBICARTICULO de la base de datos.
         """
@@ -264,7 +298,12 @@ class ReubicacionesRepository:
                     p_CodUbicacionDestino => :p_CodUbicacionDestino,
                     p_CodOperador => :p_CodOperador,
                     p_CodNumeroLote => :p_CodNumeroLote,
-                    p_FechaCaducidad => TO_DATE(:p_FechaCaducidad, 'YYYY-MM-DD')
+                    p_FechaCaducidad => TO_DATE(:p_FechaCaducidad, 'YYYY-MM-DD'),
+                    p_CodConceptoEstadistico => 1,
+                    p_CodTipoDatoMaestroOri => :p_CodTipoDatoMaestroOri,
+                    p_CodDatoMaestroOri => :p_CodDatoMaestroOri,
+                    p_CodTipoDatoMaestroDest => :p_CodTipoDatoMaestroDest,
+                    p_CodDatoMaestroDest => :p_CodDatoMaestroDest
                 );
             END;
             '''
@@ -280,7 +319,11 @@ class ReubicacionesRepository:
                 'p_CodUbicacionDestino': cod_ubicacion_destino,
                 'p_CodOperador': cod_operador,
                 'p_CodNumeroLote': cod_numero_lote,
-                'p_FechaCaducidad': fecha_caducidad
+                'p_FechaCaducidad': fecha_caducidad,
+                'p_CodTipoDatoMaestroOri': tipo_dato_maestro_ori,
+                'p_CodDatoMaestroOri': dato_maestro_ori,
+                'p_CodTipoDatoMaestroDest': tipo_dato_maestro_dest,
+                'p_CodDatoMaestroDest': dato_maestro_dest
             })
             
             conn.commit()
