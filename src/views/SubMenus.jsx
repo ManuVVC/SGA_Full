@@ -31,7 +31,7 @@ export function SubMenuReubicar() {
   const items = [
     { label: 'Reubicar', icon: ArrowLeftRight, path: '/reubicar/libre', show: hasPermission('PRM_REUBICAR') },
     { label: 'Reub. Guiado', icon: MapPin, path: '', show: hasPermission('PRM_PUEDEHACERREUBICGUIADA') },
-    { label: 'Reub. Ent.Merc', icon: Download, path: '', show: hasPermission('PRM_REUBICAR') },
+    { label: 'Reub. Ent.Merc', icon: Download, path: '/reubicar/entrada', show: hasPermission('PRM_REUBICAR') },
     { label: 'Reub. Masivas', icon: Blocks, path: '', show: hasPermission('PRM_REUBICACIONESMASIVAS') },
   ].filter(i => i.show);
   return <SubMenuLayout title="REUBICAR" items={items} />;

@@ -53,3 +53,16 @@ export const grabarReubicacion = async (origen, destino, articulo, cantidad, lot
   const response = await apiService.post('/reubicaciones/grabar', payload);
   return response.data;
 };
+
+export const validarPalet = async (sscc) => {
+  const response = await apiService.post('/reubicaciones/validar-palet', { sscc });
+  return response.data;
+};
+
+export const grabarReubicacionPalet = async (palet, destino) => {
+  const response = await apiService.post('/reubicaciones/grabar-palet', {
+    palet,
+    destino
+  });
+  return response.data;
+};
