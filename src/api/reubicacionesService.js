@@ -36,14 +36,14 @@ export const obtenerLotesDisponibles = async (codUbicacion, codArticulo) => {
 };
 
 export const grabarReubicacion = async (origen, destino, articulo, cantidad, lote = null) => {
-  // Cantidad negativa
-  const cantidadNegativa = -Math.abs(cantidad);
+  // Asegurarnos de mandar la cantidad en positivo
+  const cantidadReal = Math.abs(cantidad);
   
   const payload = {
     origen,
     destino,
     articulo,
-    cantidad: cantidadNegativa
+    cantidad: cantidadReal
   };
 
   if (lote) {
