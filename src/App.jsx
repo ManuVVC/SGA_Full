@@ -38,9 +38,9 @@ function App() {
   return (
     <Router>
       <GlobalAuthListener>
-        <div className="w-screen h-screen flex flex-col bg-sga-light text-sga-dark">
+        <div className="fixed inset-0 flex flex-col bg-sga-light text-sga-dark overflow-hidden">
           {/* Contenido principal scrolleable (sin padding global para permitir fondos completos) */}
-          <main className="flex-1 overflow-y-auto flex flex-col">
+          <main className="flex-1 overflow-y-auto flex flex-col relative">
             <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<Login />} />

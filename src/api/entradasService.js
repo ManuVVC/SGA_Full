@@ -1,5 +1,10 @@
 import apiClient from './apiService';
 
+export const getParametros = async () => {
+  const response = await apiClient.get('/entradas/parametros');
+  return response.data;
+};
+
 export const getMuelles = async () => {
   const response = await apiClient.get('/entradas/muelles');
   return response.data;

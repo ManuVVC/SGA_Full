@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, AlertTriangle, Truck, Search, PlusCircle, Save, XCircle, FileText } from 'lucide-react';
-import { getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes } from '../api/entradasService';
+import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes } from '../api/entradasService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
 
@@ -16,6 +16,7 @@ export default function EntradaMercancia() {
   const [success, setSuccess] = useState(null);
 
   // Datos globales
+  const [parametros, setParametros] = useState({});
   const [muelles, setMuelles] = useState([]);
   const [albaranesCurso, setAlbaranesCurso] = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -29,6 +30,10 @@ export default function EntradaMercancia() {
   // Albaran
   const [numAlbaran, setNumAlbaran] = useState('');
   const [codDocumento, setCodDocumento] = useState(null); // Documento de entrada creado
+  const [numPedidoAsociado, setNumPedidoAsociado] = useState(null);
+  const [fechaAlbaran, setFechaAlbaran] = useState('');
+  const [fechaRecepcion, setFechaRecepcion] = useState('');
+  const [numExpedicion, setNumExpedicion] = useState('');
 
   // Linea (paso 4)
   const [ean, setEan] = useState('');
@@ -49,20 +54,24 @@ export default function EntradaMercancia() {
   const unidadesRef = useRef(null);
 
   useEffect(() => {
-    cargarMuelles();
+    cargarParametrosYMuelles();
   }, []);
 
-  const cargarMuelles = async () => {
+  const cargarParametrosYMuelles = async () => {
     setLoading(true);
     try {
-      const res = await getMuelles();
-      setMuelles(res.muelles || []);
-      if (res.muelles?.length === 1) {
-        setSelectedMuelle(res.muelles[0]);
-        cargarAlbaranesEnCurso(res.muelles[0].CODMUELLE);
+      const pRes = await getParametros();
+      const params = pRes.parametros || {};
+      setParametros(params);
+
+      const mRes = await getMuelles();
+      setMuelles(mRes.muelles || []);
+
+      if (params['1745'] === '0') {
+        cargarAlbaranesEnCurso(0);
       }
     } catch (err) {
-      setError('Error al cargar muelles');
+      setError('Error inicializando datos');
     } finally {
       setLoading(false);
     }
@@ -123,55 +132,44 @@ export default function EntradaMercancia() {
 
   const handleAlbaranCursoSelect = (alb) => {
     setCodDocumento(alb.CODDOCUMENTO);
-    setNumAlbaran(alb.NUMDOCUMENTOENTRADA);
+    setNumAlbaran(alb.NUMDOCUMENTO);
+    setNumPedidoAsociado(alb.NUMPEDIDO || null);
     setSelectedProveedor({ RAZONSOCIAL: alb.RAZONSOCIAL });
     setStep(5);
     setTimeout(() => eanRef.current?.focus(), 100);
   };
 
   const handleProveedorSelect = (p) => {
-    setSelectedProveedor(p);
-    cargarPedidos(p.CODPROVEEDOR);
-  };
-
-  const handlePedidoSelect = (pedidoId) => {
-    setSelectedPedido(pedidoId);
+    setSelectedProveedor({ CODPROVEEDOR: p.CODPROVEEDOR, RAZONSOCIAL: p.RAZONSOCIAL });
+    setSelectedPedido(p.CODDOCUMENTO);
+    setNumPedidoAsociado(p.NUMDOCUMENTO);
     setStep(4);
     setTimeout(() => albaranRef.current?.focus(), 100);
   };
 
   const handleSinPedido = () => {
+    setSelectedProveedor(null);
     setSelectedPedido(null);
+    setNumPedidoAsociado(null);
     setStep(4);
     setTimeout(() => albaranRef.current?.focus(), 100);
   };
 
+
+
   const handleCrearAlbaran = async () => {
+    setError(null);
     if (!numAlbaran.trim()) {
       setError("Introduzca número de albarán");
       return;
     }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await crearAlbaran({
-        NUMALBARAN: numAlbaran,
-        CODPROVEEDOR: selectedProveedor.CODPROVEEDOR,
-        CODMUELLE: selectedMuelle.CODMUELLE,
-        CODPEDIDO: selectedPedido
-      });
-      if (res.status === 'success') {
-        setCodDocumento(res.coddocumento);
-        setStep(5);
-        setTimeout(() => eanRef.current?.focus(), 100);
-      } else {
-        setError(res.message);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Error al generar albarán');
-    } finally {
-      setLoading(false);
+    if (parametros['1745'] === '0' && !selectedMuelle) {
+      setError("Seleccione un muelle para el albarán");
+      return;
     }
+    // Diferimos la creación del albarán hasta la lectura de la primera línea.
+    setStep(5);
+    setTimeout(() => eanRef.current?.focus(), 100);
   };
 
   const handleGrabarLinea = async () => {
@@ -182,14 +180,31 @@ export default function EntradaMercancia() {
     setLoading(true);
     setError(null);
     try {
-      const res = await grabarLineaEntrada({
-        CODDOCUMENTO: codDocumento,
+      const payload = {
         EAN: ean,
         UNIDADES: parseInt(unidades, 10),
         NUMEROLOTE: lote || null,
         FECHACADUCIDAD: caducidad || null
-      });
+      };
+
+      if (codDocumento) {
+        payload.CODDOCUMENTO = codDocumento;
+      } else {
+        // Enviar cabecera junto a la primera línea
+        payload.NUMALBARAN = numAlbaran;
+        payload.CODPROVEEDOR = selectedProveedor?.CODPROVEEDOR;
+        payload.CODMUELLE = selectedMuelle?.CODMUELLE;
+        payload.CODPEDIDO = selectedPedido;
+        payload.FECHADOCUMENTO = fechaAlbaran || null;
+        payload.FECHARECEPCION = fechaRecepcion || null;
+        payload.NUMEXPEDICION = numExpedicion || null;
+      }
+
+      const res = await grabarLineaEntrada(payload);
       if (res.status === 'success') {
+        if (!codDocumento && res.coddocumento) {
+          setCodDocumento(res.coddocumento);
+        }
         setSuccess('Línea grabada.');
         setEan('');
         setUnidades('');
@@ -288,17 +303,25 @@ export default function EntradaMercancia() {
         // Vuelve a albaranes en curso
         setCodDocumento(null);
         setEan('');
-        cargarAlbaranesEnCurso(selectedMuelle.CODMUELLE);
+        cargarAlbaranesEnCurso(selectedMuelle?.CODMUELLE || 0);
       } else if (step === 4) {
         setStep(3);
       } else if (step === 3) {
         if (albaranesCurso.length > 0) {
           setStep(2);
         } else {
-          setStep(1);
+          if (parametros['1745'] === '0') {
+            navigate(-1);
+          } else {
+            setStep(1);
+          }
         }
       } else if (step === 2) {
-        setStep(1);
+        if (parametros['1745'] === '0') {
+          navigate(-1);
+        } else {
+          setStep(1);
+        }
       }
       setError(null);
       setSuccess(null);
@@ -310,7 +333,7 @@ export default function EntradaMercancia() {
   return (
     <div className="flex flex-col flex-1 h-full bg-brand-light relative">
       <TerminalHeader title="ENTRADA MERCANCÍA" />
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-24">
         <div className="flex justify-start mb-2">
           <button onClick={goBack} className="p-2 bg-white shadow rounded border border-gray-300 text-sga-dark flex items-center gap-2">
             <ArrowLeft className="w-6 h-6" /> <span className="font-bold">Volver</span>
@@ -328,13 +351,13 @@ export default function EntradaMercancia() {
         )}
         {loading && (
           <div className="flex justify-center p-2">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sga-blue"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sga-primary"></div>
           </div>
         )}
 
         {/* STEP 1: Muelle */}
         {step === 1 && (
-          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-blue">
+          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-primary">
             <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-gray-800">
               <Truck size={24}/> Seleccione Muelle
             </h2>
@@ -343,7 +366,7 @@ export default function EntradaMercancia() {
                 <button 
                   key={m.CODMUELLE} 
                   onClick={() => handleMuelleSelect(m)}
-                  className="p-4 bg-gray-50 border border-gray-200 rounded text-left font-bold text-lg hover:bg-sga-blue hover:text-white transition-colors"
+                  className="p-4 bg-gray-50 border border-gray-200 rounded text-left font-bold text-lg hover:bg-sga-primary hover:text-white transition-colors"
                 >
                   {m.DESCRIPCION}
                 </button>
@@ -357,7 +380,7 @@ export default function EntradaMercancia() {
 
         {/* STEP 2: Albaranes en curso */}
         {step === 2 && (
-          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-blue h-full flex flex-col relative">
+          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-primary h-full flex flex-col relative">
             <h2 className="text-lg font-bold mb-3 flex items-center gap-2 text-gray-800">
               <FileText size={24}/> Albaranes en Curso ({selectedMuelle?.DESCRIPCION})
             </h2>
@@ -366,11 +389,11 @@ export default function EntradaMercancia() {
                 <button 
                   key={alb.CODDOCUMENTO} 
                   onClick={() => handleAlbaranCursoSelect(alb)}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded text-left hover:bg-sga-blue hover:text-white transition-colors flex flex-col gap-1"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded text-left hover:bg-sga-primary hover:text-white transition-colors flex flex-col gap-1"
                 >
                   <div className="font-bold text-lg">{alb.RAZONSOCIAL}</div>
                   <div className="text-sm font-semibold flex justify-between">
-                    <span>Alb: {alb.NUMDOCUMENTOENTRADA}</span>
+                    <span>Alb: {alb.NUMDOCUMENTO}</span>
                     <span>{alb.FECHADOCUMENTO}</span>
                   </div>
                 </button>
@@ -380,90 +403,129 @@ export default function EntradaMercancia() {
             {/* Botón flotante para nueva entrada */}
             <button 
               onClick={handleNuevaEntrada}
-              className="absolute bottom-4 right-4 bg-sga-blue text-white rounded-full p-4 shadow-lg hover:bg-blue-800 transition-colors flex items-center justify-center"
+              className="absolute bottom-6 right-6 bg-sga-primary text-white rounded-full p-5 shadow-2xl hover:bg-blue-800 transition-colors flex items-center justify-center border-4 border-white"
             >
-              <PlusCircle size={32} />
+              <PlusCircle size={40} strokeWidth={3} />
             </button>
           </div>
         )}
 
-        {/* STEP 3: Proveedor y Pedido (Nueva Entrada) */}
+        {/* STEP 3: Pedidos Pendientes (Nueva Entrada) */}
         {step === 3 && (
-          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-blue">
-            {!selectedProveedor ? (
-              <>
-                <h2 className="text-lg font-bold mb-3 text-gray-800">Proveedores con Pedidos (Est.14)</h2>
-                <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
-                  {proveedores.map(p => (
-                    <button 
-                      key={p.CODPROVEEDOR} 
-                      onClick={() => handleProveedorSelect(p)}
-                      className="p-3 bg-gray-50 border border-gray-200 rounded text-left font-semibold hover:bg-sga-blue hover:text-white transition-colors"
-                    >
-                      {p.RAZONSOCIAL}
-                    </button>
-                  ))}
-                  {proveedores.length === 0 && !loading && (
-                    <p className="text-gray-500 italic">No hay pedidos pendientes de recepcionar.</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-bold text-gray-800">{selectedProveedor.RAZONSOCIAL}</h2>
-                  <button onClick={() => setSelectedProveedor(null)} className="p-2 text-red-600 hover:bg-red-50 rounded">
-                    <XCircle size={24}/>
-                  </button>
-                </div>
-                
-                <h3 className="font-semibold text-gray-600 mb-2">Seleccione Pedido:</h3>
-                <div className="flex flex-col gap-2 mb-4 max-h-64 overflow-y-auto">
-                  {pedidos.map(ped => (
-                    <button 
-                      key={ped.CODDOCUMENTO} 
-                      onClick={() => handlePedidoSelect(ped.CODDOCUMENTO)}
-                      className="p-3 bg-indigo-50 border border-indigo-200 rounded text-left font-bold text-indigo-900 hover:bg-indigo-600 hover:text-white transition-colors"
-                    >
-                      Pedido: {ped.NUMDOCUMENTO} <span className="text-sm font-normal block">{ped.FECHADOCUMENTO}</span>
-                    </button>
-                  ))}
-                </div>
-                
+          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-primary">
+            <h2 className="text-lg font-bold mb-3 text-gray-800">Pedidos Pendientes</h2>
+            <div className="flex flex-col gap-2 max-h-96 overflow-y-auto mb-4">
+              {proveedores.map(p => (
                 <button 
-                  onClick={handleSinPedido}
-                  className="w-full p-4 bg-gray-200 border-2 border-dashed border-gray-400 rounded font-bold text-gray-700 flex items-center justify-center gap-2 hover:bg-gray-300"
+                  key={p.CODDOCUMENTO} 
+                  onClick={() => handleProveedorSelect(p)}
+                  className="p-3 bg-gray-50 border border-gray-200 rounded text-left hover:bg-sga-primary hover:text-white transition-colors"
                 >
-                  <PlusCircle size={20}/> Entrada Sin Pedido
+                  <div className="font-bold text-lg">{p.RAZONSOCIAL}</div>
+                  <div className="text-sm font-semibold flex justify-between">
+                    <span>Pedido: {p.NUMDOCUMENTO}</span>
+                    <span>{p.FECHADOCUMENTO}</span>
+                  </div>
                 </button>
-              </>
-            )}
+              ))}
+              {proveedores.length === 0 && !loading && (
+                <p className="text-gray-500 italic">No hay pedidos pendientes de recepcionar.</p>
+              )}
+            </div>
+            
+            <button 
+              onClick={handleSinPedido}
+              className="w-full p-4 bg-gray-200 border-2 border-dashed border-gray-400 rounded font-bold text-gray-700 flex items-center justify-center gap-2 hover:bg-gray-300"
+            >
+              <PlusCircle size={20}/> Entrada Sin Pedido
+            </button>
           </div>
         )}
 
         {/* STEP 4: Albarán */}
         {step === 4 && (
-          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-blue">
-            <h2 className="text-lg font-bold mb-3 text-gray-800">Número de Albarán</h2>
+          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-primary">
+            <h2 className="text-lg font-bold mb-3 text-gray-800">Datos de Cabecera</h2>
             <div className="bg-gray-50 p-3 rounded mb-4 text-sm font-semibold text-gray-600">
               <div>Prov: {selectedProveedor?.RAZONSOCIAL}</div>
-              <div>Muelle: {selectedMuelle?.DESCRIPCION}</div>
+              {parametros['1745'] !== '0' && <div>Muelle: {selectedMuelle?.DESCRIPCION}</div>}
               <div>Pedido: {selectedPedido ? `ID ${selectedPedido}` : 'Sin Pedido'}</div>
             </div>
             
-            <input 
-              ref={albaranRef}
-              type="text" 
-              inputMode={isKeyboardOpen ? "text" : "none"}
-              className="w-full border-2 border-gray-300 p-3 rounded text-xl focus:border-sga-blue focus:outline-none uppercase font-bold"
-              placeholder="Escriba Albarán..."
-              value={numAlbaran}
-              onChange={(e) => setNumAlbaran(e.target.value.toUpperCase())}
-              onKeyDown={(e) => { if(e.key==='Enter') handleCrearAlbaran() }}
-            />
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">Número de Albarán *</label>
+                <input 
+                  ref={albaranRef}
+                  type="text" 
+                  inputMode={isKeyboardOpen ? "text" : "none"}
+                  className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none uppercase"
+                  placeholder="Escriba Albarán..."
+                  value={numAlbaran}
+                  onChange={(e) => setNumAlbaran(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if(e.key==='Enter') handleCrearAlbaran() }}
+                />
+              </div>
+
+              {parametros['1745'] === '0' && (
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Muelle *</label>
+                  <select 
+                    className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none bg-white"
+                    value={selectedMuelle?.CODMUELLE || ''}
+                    onChange={e => {
+                      const mu = muelles.find(m => m.CODMUELLE === parseInt(e.target.value));
+                      setSelectedMuelle(mu || null);
+                    }}
+                  >
+                    <option value="">Seleccione Muelle...</option>
+                    {muelles.map(m => (
+                      <option key={m.CODMUELLE} value={m.CODMUELLE}>{m.DESCRIPCION}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {parametros['1687'] !== '0' && (
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Fecha Albarán</label>
+                  <input 
+                    type="date" 
+                    className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none"
+                    value={fechaAlbaran}
+                    onChange={e => setFechaAlbaran(e.target.value)}
+                  />
+                </div>
+              )}
+              
+              {parametros['1693'] !== '0' && (
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Fecha Recepción</label>
+                  <input 
+                    type="date" 
+                    className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none"
+                    value={fechaRecepcion}
+                    onChange={e => setFechaRecepcion(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {parametros['1702'] !== '0' && (
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Núm Expedición</label>
+                  <input 
+                    type="text" 
+                    className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none uppercase"
+                    value={numExpedicion}
+                    onChange={e => setNumExpedicion(e.target.value.toUpperCase())}
+                  />
+                </div>
+              )}
+            </div>
+
             <button 
               onClick={handleCrearAlbaran}
-              className="mt-4 w-full p-3 bg-sga-blue text-white rounded font-bold text-lg"
+              className="mt-4 w-full p-3 bg-sga-primary text-white rounded font-bold text-lg"
               disabled={loading}
             >
               Confirmar e Iniciar
@@ -476,7 +538,11 @@ export default function EntradaMercancia() {
           <div className="bg-white p-4 rounded shadow border-l-4 border-green-500">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <span className="font-bold text-gray-700">Alb: {numAlbaran}</span>
-              <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">Doc: {codDocumento}</span>
+              {numPedidoAsociado ? (
+                <span className="text-sm bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-bold">Ped: {numPedidoAsociado}</span>
+              ) : (
+                <span className="text-sm bg-gray-100 text-gray-800 px-2 py-1 rounded font-bold">Doc: {codDocumento}</span>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -486,7 +552,7 @@ export default function EntradaMercancia() {
                   ref={eanRef}
                   type="text" 
                   inputMode={isKeyboardOpen ? "text" : "none"}
-                  className="w-full border border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
+                  className="w-full border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
                   value={ean}
                   onChange={(e) => setEan(e.target.value)}
                   onKeyDown={(e) => { if (e.key==='Enter' && ean) unidadesRef.current?.focus() }}
@@ -499,7 +565,7 @@ export default function EntradaMercancia() {
                   ref={unidadesRef}
                   type="number"
                   inputMode="numeric"
-                  className="w-full border border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
+                  className="w-full border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
                   value={unidades}
                   onChange={(e) => setUnidades(e.target.value)}
                 />
@@ -511,7 +577,7 @@ export default function EntradaMercancia() {
                   <input 
                     type="text" 
                     inputMode={isKeyboardOpen ? "text" : "none"}
-                    className="w-full border border-gray-300 p-2 rounded focus:border-sga-blue uppercase"
+                    className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary uppercase"
                     value={lote}
                     onChange={(e) => setLote(e.target.value.toUpperCase())}
                   />
@@ -520,7 +586,7 @@ export default function EntradaMercancia() {
                   <label className="block text-sm font-bold text-gray-700 mb-1">Caducidad (Opcional)</label>
                   <input 
                     type="date" 
-                    className="w-full border border-gray-300 p-2 rounded focus:border-sga-blue"
+                    className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary"
                     value={caducidad}
                     onChange={(e) => setCaducidad(e.target.value)}
                   />
@@ -576,7 +642,7 @@ export default function EntradaMercancia() {
                       <div className="font-bold text-gray-800">{l.NOMBREARTICULO}</div>
                       <div className="flex justify-between text-sm mt-1">
                         <span className="text-gray-600">Cód: {l.CODARTICULOAPLICACION}</span>
-                        <span className="font-semibold text-sga-blue">Ped: {l.CANTSOLICITADA} | Rec: {l.CANTSERVIDA}</span>
+                        <span className="font-semibold text-sga-primary">Ped: {l.CANTSOLICITADA} | Rec: {l.CANTSERVIDA}</span>
                       </div>
                     </button>
                   ))
