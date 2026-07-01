@@ -51,13 +51,12 @@ class EntradasService:
 
         if not ean or not unidades:
             return {"status": "error", "message": "EAN y Unidades son obligatorios."}
-        
-        # Obtener el articulo
-        articulo = StockRepository.get_articulo_by_ean(ean)
-        if not articulo:
-            return {"status": "error", "message": "Artículo no encontrado."}
-        
-        payload['CODARTICULO'] = articulo['CODARTICULO']
+        if not payload.get('CODARTICULO'):
+            # Fallback if CODARTICULO wasn't sent
+            articulo = EntradasRepository.get_info_articulo_por_ean(ean)
+            if not articulo:
+                return {"status": "error", "message": "Artículo no encontrado."}
+            payload['CODARTICULO'] = articulo['CODARTICULO']
 
         try:
             cod_documento = EntradasRepository.grabar_linea_entrada(payload)
@@ -106,3 +105,16 @@ class EntradasService:
         except Exception as e:
             logger.error(f"Error al obtener lineas pendientes: {e}", exc_info=True)
             return {"status": "error", "message": "Error al consultar líneas pendientes."}
+
+    @staticmethod
+    def get_articulo_info(ean: str):
+        if not ean:
+            return {"status": "error", "message": "EAN vacío"}
+        try:
+            info = EntradasRepository.get_info_articulo_por_ean(ean)
+            if not info:
+                return {"status": "error", "message": f"EAN {ean} no encontrado"}
+            return {"status": "success", "info": info}
+        except Exception as e:
+            logger.error(f"Error al obtener info del EAN {ean}: {e}", exc_info=True)
+            return {"status": "error", "message": "Error al buscar EAN"}

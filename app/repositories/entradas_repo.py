@@ -172,8 +172,8 @@ class EntradasRepository:
         # 1. Insertar en TMST_CODDOCUMENTOS
         query_coddoc = """
             INSERT INTO GSM.TMST_CODDOCUMENTOS 
-            (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO)
-            VALUES (:1, :2, :3, EXTRACT(YEAR FROM SYSDATE), NULL, 3, 30, 14)
+            (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO, CODPRIORIDAD)
+            VALUES (:1, :2, :3, EXTRACT(YEAR FROM SYSDATE), NULL, 3, 30, 14, 2)
         """
         cursor.execute(query_coddoc, [cod_documento, cod_empresa, num_albaran])
 
@@ -257,48 +257,43 @@ class EntradasRepository:
             # ('P_CANTSOLICITADAORIGINAL', 'NUMBER'), ('P_CANTSOLICITADA', 'NUMBER'), ('P_CODARTICULO', 'NUMBER'), 
             # ('P_CODDOCUMENTO', 'NUMBER'), (None, 'NUMBER') (This last None is likely an OUT parameter for error code or success)
             
-            # Using callproc is cleaner
-            out_result = cursor.var(int)
-            
             import datetime
             fecha_caducidad_obj = None
             if p_fechacaducidad:
                 fecha_caducidad_obj = datetime.datetime.strptime(p_fechacaducidad, '%Y-%m-%d')
             
-            args = [
-                0, # P_PESOTARA
-                0, # P_PESONETO
-                0, # P_PESOBRUTO
-                0, # P_TARATIPOUNIDAD
-                p_unidades, # P_CANTIDADTIPOUNIDAD (Assuming 1 pallet = total units, or this is per pallet?)
-                None, # P_CADPROPIETARIOS
-                None, # P_CODNUMEROLOTE
-                None, # P_CODLINEADOCUMENTOPROV
-                None, # P_CODIGOINTRODUCIDO
-                None, # P_TIPOCODIGOINTRODUCIDO
-                None, # P_CADCODNUMEROSSERIE
-                0, # P_FACTORCONVSEGUNDUNID
-                0, # P_TIPOCONVFACTCONVSEGUNUNID
-                0, # P_FACTORCONVESRIONTIPOUNIDAD
-                None, # P_CODTIPOUNIDAD
-                p_codoperador, # P_CODOPERADOR
-                0, # P_GESTIONARSEGUNDAUNID
-                None, # P_NUMDOCUMENTOENTRADA
-                None, # P_OBSERVACIONES
-                fecha_caducidad_obj, # P_FECHACADUCIDAD
-                p_numlote, # P_NUMEROLOTE
-                0, # P_PRECIO
-                0, # P_CANTSEGUNDAUNIDADSERV
-                p_unidades, # P_UNIDADES
-                p_unidades, # P_CANTSOLICITADAORIGINAL
-                p_unidades, # P_CANTSOLICITADA
-                p_codarticulo, # P_CODARTICULO
-                p_coddocumento, # P_CODDOCUMENTO
-                out_result # OUT result
-            ]
+            kwargs = {
+                'P_CODDOCUMENTO': p_coddocumento,
+                'P_CODARTICULO': p_codarticulo,
+                'P_CANTSOLICITADA': p_unidades,
+                'P_CANTSOLICITADAORIGINAL': p_unidades,
+                'P_UNIDADES': p_unidades,
+                'P_CANTSEGUNDAUNIDADSERV': 0,
+                'P_PRECIO': 0,
+                'P_NUMEROLOTE': p_numlote,
+                'P_FECHACADUCIDAD': fecha_caducidad_obj,
+                'P_OBSERVACIONES': None,
+                'P_NUMDOCUMENTOENTRADA': None,
+                'P_GESTIONARSEGUNDAUNID': 0,
+                'P_CODOPERADOR': p_codoperador,
+                'P_CODTIPOUNIDAD': 1,
+                'P_FACTORCONVESRIONTIPOUNIDAD': 1,
+                'P_TIPOCONVFACTCONVSEGUNUNID': 0,
+                'P_FACTORCONVSEGUNDUNID': 0,
+                'P_CADCODNUMEROSSERIE': None,
+                'P_TIPOCODIGOINTRODUCIDO': None,
+                'P_CODIGOINTRODUCIDO': None,
+                'P_CODLINEADOCUMENTOPROV': None,
+                'P_CODNUMEROLOTE': None,
+                'P_CADPROPIETARIOS': None,
+                'P_CANTIDADTIPOUNIDAD': p_unidades,
+                'P_TARATIPOUNIDAD': 0,
+                'P_PESOBRUTO': 0,
+                'P_PESONETO': 0,
+                'P_PESOTARA': 0
+            }
             
-            cursor.callproc('GSM.SPEME_REALIZARENTRADAMERCANCIA', args)
-            res = out_result.getvalue()
+            res = cursor.callfunc('GSM.SPEME_REALIZARENTRADAMERCANCIA', int, keywordParameters=kwargs)
             if res != 0:
                 raise Exception(f"SP Error: {res}")
                 
@@ -450,3 +445,39 @@ class EntradasRepository:
             if 'conn' in locals():
                 try: conn.close()
                 except: pass
+
+    @staticmethod
+    def get_info_articulo_por_ean(ean: str):
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT a.CODARTICULO, a.NOMBREARTICULO, a.PRM_TRAZABILIDAD, a.GESTIONARCADUCIDAD,
+                       NVL(c.FACTORCONVERSION, 1) as FACTOR_EAN
+                FROM GSM.TMST_ARTICULOS a
+                LEFT JOIN GSM.TMST_CODFACTURACION c ON a.CODARTICULO = c.CODARTICULO AND c.CODFACTURACION = :1
+                WHERE a.CODARTICULO = (
+                    SELECT MIN(CODARTICULO) FROM GSM.TMST_CODFACTURACION WHERE CODFACTURACION = :1
+                )
+            """
+            cursor.execute(query, [ean, ean])
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "CODARTICULO": row[0],
+                    "NOMBREARTICULO": row[1],
+                    "PRM_TRAZABILIDAD": row[2],
+                    "GESTIONARCADUCIDAD": row[3],
+                    "FACTOR_EAN": row[4]
+                }
+            return None
+        except Exception as e:
+            raise e
+        finally:
+            if 'cursor' in locals():
+                try: cursor.close()
+                except: pass
+            if 'conn' in locals():
+                try: conn.close()
+                except: pass
+

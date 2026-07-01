@@ -10,6 +10,12 @@ def get_parametros_entrada():
     res = EntradasService.get_parametros_entrada()
     return jsonify(res), 200 if res['status'] == 'success' else 400
 
+@entradas_bp.route('/articulo-info/<ean>', methods=['GET'])
+@token_required
+def get_articulo_info(ean):
+    res = EntradasService.get_articulo_info(ean)
+    return jsonify(res), 200 if res['status'] == 'success' else 400
+
 @entradas_bp.route('/muelles', methods=['GET'])
 @token_required
 def get_muelles():

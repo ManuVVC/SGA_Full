@@ -10,10 +10,11 @@ with app.app_context():
         conn = db.get_connection()
         cursor = conn.cursor()
         
-        # Check triggers for TMST_CODDOCUMENTOS
-        cursor.execute("SELECT trigger_name FROM all_triggers WHERE table_name = 'TMST_CODDOCUMENTOS'")
-        triggers = cursor.fetchall()
-        print("Triggers TMST_CODDOCUMENTOS:", triggers)
+        # Check columns
+        cursor.execute("SELECT column_name, data_type FROM all_tab_columns WHERE table_name = 'TMST_ARTICULOS' AND owner = 'GSM'")
+        print("TMST_ARTICULOS:", cursor.fetchall())
+        cursor.execute("SELECT column_name, data_type FROM all_tab_columns WHERE table_name = 'TMST_EANARTICULOS' AND owner = 'GSM'")
+        print("TMST_EANARTICULOS:", cursor.fetchall())
         
     except Exception as e:
         print("Error:", e)
