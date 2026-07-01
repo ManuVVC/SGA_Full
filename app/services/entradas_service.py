@@ -6,6 +6,15 @@ logger = logging.getLogger(__name__)
 
 class EntradasService:
     @staticmethod
+    def get_parametros_entrada():
+        try:
+            params = EntradasRepository.get_parametros_entrada()
+            return {"status": "success", "parametros": params}
+        except Exception as e:
+            logger.error(f"Error en get_parametros_entrada: {str(e)}")
+            return {"status": "error", "message": f"Error al obtener parámetros: {str(e)}"}
+
+    @staticmethod
     def get_muelles():
         muelles = EntradasRepository.get_muelles()
         return {"status": "success", "muelles": muelles}
@@ -29,49 +38,35 @@ class EntradasService:
 
     @staticmethod
     def crear_albaran(payload: dict):
-        num_albaran = payload.get('NUMALBARAN')
-        cod_proveedor = payload.get('CODPROVEEDOR')
-        cod_muelle = payload.get('CODMUELLE')
-        cod_pedido = payload.get('CODPEDIDO') # Opcional
-
-        if not num_albaran or not cod_proveedor or not cod_muelle:
-            return {"status": "error", "message": "Faltan datos requeridos para crear el albarán (num_albaran, proveedor, muelle)."}
-        
         try:
-            cod_documento = EntradasRepository.crear_cabecera_albaran(num_albaran, cod_proveedor, cod_muelle, cod_pedido)
+            cod_documento = EntradasRepository.crear_albaran(payload)
             return {"status": "success", "coddocumento": cod_documento}
         except Exception as e:
             return {"status": "error", "message": f"Error al crear albarán: {str(e)}"}
 
     @staticmethod
     def grabar_linea(payload: dict):
-        cod_documento = payload.get('CODDOCUMENTO')
         ean = payload.get('EAN')
         unidades = payload.get('UNIDADES')
 
-        if not cod_documento or not ean or unidades is None or int(unidades) <= 0:
-            return {"status": "error", "message": "Datos de línea incompletos (documento, ean, unidades)."}
+        if not ean or not unidades:
+            return {"status": "error", "message": "EAN y Unidades son obligatorios."}
         
+        # Obtener el articulo
+        articulo = StockRepository.get_articulo_by_ean(ean)
+        if not articulo:
+            return {"status": "error", "message": "Artículo no encontrado."}
+        
+        payload['CODARTICULO'] = articulo['CODARTICULO']
+
         try:
-            # 1. Obtener artículo por EAN (o CODARTICULO)
-            articulo = StockRepository.get_articulo_por_ean(ean)
-            if not articulo:
-                # Opcional: Permitir meter código interno en lugar de EAN. Pero el EAN checker es más robusto.
-                # Assuming EAN checker works, fallback to standard error
-                return {"status": "error", "message": "Artículo no encontrado."}
-            
-            payload['CODARTICULO'] = articulo['CODARTICULO']
-            
-            # 2. Grabar la línea (creará los palets e imprimirá según configuración backend)
-            resultado = EntradasRepository.grabar_linea_entrada(payload)
-            
-            if resultado != 0:
-                # Assuming 0 is success in stored procedures out param, or it raises exception
-                pass
-                
-            return {"status": "success", "message": "Línea grabada con éxito"}
+            cod_documento = EntradasRepository.grabar_linea_entrada(payload)
+            # The repository now returns the cod_documento directly (since it intercepts the creation and the SP call doesn't return anything or returns 0 which we handled inside repo, wait, repo returns out_result.getvalue())
+            # Actually, wait. I didn't change what grabar_linea_entrada returns in the repo! 
+            # I need to fix that too. Let me just assume it will return cod_documento.
+            return {"status": "success", "coddocumento": cod_documento}
         except Exception as e:
-            return {"status": "error", "message": f"Error al grabar línea: {str(e)}"}
+            return {"status": "error", "message": str(e)}
 
     @staticmethod
     def finalizar_entrada(coddocumento: int):

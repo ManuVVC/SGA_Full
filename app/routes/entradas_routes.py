@@ -4,6 +4,12 @@ from app.utils.decorators import token_required
 
 entradas_bp = Blueprint('entradas', __name__)
 
+@entradas_bp.route('/parametros', methods=['GET'])
+@token_required
+def get_parametros_entrada():
+    res = EntradasService.get_parametros_entrada()
+    return jsonify(res), 200 if res['status'] == 'success' else 400
+
 @entradas_bp.route('/muelles', methods=['GET'])
 @token_required
 def get_muelles():

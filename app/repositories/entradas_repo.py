@@ -1,4 +1,5 @@
 from app.database import db
+import datetime
 
 class EntradasRepository:
     @staticmethod
@@ -26,24 +27,56 @@ class EntradasRepository:
                 except: pass
 
     @staticmethod
+    def get_parametros_entrada():
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT p.codparametro, pa.valor
+                FROM GSM.tsys_parametros p 
+                INNER JOIN GSM.tsys_parametrosxambito pa ON pa.codparametro = p.codparametro 
+                WHERE p.codparametro IN (1687, 1693, 1702, 1745, 1750)
+            """
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            params = {str(r[0]): r[1] for r in rows}
+            return params
+        except Exception as e:
+            raise e
+        finally:
+            if 'cursor' in locals():
+                try: cursor.close()
+                except: pass
+            if 'conn' in locals():
+                try: conn.close()
+                except: pass
+
+    @staticmethod
     def get_albaranes_en_curso(codmuelle: int):
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT CODDOCUMENTO, CODPROVEEDOR, RAZONSOCIAL, NUMDOCUMENTOENTRADA, FECHADOCUMENTO
-                FROM GSM.VMST_DOCUMENTOSPROVEEDOR 
-                WHERE CODESTADODOCUMENTO = 16 AND CODMUELLE = :1
-                ORDER BY FECHADOCUMENTO DESC
+                SELECT a.CODDOCUMENTO, a.CODPROVEEDOR, a.RAZONSOCIAL, a.NUMDOCUMENTO, a.FECHADOCUMENTO, p.NUMDOCUMENTO as NUMPEDIDO
+                FROM GSM.VMST_DOCUMENTOSPROVEEDOR a
+                LEFT JOIN GSM.VMST_DOCUMENTOSPROVEEDOR p ON p.CODDOCUMENTOPADRE = a.CODDOCUMENTO
+                WHERE a.CODESTADODOCUMENTO = 16
             """
-            cursor.execute(query, [codmuelle])
+            params = []
+            if codmuelle and str(codmuelle) != '0':
+                query += " AND a.CODMUELLE = :1"
+                params.append(codmuelle)
+            
+            query += " ORDER BY a.FECHADOCUMENTO DESC"
+            cursor.execute(query, params)
             rows = cursor.fetchall()
             return [{
                 "CODDOCUMENTO": r[0],
                 "CODPROVEEDOR": r[1],
                 "RAZONSOCIAL": r[2],
-                "NUMDOCUMENTOENTRADA": r[3],
-                "FECHADOCUMENTO": r[4].strftime('%Y-%m-%d') if r[4] else None
+                "NUMDOCUMENTO": r[3],
+                "FECHADOCUMENTO": r[4].strftime('%d-%m-%Y') if r[4] else None,
+                "NUMPEDIDO": r[5]
             } for r in rows]
         except Exception as e:
             raise e
@@ -61,14 +94,20 @@ class EntradasRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT DISTINCT CODPROVEEDOR, RAZONSOCIAL 
+                SELECT DISTINCT CODDOCUMENTO, CODPROVEEDOR, RAZONSOCIAL, NUMDOCUMENTO, FECHADOCUMENTO
                 FROM GSM.VMST_DOCUMENTOSPROVEEDOR 
                 WHERE CODESTADODOCUMENTO = 14
-                ORDER BY RAZONSOCIAL ASC
+                ORDER BY FECHADOCUMENTO DESC
             """
             cursor.execute(query)
             rows = cursor.fetchall()
-            return [{"CODPROVEEDOR": r[0], "RAZONSOCIAL": r[1]} for r in rows]
+            return [{
+                "CODDOCUMENTO": r[0],
+                "CODPROVEEDOR": r[1],
+                "RAZONSOCIAL": r[2],
+                "NUMDOCUMENTO": r[3],
+                "FECHADOCUMENTO": r[4].strftime('%d-%m-%Y') if r[4] else None
+            } for r in rows]
         except Exception as e:
             raise e
         finally:
@@ -108,47 +147,61 @@ class EntradasRepository:
                 except: pass
 
     @staticmethod
-    def crear_cabecera_albaran(num_albaran: str, cod_proveedor: int, cod_muelle: int, cod_pedido_padre: int = None):
+    def _crear_albaran_internal(cursor, payload: dict):
+        num_albaran = payload.get('NUMALBARAN')
+        cod_proveedor = payload.get('CODPROVEEDOR')
+        cod_muelle = payload.get('CODMUELLE')
+        cod_pedido_padre = payload.get('CODPEDIDO')
+        
+        fecha_documento = payload.get('FECHADOCUMENTO')
+        fecha_recepcion = payload.get('FECHARECEPCION')
+        num_expedicion = payload.get('NUMEXPEDICION')
+
+        fecha_doc_val = datetime.datetime.strptime(fecha_documento, '%Y-%m-%d') if fecha_documento else None
+        fecha_rec_val = datetime.datetime.strptime(fecha_recepcion, '%Y-%m-%d') if fecha_recepcion else None
+
+        # Obtener el CODEMPRESA
+        cursor.execute("SELECT MIN(CODEMPRESA) FROM GSM.TMST_EMPRESAS")
+        cod_empresa_row = cursor.fetchone()
+        cod_empresa = cod_empresa_row[0] if cod_empresa_row and cod_empresa_row[0] else 1
+
+        # Generar el CODDOCUMENTO
+        cursor.execute("SELECT GSM.SQ_CODDOCUMENTO.NEXTVAL FROM DUAL")
+        cod_documento = cursor.fetchone()[0]
+
+        # 1. Insertar en TMST_CODDOCUMENTOS
+        query_coddoc = """
+            INSERT INTO GSM.TMST_CODDOCUMENTOS 
+            (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO)
+            VALUES (:1, :2, :3, EXTRACT(YEAR FROM SYSDATE), NULL, 3, 30, 14)
+        """
+        cursor.execute(query_coddoc, [cod_documento, cod_empresa, num_albaran])
+
+        # 2. Insertar en TMST_DOCUMENTOSPROVEEDORES
+        query_docprov = """
+            INSERT INTO GSM.TMST_DOCUMENTOSPROVEEDORES
+            (CODDOCUMENTO, CODPROVEEDOR, CODMUELLE, NUMDOCUMENTOENTRADA, FECHADOCUMENTO, FECHARECEPCION, NUMEXPEDICION)
+            VALUES (:1, :2, :3, :4, COALESCE(:5, SYSDATE), COALESCE(:6, SYSDATE), :7)
+        """
+        cursor.execute(query_docprov, [cod_documento, cod_proveedor, cod_muelle, num_albaran, fecha_doc_val, fecha_rec_val, num_expedicion])
+
+        # 3. Si hay pedido asociado, insertar en TMST_PEDIDOXALBARANPROVEEDOR
+        if cod_pedido_padre:
+            query_rel = """
+                INSERT INTO GSM.TMST_PEDIDOXALBARANPROVEEDOR
+                (CODDOCUMENTOPEDIDO, CODDOCUMENTOALBARAN)
+                VALUES (:1, :2)
+            """
+            cursor.execute(query_rel, [cod_pedido_padre, cod_documento])
+
+        return cod_documento
+
+    @staticmethod
+    def crear_albaran(payload: dict):
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
-
-            # Obtener el CODEMPRESA (Asumiendo que es la única o la 1 por defecto)
-            cursor.execute("SELECT MIN(CODEMPRESA) FROM GSM.TMST_EMPRESAS")
-            cod_empresa_row = cursor.fetchone()
-            cod_empresa = cod_empresa_row[0] if cod_empresa_row and cod_empresa_row[0] else 1
-
-            # Generar el CODDOCUMENTO
-            cursor.execute("SELECT GSM.SQ_CODDOCUMENTO.NEXTVAL FROM DUAL")
-            cod_documento = cursor.fetchone()[0]
-
-            # 1. Insertar en TMST_CODDOCUMENTOS
-            # codtipodocumento=3, codtipomovimiento=30
-            query_coddoc = """
-                INSERT INTO GSM.TMST_CODDOCUMENTOS 
-                (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO, FECHADOCUMENTO)
-                VALUES (:1, :2, :3, EXTRACT(YEAR FROM SYSDATE), NULL, 3, 30, 14, SYSDATE)
-            """
-            cursor.execute(query_coddoc, [cod_documento, cod_empresa, num_albaran])
-
-            # 2. Insertar en TMST_DOCUMENTOSPROVEEDORES
-            query_docprov = """
-                INSERT INTO GSM.TMST_DOCUMENTOSPROVEEDORES
-                (CODDOCUMENTO, CODPROVEEDOR, CODMUELLE, NUMDOCUMENTOENTRADA)
-                VALUES (:1, :2, :3, :4)
-            """
-            cursor.execute(query_docprov, [cod_documento, cod_proveedor, cod_muelle, num_albaran])
-
-            # 3. Si hay pedido asociado, insertar en TMST_PEDIDOXALBARANPROVEEDOR
-            if cod_pedido_padre:
-                # Obtenemos la cabecera del pedido (o la misma app nos la pasa, asumimos que CODDOCUMENTO del pedido se relaciona aquí)
-                query_rel = """
-                    INSERT INTO GSM.TMST_PEDIDOXALBARANPROVEEDOR
-                    (CODDOCUMENTOPEDIDO, CODDOCUMENTOALBARAN)
-                    VALUES (:1, :2)
-                """
-                cursor.execute(query_rel, [cod_pedido_padre, cod_documento])
-
+            cod_documento = EntradasRepository._crear_albaran_internal(cursor, payload)
             conn.commit()
             return cod_documento
         except Exception as e:
@@ -169,8 +222,12 @@ class EntradasRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
 
-            # Recuperar parámetros necesarios
+            # Si no hay CODDOCUMENTO, significa que es la primera línea y debemos crear la cabecera primero.
             p_coddocumento = payload.get('CODDOCUMENTO')
+            if not p_coddocumento:
+                p_coddocumento = EntradasRepository._crear_albaran_internal(cursor, payload)
+
+            # Recuperar parámetros necesarios
             p_codarticulo = payload.get('CODARTICULO')
             p_unidades = payload.get('UNIDADES')
             p_codoperador = payload.get('CODOPERADOR', 1)
@@ -241,8 +298,12 @@ class EntradasRepository:
             ]
             
             cursor.callproc('GSM.SPEME_REALIZARENTRADAMERCANCIA', args)
+            res = out_result.getvalue()
+            if res != 0:
+                raise Exception(f"SP Error: {res}")
+                
             conn.commit()
-            return out_result.getvalue()
+            return p_coddocumento
 
         except Exception as e:
             if 'conn' in locals():
