@@ -54,3 +54,8 @@ export const getLineasPendientes = async (coddocumento_albaran) => {
   const response = await apiClient.get(`/entradas/lineas-pendientes/${coddocumento_albaran}`);
   return response.data;
 };
+
+export const getArticuloInfoEan = async (ean) => {
+  const response = await apiClient.get(`/entradas/articulo-info/${ean}`);
+  return response.data;
+};

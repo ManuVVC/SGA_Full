@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, AlertTriangle, Truck, Search, PlusCircle, Save, XCircle, FileText } from 'lucide-react';
-import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes } from '../api/entradasService';
+import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes, getArticuloInfoEan } from '../api/entradasService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
 
@@ -14,6 +14,7 @@ export default function EntradaMercancia() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [articuloInfo, setArticuloInfo] = useState(null);
 
   // Datos globales
   const [parametros, setParametros] = useState({});
@@ -52,6 +53,8 @@ export default function EntradaMercancia() {
   const albaranRef = useRef(null);
   const eanRef = useRef(null);
   const unidadesRef = useRef(null);
+  const loteRef = useRef(null);
+  const caducidadRef = useRef(null);
 
   useEffect(() => {
     cargarParametrosYMuelles();
@@ -172,6 +175,30 @@ export default function EntradaMercancia() {
     setTimeout(() => eanRef.current?.focus(), 100);
   };
 
+  const handleEanValidation = async (eanLeido) => {
+    if (!eanLeido.trim()) {
+      setArticuloInfo(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getArticuloInfoEan(eanLeido);
+      if (res.status === 'success' && res.info) {
+        setArticuloInfo(res.info);
+        unidadesRef.current?.focus();
+      } else {
+        setError(res.message || "Artículo no encontrado");
+        setArticuloInfo(null);
+      }
+    } catch (err) {
+      setError("Error al buscar el EAN");
+      setArticuloInfo(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGrabarLinea = async () => {
     if (!ean.trim() || !unidades) {
       setError('EAN y Unidades son obligatorios');
@@ -182,7 +209,8 @@ export default function EntradaMercancia() {
     try {
       const payload = {
         EAN: ean,
-        UNIDADES: parseInt(unidades, 10),
+        CODARTICULO: articuloInfo?.CODARTICULO,
+        UNIDADES: parseInt(unidades, 10) * (articuloInfo?.FACTOR_EAN || 1),
         NUMEROLOTE: lote || null,
         FECHACADUCIDAD: caducidad || null
       };
@@ -210,6 +238,7 @@ export default function EntradaMercancia() {
         setUnidades('');
         setLote('');
         setCaducidad('');
+        setArticuloInfo(null);
         setTimeout(() => {
           setSuccess(null);
           eanRef.current?.focus();
@@ -548,50 +577,89 @@ export default function EntradaMercancia() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">EAN / Artículo</label>
-                <input 
-                  ref={eanRef}
-                  type="text" 
-                  inputMode={isKeyboardOpen ? "text" : "none"}
-                  className="w-full border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
-                  value={ean}
-                  onChange={(e) => setEan(e.target.value)}
-                  onKeyDown={(e) => { if (e.key==='Enter' && ean) unidadesRef.current?.focus() }}
-                />
+                <div className="flex items-center gap-2">
+                  <input 
+                    ref={eanRef}
+                    type="text" 
+                    inputMode={isKeyboardOpen ? "text" : "none"}
+                    className="w-5/12 border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
+                    value={ean}
+                    onChange={(e) => setEan(e.target.value)}
+                    onBlur={() => handleEanValidation(ean)}
+                    onKeyDown={(e) => { if (e.key==='Enter' && ean) handleEanValidation(ean) }}
+                  />
+                  {articuloInfo && (
+                    <div className="flex-1 text-sm font-bold text-sga-primary leading-tight line-clamp-2 overflow-hidden">
+                      {articuloInfo.NOMBREARTICULO}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Unidades</label>
-                <input 
-                  ref={unidadesRef}
-                  type="number"
-                  inputMode="numeric"
-                  className="w-full border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
-                  value={unidades}
-                  onChange={(e) => setUnidades(e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  <input 
+                    ref={unidadesRef}
+                    type="number"
+                    inputMode="numeric"
+                    className="flex-1 border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
+                    value={unidades}
+                    onChange={(e) => setUnidades(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (articuloInfo?.PRM_TRAZABILIDAD !== 0) loteRef.current?.focus();
+                        else if (articuloInfo?.GESTIONARCADUCIDAD !== 0) caducidadRef.current?.focus();
+                        else handleGrabarLinea();
+                      }
+                    }}
+                  />
+                  {articuloInfo && articuloInfo.FACTOR_EAN > 1 && (
+                    <span className="bg-gray-100 text-gray-700 font-bold p-3 rounded border border-gray-300 whitespace-nowrap text-lg">
+                      x {articuloInfo.FACTOR_EAN}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Lote (Opcional)</label>
-                  <input 
-                    type="text" 
-                    inputMode={isKeyboardOpen ? "text" : "none"}
-                    className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary uppercase"
-                    value={lote}
-                    onChange={(e) => setLote(e.target.value.toUpperCase())}
-                  />
+              {(articuloInfo?.PRM_TRAZABILIDAD !== 0 || articuloInfo?.GESTIONARCADUCIDAD !== 0) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {articuloInfo?.PRM_TRAZABILIDAD !== 0 && (
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Lote</label>
+                      <input 
+                        ref={loteRef}
+                        type="text" 
+                        inputMode={isKeyboardOpen ? "text" : "none"}
+                        className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary uppercase"
+                        value={lote}
+                        onChange={(e) => setLote(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (articuloInfo?.GESTIONARCADUCIDAD !== 0) caducidadRef.current?.focus();
+                            else handleGrabarLinea();
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                  {articuloInfo?.GESTIONARCADUCIDAD !== 0 && (
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Caducidad</label>
+                      <input 
+                        ref={caducidadRef}
+                        type="date" 
+                        className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary"
+                        value={caducidad}
+                        onChange={(e) => setCaducidad(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleGrabarLinea();
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Caducidad (Opcional)</label>
-                  <input 
-                    type="date" 
-                    className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary"
-                    value={caducidad}
-                    onChange={(e) => setCaducidad(e.target.value)}
-                  />
-                </div>
-              </div>
+              )}
 
               <button 
                 onClick={handleGrabarLinea}
