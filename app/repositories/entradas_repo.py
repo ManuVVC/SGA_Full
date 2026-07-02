@@ -157,39 +157,44 @@ class EntradasRepository:
         fecha_recepcion = payload.get('FECHARECEPCION')
         num_expedicion = payload.get('NUMEXPEDICION')
 
-        fecha_doc_val = datetime.datetime.strptime(fecha_documento, '%Y-%m-%d') if fecha_documento else None
-        fecha_rec_val = datetime.datetime.strptime(fecha_recepcion, '%Y-%m-%d') if fecha_recepcion else None
+        fecha_doc_val = datetime.datetime.strptime(fecha_documento, '%Y-%m-%d') if fecha_documento else datetime.datetime.now()
+        fecha_rec_val = datetime.datetime.strptime(fecha_recepcion, '%Y-%m-%d') if fecha_recepcion else datetime.datetime.now()
 
         # Obtener el CODEMPRESA
         cursor.execute("SELECT MIN(CODEMPRESA) FROM GSM.TMST_EMPRESAS")
         cod_empresa_row = cursor.fetchone()
         cod_empresa = cod_empresa_row[0] if cod_empresa_row and cod_empresa_row[0] else 1
 
-        # Generar el CODDOCUMENTO
-        cursor.execute("SELECT GSM.SQ_CODDOCUMENTO.NEXTVAL FROM DUAL")
-        cod_documento = cursor.fetchone()[0]
-
         # 1. Insertar en TMST_CODDOCUMENTOS
+        # El trigger de BBDD sobrescribe el CODDOCUMENTO con un NEXTVAL, por lo que 
+        # pasamos 0 y recuperamos el id real con RETURNING.
         query_coddoc = """
             INSERT INTO GSM.TMST_CODDOCUMENTOS 
             (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO, CODPRIORIDAD)
-            VALUES (:1, :2, :3, EXTRACT(YEAR FROM SYSDATE), NULL, 3, 30, 14, 2)
+            VALUES (0, :1, :2, EXTRACT(YEAR FROM SYSDATE), NULL, 3, 30, 16, 2)
+            RETURNING CODDOCUMENTO INTO :3
         """
-        cursor.execute(query_coddoc, [cod_documento, cod_empresa, num_albaran])
+        cod_doc_var = cursor.var(int)
+        cursor.execute(query_coddoc, [cod_empresa, num_albaran, cod_doc_var])
+        cod_documento = cod_doc_var.getvalue()[0]
+
+        # Obtener el siguiente NUMDOCUMENTOENTRADA
+        cursor.execute("SELECT NVL(MAX(NUMDOCUMENTOENTRADA), 0) + 1 FROM GSM.TMST_DOCUMENTOSPROVEEDORES")
+        num_doc_entrada = cursor.fetchone()[0]
 
         # 2. Insertar en TMST_DOCUMENTOSPROVEEDORES
         query_docprov = """
             INSERT INTO GSM.TMST_DOCUMENTOSPROVEEDORES
             (CODDOCUMENTO, CODPROVEEDOR, CODMUELLE, NUMDOCUMENTOENTRADA, FECHADOCUMENTO, FECHARECEPCION, NUMEXPEDICION)
-            VALUES (:1, :2, :3, :4, COALESCE(:5, SYSDATE), COALESCE(:6, SYSDATE), :7)
+            VALUES (:1, :2, :3, :4, :5, :6, :7)
         """
-        cursor.execute(query_docprov, [cod_documento, cod_proveedor, cod_muelle, num_albaran, fecha_doc_val, fecha_rec_val, num_expedicion])
+        cursor.execute(query_docprov, [cod_documento, cod_proveedor, cod_muelle, num_doc_entrada, fecha_doc_val, fecha_rec_val, num_expedicion])
 
         # 3. Si hay pedido asociado, insertar en TMST_PEDIDOXALBARANPROVEEDOR
         if cod_pedido_padre:
             query_rel = """
                 INSERT INTO GSM.TMST_PEDIDOXALBARANPROVEEDOR
-                (CODDOCUMENTOPEDIDO, CODDOCUMENTOALBARAN)
+                (CODPEDIDOPROVEEDOR, CODALBARANPROVEEDOR)
                 VALUES (:1, :2)
             """
             cursor.execute(query_rel, [cod_pedido_padre, cod_documento])
@@ -262,18 +267,33 @@ class EntradasRepository:
             if p_fechacaducidad:
                 fecha_caducidad_obj = datetime.datetime.strptime(p_fechacaducidad, '%Y-%m-%d')
             
+            # Buscar NUMDOCUMENTOENTRADA asociado al documento
+            cursor.execute("SELECT NUMDOCUMENTOENTRADA FROM GSM.TMST_DOCUMENTOSPROVEEDORES WHERE CODDOCUMENTO = :1", [p_coddocumento])
+            row_doc = cursor.fetchone()
+            p_numdocumentoentrada = row_doc[0] if row_doc else None
+
+            var_unidades = cursor.var(int)
+            var_unidades.setvalue(0, p_unidades)
+            
+            var_cant_segunda = cursor.var(int)
+            var_cant_segunda.setvalue(0, 0)
+            
+            var_codlinea = cursor.var(int)
+            var_codnumlote = cursor.var(int)
+            var_cadpropietarios = cursor.var(str)
+
             kwargs = {
                 'P_CODDOCUMENTO': p_coddocumento,
                 'P_CODARTICULO': p_codarticulo,
                 'P_CANTSOLICITADA': p_unidades,
                 'P_CANTSOLICITADAORIGINAL': p_unidades,
-                'P_UNIDADES': p_unidades,
-                'P_CANTSEGUNDAUNIDADSERV': 0,
+                'P_UNIDADES': var_unidades,
+                'P_CANTSEGUNDAUNIDADSERV': var_cant_segunda,
                 'P_PRECIO': 0,
                 'P_NUMEROLOTE': p_numlote,
                 'P_FECHACADUCIDAD': fecha_caducidad_obj,
                 'P_OBSERVACIONES': None,
-                'P_NUMDOCUMENTOENTRADA': None,
+                'P_NUMDOCUMENTOENTRADA': p_numdocumentoentrada,
                 'P_GESTIONARSEGUNDAUNID': 0,
                 'P_CODOPERADOR': p_codoperador,
                 'P_CODTIPOUNIDAD': 1,
@@ -283,9 +303,9 @@ class EntradasRepository:
                 'P_CADCODNUMEROSSERIE': None,
                 'P_TIPOCODIGOINTRODUCIDO': None,
                 'P_CODIGOINTRODUCIDO': None,
-                'P_CODLINEADOCUMENTOPROV': None,
-                'P_CODNUMEROLOTE': None,
-                'P_CADPROPIETARIOS': None,
+                'P_CODLINEADOCUMENTOPROV': var_codlinea,
+                'P_CODNUMEROLOTE': var_codnumlote,
+                'P_CADPROPIETARIOS': var_cadpropietarios,
                 'P_CANTIDADTIPOUNIDAD': p_unidades,
                 'P_TARATIPOUNIDAD': 0,
                 'P_PESOBRUTO': 0,
