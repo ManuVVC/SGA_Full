@@ -5,6 +5,33 @@ import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendiente
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
 
+const parseShorthandDate = (input) => {
+  if (!input) return '';
+  if (input.includes('-') || input.includes('/')) return input;
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+  
+  const clean = input.replace(/\D/g, '');
+  
+  if (clean.length === 1 || clean.length === 2) {
+    const dd = clean.padStart(2, '0');
+    return `${currentYear}-${currentMonth}-${dd}`;
+  } else if (clean.length === 4) {
+    const dd = clean.substring(0, 2);
+    const mm = clean.substring(2, 4);
+    return `${currentYear}-${mm}-${dd}`;
+  } else if (clean.length === 6) {
+    const dd = clean.substring(0, 2);
+    const mm = clean.substring(2, 4);
+    const aa = clean.substring(4, 6);
+    return `20${aa}-${mm}-${dd}`;
+  }
+  
+  return input;
+};
+
 export default function EntradaMercancia() {
   const navigate = useNavigate();
   const { isKeyboardOpen } = useKeyboard();
@@ -212,7 +239,7 @@ export default function EntradaMercancia() {
         CODARTICULO: articuloInfo?.CODARTICULO,
         UNIDADES: parseInt(unidades, 10) * (articuloInfo?.FACTOR_EAN || 1),
         NUMEROLOTE: lote || null,
-        FECHACADUCIDAD: caducidad || null
+        FECHACADUCIDAD: caducidad ? parseShorthandDate(caducidad) : null
       };
 
       if (codDocumento) {
@@ -223,8 +250,8 @@ export default function EntradaMercancia() {
         payload.CODPROVEEDOR = selectedProveedor?.CODPROVEEDOR;
         payload.CODMUELLE = selectedMuelle?.CODMUELLE;
         payload.CODPEDIDO = selectedPedido;
-        payload.FECHADOCUMENTO = fechaAlbaran || null;
-        payload.FECHARECEPCION = fechaRecepcion || null;
+        payload.FECHADOCUMENTO = fechaAlbaran ? parseShorthandDate(fechaAlbaran) : null;
+        payload.FECHARECEPCION = fechaRecepcion ? parseShorthandDate(fechaRecepcion) : null;
         payload.NUMEXPEDICION = numExpedicion || null;
       }
 
@@ -519,10 +546,13 @@ export default function EntradaMercancia() {
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Fecha Albarán</label>
                   <input 
-                    type="date" 
+                    type="text" 
+                    inputMode="numeric"
+                    placeholder="DD o DDMM o DDMMAA"
                     className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none"
                     value={fechaAlbaran}
                     onChange={e => setFechaAlbaran(e.target.value)}
+                    onBlur={() => setFechaAlbaran(parseShorthandDate(fechaAlbaran))}
                   />
                 </div>
               )}
@@ -531,10 +561,13 @@ export default function EntradaMercancia() {
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">Fecha Recepción</label>
                   <input 
-                    type="date" 
+                    type="text" 
+                    inputMode="numeric"
+                    placeholder="DD o DDMM o DDMMAA"
                     className="w-full border-2 border-gray-300 p-2 rounded text-lg focus:border-sga-primary focus:outline-none"
                     value={fechaRecepcion}
                     onChange={e => setFechaRecepcion(e.target.value)}
+                    onBlur={() => setFechaRecepcion(parseShorthandDate(fechaRecepcion))}
                   />
                 </div>
               )}
@@ -648,12 +681,18 @@ export default function EntradaMercancia() {
                       <label className="block text-sm font-bold text-gray-700 mb-1">Caducidad</label>
                       <input 
                         ref={caducidadRef}
-                        type="date" 
+                        type="text" 
+                        inputMode="numeric"
+                        placeholder="DD, DDMM o DDMMAA"
                         className="w-full border border-gray-300 p-2 rounded focus:border-sga-primary"
                         value={caducidad}
                         onChange={(e) => setCaducidad(e.target.value)}
+                        onBlur={() => setCaducidad(parseShorthandDate(caducidad))}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleGrabarLinea();
+                          if (e.key === 'Enter') {
+                            setCaducidad(parseShorthandDate(caducidad)); // Parse if enter pressed immediately
+                            setTimeout(() => handleGrabarLinea(), 50);
+                          }
                         }}
                       />
                     </div>
