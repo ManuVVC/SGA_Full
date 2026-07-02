@@ -236,6 +236,7 @@ class EntradasRepository:
             p_codarticulo = payload.get('CODARTICULO')
             p_unidades = payload.get('UNIDADES')
             p_codoperador = payload.get('CODOPERADOR', 1)
+            p_codterminal = payload.get('CODTERMINAL', 1)
             p_numlote = payload.get('NUMEROLOTE')
             p_fechacaducidad = payload.get('FECHACADUCIDAD') # Espera formato YYYY-MM-DD
             
@@ -268,10 +269,17 @@ class EntradasRepository:
                 fecha_caducidad_obj = datetime.datetime.strptime(p_fechacaducidad, '%Y-%m-%d')
             
             # Buscar NUMDOCUMENTOENTRADA asociado al documento
-            cursor.execute("SELECT NUMDOCUMENTOENTRADA FROM GSM.TMST_DOCUMENTOSPROVEEDORES WHERE CODDOCUMENTO = :1", [p_coddocumento])
+            cursor.execute("SELECT NUMDOCUMENTOENTRADA, CODMUELLE, CODPROVEEDOR FROM GSM.TMST_DOCUMENTOSPROVEEDORES WHERE CODDOCUMENTO = :1", [p_coddocumento])
             row_doc = cursor.fetchone()
             p_numdocumentoentrada = row_doc[0] if row_doc else None
+            p_codmuelle = row_doc[1] if row_doc else None
+            p_codproveedor = row_doc[2] if row_doc else None
 
+            p_codubicacion = None
+            if p_codmuelle:
+                cursor.execute("SELECT CODUBICACIONENTRADA FROM GSM.TMST_MUELLES WHERE CODMUELLE = :1", [p_codmuelle])
+                row_mue = cursor.fetchone()
+                p_codubicacion = row_mue[0] if row_mue else None
             var_unidades = cursor.var(int)
             var_unidades.setvalue(0, p_unidades)
             
@@ -316,7 +324,56 @@ class EntradasRepository:
             res = cursor.callfunc('GSM.SPEME_REALIZARENTRADAMERCANCIA', int, keywordParameters=kwargs)
             if res != 0:
                 raise Exception(f"SP Error: {res}")
-                
+            
+            # --- Llamar a SPEME_GUARDARDETALLEENTRADA ---
+            kwargs_guardar = {
+                'P_CODLINEADOCUMENTOPROVEEDOR': var_codlinea.getvalue(),
+                'P_CODOPERADOR': p_codoperador,
+                'P_CODTERMINAL': p_codterminal,
+                'P_CODARTICULO': p_codarticulo,
+                'P_SSCC': None,
+                'P_UNIDADESPALET': None,
+                'P_CANTSERVIDA': p_unidades,
+                'P_FECHACADUCIDAD': fecha_caducidad_obj,
+                'P_FECHAENTRADA': datetime.datetime.now(),
+                'P_CANTSEGUNDAUNIDADSERVIDA': 0,
+                'P_CODNUMEROLOTE': var_codnumlote.getvalue(),
+                'P_CODMUELLE': p_codmuelle
+            }
+            res_guardar = cursor.callfunc('GSM.SPEME_GUARDARDETALLEENTRADA', int, keywordParameters=kwargs_guardar)
+            if res_guardar != 0:
+                raise Exception(f"Error SPEME_GUARDARDETALLEENTRADA: {res_guardar}")
+
+            # --- Obtener NUMLINEA para la reubicación ---
+            cursor.execute("SELECT NUMLINEA FROM GSM.TMST_LINEASDOCUMENTOPROVEEDOR WHERE CODLINEADOCUMENTOPROVEEDOR = :1", [var_codlinea.getvalue()])
+            row_linea = cursor.fetchone()
+            p_numlinea = row_linea[0] if row_linea else 1
+
+            # --- Llamar a SPREU_ENTRADAMERCANCIA ---
+            kwargs_reub = {
+                'P_CODTERMINAL': p_codterminal,
+                'P_CODUBICACION': p_codubicacion,
+                'P_CODARTICULO': p_codarticulo,
+                'P_CANTIDAD': p_unidades,
+                'P_FECHACADUCIDAD': fecha_caducidad_obj,
+                'P_PESO': 0,
+                'P_CODFACTURACION': None,
+                'P_CODPROVEEDOR': p_codproveedor,
+                'P_NUMEROLOTE': p_numlote,
+                'P_CODDOCUMENTO': p_coddocumento,
+                'P_NUMLINEA': p_numlinea,
+                'P_CREARRECUENTO': 0,
+                'P_STOCKDESTINO': 0,
+                'P_PESODESTINO': 0,
+                'P_CADCODNUMEROSDESERIE': None,
+                'P_CODOPERADOR': p_codoperador,
+                'P_CODTIPODATOMAESTRO': 1,
+                'P_CODDATOMAESTRO': p_codproveedor
+            }
+            res_reub = cursor.callfunc('GSM.SPREU_ENTRADAMERCANCIA', int, keywordParameters=kwargs_reub)
+            if res_reub != 0:
+                raise Exception(f"SPREU_ENTRADAMERCANCIA Error: {res_reub}")
+
             conn.commit()
             return p_coddocumento
 
@@ -429,11 +486,11 @@ class EntradasRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             
-            # Find the order ID (CODDOCUMENTOPEDIDO) associated with this albaran
+            # Find the order ID (CODPEDIDOPROVEEDOR) associated with this albaran
             query_pedido = """
-                SELECT CODDOCUMENTOPEDIDO 
+                SELECT CODPEDIDOPROVEEDOR 
                 FROM GSM.TMST_PEDIDOXALBARANPROVEEDOR
-                WHERE CODDOCUMENTOALBARAN = :1
+                WHERE CODALBARANPROVEEDOR = :1
             """
             cursor.execute(query_pedido, [coddocumento_albaran])
             row = cursor.fetchone()
@@ -444,9 +501,11 @@ class EntradasRepository:
             codpedidoproveedor = row[0]
             
             query_lineas = """
-                SELECT CODARTICULOAPLICACION, NOMBREARTICULO, CANTSOLICITADA, CANTPDTESERVIR
-                FROM GSM.VMST_LINEASDOCPROVPDTRECIBIR
-                WHERE CODDOCUMENTO = :1
+                SELECT l.CODARTICULOAPLICACION, l.NOMBREARTICULO, l.CANTSOLICITADA, 
+                       (l.CANTSOLICITADA - NVL(l.CANTSERVIDA, 0)) AS CANTPDTESERVIR,
+                       NVL(l.CANTSERVIDA, 0) AS CANTSERVIDA
+                FROM GSM.VMST_LINEASDOCUMENTOPROVEEDOR l
+                WHERE l.CODDOCUMENTO = :1
             """
             cursor.execute(query_lineas, [codpedidoproveedor])
             rows = cursor.fetchall()
@@ -454,7 +513,8 @@ class EntradasRepository:
                 "CODARTICULOAPLICACION": r[0],
                 "NOMBREARTICULO": r[1],
                 "CANTSOLICITADA": r[2],
-                "CANTPDTESERVIR": r[3]
+                "CANTPDTESERVIR": r[3],
+                "CANTSERVIDA": r[4]
             } for r in rows]
         except Exception as e:
             raise e

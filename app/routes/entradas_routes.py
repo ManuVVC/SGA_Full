@@ -54,7 +54,11 @@ def crear_albaran():
 @entradas_bp.route('/grabar-linea', methods=['POST'])
 @token_required
 def grabar_linea():
-    data = request.json
+    from flask import g
+    data = request.json or {}
+    if hasattr(g, 'operador') and g.operador:
+        data['CODOPERADOR'] = g.operador.get('cod_operador', 1)
+        data['CODTERMINAL'] = g.operador.get('terminal', 1)
     res = EntradasService.grabar_linea(data)
     return jsonify(res), 200 if res['status'] == 'success' else 400
 
