@@ -715,7 +715,7 @@ export default function EntradaMercancia() {
                 >
                   Ver Lín. Grabadas
                 </button>
-                {selectedPedido && (
+                { (selectedPedido || numPedidoAsociado) && (
                   <button 
                     onClick={handleVerLineasPendientes}
                     className="flex-1 p-3 bg-purple-100 text-purple-800 font-bold rounded border border-purple-300 hover:bg-purple-200"
@@ -807,6 +807,7 @@ export default function EntradaMercancia() {
                         <span className="text-gray-500">Cód: {l.CODARTICULOAPLICACION}</span>
                         <div className="text-right">
                           <div className="text-xs text-gray-500">Pedidas: {l.CANTSOLICITADA}</div>
+                          <div className="text-xs text-blue-600 font-semibold">Recibidas: {l.CANTSERVIDA ?? 0}</div>
                           <div className="font-bold text-purple-700">Faltan: {l.CANTPDTESERVIR}</div>
                         </div>
                       </div>

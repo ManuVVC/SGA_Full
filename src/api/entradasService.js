@@ -51,7 +51,8 @@ export const getDetalleLinea = async (codlineadocumentoproveedor) => {
 };
 
 export const getLineasPendientes = async (coddocumento_albaran) => {
-  const response = await apiClient.get(`/entradas/lineas-pendientes/${coddocumento_albaran}`);
+  const t = new Date().getTime();
+  const response = await apiClient.get(`/entradas/lineas-pendientes/${coddocumento_albaran}?t=${t}`);
   return response.data;
 };
 

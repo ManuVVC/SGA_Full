@@ -6,6 +6,9 @@ const apiService = axios.create({
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   },
 });
 
