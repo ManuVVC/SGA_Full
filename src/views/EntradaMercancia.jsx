@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, AlertTriangle, Truck, Search, PlusCircle, Save, XCircle, FileText } from 'lucide-react';
-import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes, getArticuloInfoEan } from '../api/entradasService';
+import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getTodosProveedores, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes, getArticuloInfoEan } from '../api/entradasService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
 
@@ -36,6 +36,15 @@ export default function EntradaMercancia() {
   const navigate = useNavigate();
   const { isKeyboardOpen } = useKeyboard();
 
+  const permisosUsuario = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sga_permissions') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
+  const canCreateSinPedido = permisosUsuario.PRM_ENTRADAMERCANCIASINDOC === true;
+
   // Steps: 1 = Muelle, 2 = Albaranes en Curso, 3 = Proveedor/Pedido, 4 = Albaran Nuevo, 5 = Lineas
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -48,6 +57,8 @@ export default function EntradaMercancia() {
   const [muelles, setMuelles] = useState([]);
   const [albaranesCurso, setAlbaranesCurso] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [todosProveedores, setTodosProveedores] = useState([]);
+  const [filtroProveedor, setFiltroProveedor] = useState('');
   const [pedidos, setPedidos] = useState([]);
 
   // Selecciones
@@ -68,6 +79,8 @@ export default function EntradaMercancia() {
   const [unidades, setUnidades] = useState('');
   const [lote, setLote] = useState('');
   const [caducidad, setCaducidad] = useState('');
+  const [isPalet, setIsPalet] = useState(false);
+  const [numBultos, setNumBultos] = useState('');
 
   // Modales y datos de líneas
   const [showLineasGrabadas, setShowLineasGrabadas] = useState(false);
@@ -177,8 +190,24 @@ export default function EntradaMercancia() {
     setTimeout(() => albaranRef.current?.focus(), 100);
   };
 
-  const handleSinPedido = () => {
-    setSelectedProveedor(null);
+  const handleSinPedido = async () => {
+    setLoading(true);
+    try {
+      const res = await getTodosProveedores();
+      if (res.status === 'success') {
+        setTodosProveedores(res.proveedores || []);
+        setFiltroProveedor('');
+        setStep(3.5);
+      }
+    } catch (e) {
+      setError('Error al cargar proveedores');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProveedorSinPedidoSelect = (p) => {
+    setSelectedProveedor({ CODPROVEEDOR: p.CODPROVEEDOR, RAZONSOCIAL: p.RAZONSOCIAL });
     setSelectedPedido(null);
     setNumPedidoAsociado(null);
     setStep(4);
@@ -239,7 +268,9 @@ export default function EntradaMercancia() {
         CODARTICULO: articuloInfo?.CODARTICULO,
         UNIDADES: parseInt(unidades, 10) * (articuloInfo?.FACTOR_EAN || 1),
         NUMEROLOTE: lote || null,
-        FECHACADUCIDAD: caducidad ? parseShorthandDate(caducidad) : null
+        FECHACADUCIDAD: caducidad ? parseShorthandDate(caducidad) : null,
+        ISPALET: isPalet,
+        NUMBULTOS: numBultos || 1
       };
 
       if (codDocumento) {
@@ -265,6 +296,7 @@ export default function EntradaMercancia() {
         setUnidades('');
         setLote('');
         setCaducidad('');
+        setNumBultos('');
         setArticuloInfo(null);
         setTimeout(() => {
           setSuccess(null);
@@ -361,6 +393,12 @@ export default function EntradaMercancia() {
         setEan('');
         cargarAlbaranesEnCurso(selectedMuelle?.CODMUELLE || 0);
       } else if (step === 4) {
+        if (!selectedPedido) {
+          setStep(3.5);
+        } else {
+          setStep(3);
+        }
+      } else if (step === 3.5) {
         setStep(3);
       } else if (step === 3) {
         if (albaranesCurso.length > 0) {
@@ -489,12 +527,54 @@ export default function EntradaMercancia() {
               )}
             </div>
             
-            <button 
-              onClick={handleSinPedido}
-              className="w-full p-4 bg-gray-200 border-2 border-dashed border-gray-400 rounded font-bold text-gray-700 flex items-center justify-center gap-2 hover:bg-gray-300"
-            >
-              <PlusCircle size={20}/> Entrada Sin Pedido
-            </button>
+            {canCreateSinPedido && (
+              <button 
+                onClick={handleSinPedido}
+                className="w-full p-4 bg-gray-200 border-2 border-dashed border-gray-400 rounded font-bold text-gray-700 flex items-center justify-center gap-2 hover:bg-gray-300 mt-2"
+              >
+                <PlusCircle size={20}/> Entrada Sin Pedido
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* STEP 3.5: Proveedores (Sin Pedido) */}
+        {step === 3.5 && (
+          <div className="bg-white p-4 rounded shadow border-l-4 border-sga-primary h-full flex flex-col relative">
+            <h2 className="text-lg font-bold mb-3 text-gray-800">Seleccione Proveedor</h2>
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 text-gray-400" size={20}/>
+                <input 
+                  type="text"
+                  placeholder="Buscar proveedor..."
+                  className="w-full border border-gray-300 rounded p-2 pl-10 focus:border-sga-primary outline-none"
+                  value={filtroProveedor}
+                  onChange={(e) => setFiltroProveedor(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-16 space-y-2">
+              {todosProveedores.filter(p => {
+                const searchStr = filtroProveedor.toLowerCase();
+                const rs = (p.RAZONSOCIAL || '').toLowerCase();
+                const nc = (p.NOMBRECOMERCIAL || '').toLowerCase();
+                const cod = (p.CODPROVEEDORAPLICACION || '').toLowerCase();
+                return rs.includes(searchStr) || nc.includes(searchStr) || cod.includes(searchStr);
+              }).map(p => (
+                <button 
+                  key={p.CODPROVEEDOR} 
+                  onClick={() => handleProveedorSinPedidoSelect(p)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded text-left hover:bg-sga-primary hover:text-white transition-colors flex flex-col gap-1"
+                >
+                  <div className="font-bold text-lg">{p.CODPROVEEDORAPLICACION ? `${p.CODPROVEEDORAPLICACION} - ` : ''}{p.RAZONSOCIAL}</div>
+                  {p.NOMBRECOMERCIAL && <div className="text-sm font-semibold opacity-80">{p.NOMBRECOMERCIAL}</div>}
+                </button>
+              ))}
+              {todosProveedores.length === 0 && !loading && (
+                <p className="text-gray-500 italic">No hay proveedores registrados.</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -608,6 +688,7 @@ export default function EntradaMercancia() {
             </div>
 
             <div className="space-y-4">
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">EAN / Artículo</label>
                 <div className="flex items-center gap-2">
@@ -699,6 +780,36 @@ export default function EntradaMercancia() {
                   )}
                 </div>
               )}
+
+              <div className="flex gap-4 p-3 bg-gray-50 border border-gray-200 rounded mt-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Modo Entrada</label>
+                  <div className="flex bg-white border border-gray-300 rounded overflow-hidden">
+                    <button 
+                      onClick={() => setIsPalet(false)}
+                      className={`flex-1 py-2 font-bold text-sm ${!isPalet ? 'bg-sga-primary text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      Normal
+                    </button>
+                    <button 
+                      onClick={() => setIsPalet(true)}
+                      className={`flex-1 py-2 font-bold text-sm ${isPalet ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      Palet
+                    </button>
+                  </div>
+                </div>
+                <div className="w-24">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Nº Veces</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    className="w-full border border-gray-300 p-2 rounded text-center font-bold focus:border-sga-primary"
+                    value={numBultos}
+                    onChange={(e) => setNumBultos(e.target.value === '' ? '' : parseInt(e.target.value))}
+                  />
+                </div>
+              </div>
 
               <button 
                 onClick={handleGrabarLinea}

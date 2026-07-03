@@ -20,6 +20,11 @@ export const getProveedoresPendientes = async () => {
   return response.data;
 };
 
+export const getTodosProveedores = async () => {
+  const response = await apiClient.get('/entradas/proveedores');
+  return response.data;
+};
+
 export const getPedidosPendientes = async (codproveedor) => {
   const response = await apiClient.get(`/entradas/pedidos-pendientes?codproveedor=${codproveedor}`);
   return response.data;
