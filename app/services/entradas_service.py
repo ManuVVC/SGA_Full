@@ -32,6 +32,11 @@ class EntradasService:
         return {"status": "success", "proveedores": proveedores}
 
     @staticmethod
+    def get_todos_proveedores():
+        proveedores = EntradasRepository.get_proveedores()
+        return {"status": "success", "proveedores": proveedores}
+
+    @staticmethod
     def get_pedidos(codproveedor: int):
         pedidos = EntradasRepository.get_pedidos_pendientes_por_proveedor(codproveedor)
         return {"status": "success", "pedidos": pedidos}

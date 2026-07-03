@@ -35,6 +35,12 @@ def get_proveedores_pendientes():
     res = EntradasService.get_proveedores()
     return jsonify(res), 200 if res['status'] == 'success' else 400
 
+@entradas_bp.route('/proveedores', methods=['GET'])
+@token_required
+def get_todos_proveedores():
+    res = EntradasService.get_todos_proveedores()
+    return jsonify(res), 200 if res['status'] == 'success' else 400
+
 @entradas_bp.route('/pedidos-pendientes', methods=['GET'])
 @token_required
 def get_pedidos_pendientes():
