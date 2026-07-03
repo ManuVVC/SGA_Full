@@ -43,7 +43,10 @@ export default function EntradaMercancia() {
       return {};
     }
   }, []);
-  const canCreateSinPedido = permisosUsuario.PRM_ENTRADAMERCANCIASINDOC === true;
+  
+  // En base de datos puede ser -1, 1 o booleanos. Validamos que no sea 0 ni falso.
+  const prmEntrada = permisosUsuario.PRM_ENTRADAMERCANCIASINDOC;
+  const canCreateSinPedido = prmEntrada !== 0 && prmEntrada !== false && prmEntrada !== undefined && prmEntrada !== null;
 
   // Steps: 1 = Muelle, 2 = Albaranes en Curso, 3 = Proveedor/Pedido, 4 = Albaran Nuevo, 5 = Lineas
   const [step, setStep] = useState(1);
