@@ -61,6 +61,10 @@ export default function ReubicacionLibre() {
 
   const handleBack = () => {
     if (step > 1) {
+      if (step === 5) setDestinoInput('');
+      if (step === 4) setCantidadInput('');
+      if (step === 2) setOrigenInput('');
+      
       setStep(step - 1);
       setError(null);
       setSuccess(null);
@@ -168,8 +172,7 @@ export default function ReubicacionLibre() {
         const res = await validarUbicacion(destinoInput);
         if (res.status === 'success') {
           setDestinoData(res.ubicacion);
-          // Proceder a grabar
-          await procesarGrabacion(res.ubicacion);
+          setStep(5);
         } else if (res.status === 'necesita_posicion') {
           setPosicionesDisponibles(res.opciones);
           setUbicacionEnProceso('destino');
@@ -185,11 +188,12 @@ export default function ReubicacionLibre() {
     }
   };
 
-  const procesarGrabacion = async (destinoValidado) => {
+  const procesarGrabacion = async () => {
     try {
+      setLoading(true);
       const resGrabar = await grabarReubicacion(
         origenData,
-        destinoValidado,
+        destinoData,
         articuloData,
         parseFloat(cantidadInput) * articuloData.UNIDADES,
         loteData
@@ -226,7 +230,7 @@ export default function ReubicacionLibre() {
           setStep(2);
         } else {
           setDestinoData(res.ubicacion);
-          await procesarGrabacion(res.ubicacion);
+          setStep(5);
         }
       } else {
         setError(res.message || 'Error al confirmar la posición.');
@@ -324,26 +328,41 @@ export default function ReubicacionLibre() {
             <label className="block text-sm font-bold text-gray-700 mb-1">3. Cantidad</label>
             {step === 3 ? (
               <div>
-                <input 
-                  ref={cantidadRef}
-                  type="text" 
-                  inputMode={isKeyboardOpen ? "numeric" : "none"}
-                  className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
-                  placeholder="Introduzca cantidad"
-                  value={cantidadInput}
-                  onChange={(e) => setCantidadInput(e.target.value)}
-                  onKeyDown={handleCantidadKeyDown}
-                  disabled={loading}
-                />
-                {articuloData?.UNIDADES > 1 && (
-                  <p className="text-xs text-sga-blue mt-1 font-semibold">
-                    * Multiplica por el factor: {articuloData.UNIDADES}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <input 
+                    ref={cantidadRef}
+                    type="number" 
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    className="flex-1 border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
+                    placeholder="Introduzca cantidad"
+                    value={cantidadInput}
+                    onChange={(e) => setCantidadInput(e.target.value)}
+                    onKeyDown={handleCantidadKeyDown}
+                    disabled={loading}
+                  />
+                  {articuloData?.UNIDADES > 1 && (
+                    <span className="bg-gray-100 text-gray-700 font-bold p-3 rounded border border-gray-300 whitespace-nowrap text-lg">
+                      x {articuloData.UNIDADES}
+                    </span>
+                  )}
+                </div>
+                {articuloData?.UNIDADES > 1 && cantidadInput && !isNaN(parseFloat(cantidadInput)) && (
+                  <div className="mt-2 text-right text-sm text-sga-blue font-bold">
+                    Total a mover: {parseFloat(cantidadInput) * articuloData.UNIDADES} uds
+                  </div>
                 )}
               </div>
             ) : (
-              <div className="text-lg font-bold text-sga-dark">
-                {cantidadInput} {articuloData?.UNIDADES > 1 && <span className="text-sm text-gray-500">(x{articuloData.UNIDADES})</span>}
+              <div className="text-lg font-bold text-sga-dark flex items-center justify-between">
+                <div>
+                  {cantidadInput} {articuloData?.UNIDADES > 1 && <span className="text-sm text-gray-500">(x{articuloData.UNIDADES})</span>}
+                </div>
+                {articuloData?.UNIDADES > 1 && cantidadInput && !isNaN(parseFloat(cantidadInput)) && (
+                  <div className="text-sga-blue bg-blue-50 px-2 py-1 rounded border border-blue-100 text-sm">
+                    Total: {parseFloat(cantidadInput) * articuloData.UNIDADES}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -368,6 +387,19 @@ export default function ReubicacionLibre() {
             ) : (
               <div className="text-lg font-bold text-sga-dark">{destinoData?.UBICACION || destinoInput}</div>
             )}
+          </div>
+        )}
+
+        {/* STEP 5: Confirmar */}
+        {step === 5 && (
+          <div className="mt-4">
+            <button 
+              onClick={procesarGrabacion}
+              className="w-full p-4 bg-green-600 text-white rounded font-bold text-lg flex justify-center items-center gap-2 hover:bg-green-700 shadow-lg"
+              disabled={loading}
+            >
+              Confirmar Reubicación
+            </button>
           </div>
         )}
 

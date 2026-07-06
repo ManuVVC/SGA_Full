@@ -47,6 +47,9 @@ export default function ReubicacionEntrada() {
 
   const handleBack = () => {
     if (step > 1) {
+      if (step === 3) setDestinoInput('');
+      if (step === 2) setSsccInput('');
+      
       setStep(step - 1);
       setError(null);
       setSuccess(null);
@@ -85,7 +88,7 @@ export default function ReubicacionEntrada() {
         const res = await validarUbicacion(destinoInput);
         if (res.status === 'success') {
           setDestinoData(res.ubicacion);
-          await procesarGrabacion(res.ubicacion);
+          setStep(3);
         } else if (res.status === 'necesita_posicion') {
           setPosicionesDisponibles(res.opciones);
           setShowPosicionModal(true);
@@ -100,11 +103,12 @@ export default function ReubicacionEntrada() {
     }
   };
 
-  const procesarGrabacion = async (destinoValidado) => {
+  const procesarGrabacion = async () => {
     try {
+      setLoading(true);
       const resGrabar = await grabarReubicacionPalet(
         paletData,
-        destinoValidado
+        destinoData
       );
       if (resGrabar.status === 'success') {
         setSuccess('¡Palet reubicado con éxito!');
@@ -132,7 +136,7 @@ export default function ReubicacionEntrada() {
       
       if (res.status === 'success') {
         setDestinoData(res.ubicacion);
-        await procesarGrabacion(res.ubicacion);
+        setStep(3);
       } else {
         setError(res.message || 'Error al confirmar la posición.');
       }
@@ -237,6 +241,19 @@ export default function ReubicacionEntrada() {
             ) : (
               <div className="text-lg font-bold text-sga-dark">{destinoData?.UBICACION || destinoInput}</div>
             )}
+          </div>
+        )}
+
+        {/* STEP 3: Confirmar */}
+        {step === 3 && (
+          <div className="mt-4">
+            <button 
+              onClick={procesarGrabacion}
+              className="w-full p-4 bg-green-600 text-white rounded font-bold text-lg flex justify-center items-center gap-2 hover:bg-green-700 shadow-lg"
+              disabled={loading}
+            >
+              Confirmar Reubicación
+            </button>
           </div>
         )}
 

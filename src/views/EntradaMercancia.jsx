@@ -720,6 +720,7 @@ export default function EntradaMercancia() {
                     ref={unidadesRef}
                     type="number"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     className="flex-1 border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
                     value={unidades}
                     onChange={(e) => setUnidades(e.target.value)}
@@ -806,8 +807,10 @@ export default function EntradaMercancia() {
                   <label className="block text-sm font-bold text-gray-700 mb-1">Nº Veces</label>
                   <input 
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min="1"
-                    className="w-full border border-gray-300 p-2 rounded text-center font-bold focus:border-sga-primary"
+                    className="w-full border border-gray-300 p-2 rounded text-center focus:border-sga-primary"
                     value={numBultos}
                     onChange={(e) => setNumBultos(e.target.value === '' ? '' : parseInt(e.target.value))}
                   />
