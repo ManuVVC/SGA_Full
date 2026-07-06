@@ -94,10 +94,14 @@ class EntradasRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT DISTINCT CODDOCUMENTO, CODPROVEEDOR, RAZONSOCIAL, NUMDOCUMENTO, FECHADOCUMENTO
-                FROM GSM.VMST_DOCUMENTOSPROVEEDOR 
-                WHERE CODESTADODOCUMENTO = 14
-                ORDER BY FECHADOCUMENTO DESC
+                SELECT DISTINCT v.CODDOCUMENTO, v.CODPROVEEDOR, v.RAZONSOCIAL, v.NUMDOCUMENTO, v.FECHADOCUMENTO,
+                       p.PRM_ENTRADADEMERCANCIANOPEDIDA, p.PRM_PERMITIRENTRADAMERCANCIA,
+                       p.PRM_PERMITIRENTRADASINPROART, p.PRM_PERMITIRPEDIR, p.PRM_PROPIETARIOMERCANCIASINPED,
+                       p.PRM_CASARCONPEDIDOSPENDIENTES, p.PRM_PEDIDOSFALTAS, p.PRM_PERMITIRENTRARMASSOLICIT
+                FROM GSM.VMST_DOCUMENTOSPROVEEDOR v
+                LEFT JOIN GSM.TMST_PROVEEDORES p ON p.CODPROVEEDOR = v.CODPROVEEDOR
+                WHERE v.CODESTADODOCUMENTO = 14
+                ORDER BY v.FECHADOCUMENTO DESC
             """
             cursor.execute(query)
             rows = cursor.fetchall()
@@ -106,7 +110,17 @@ class EntradasRepository:
                 "CODPROVEEDOR": r[1],
                 "RAZONSOCIAL": r[2],
                 "NUMDOCUMENTO": r[3],
-                "FECHADOCUMENTO": r[4].strftime('%d-%m-%Y') if r[4] else None
+                "FECHADOCUMENTO": r[4].strftime('%d-%m-%Y') if r[4] else None,
+                "permisos": {
+                    "PRM_ENTRADADEMERCANCIANOPEDIDA": r[5] != 0 if r[5] is not None else False,
+                    "PRM_PERMITIRENTRADAMERCANCIA": r[6] != 0 if r[6] is not None else False,
+                    "PRM_PERMITIRENTRADASINPROART": r[7] != 0 if r[7] is not None else False,
+                    "PRM_PERMITIRPEDIR": r[8] != 0 if r[8] is not None else False,
+                    "PRM_PROPIETARIOMERCANCIASINPED": r[9] != 0 if r[9] is not None else False,
+                    "PRM_CASARCONPEDIDOSPENDIENTES": r[10] != 0 if r[10] is not None else False,
+                    "PRM_PEDIDOSFALTAS": r[11] != 0 if r[11] is not None else False,
+                    "PRM_PERMITIRENTRARMASSOLICIT": r[12] != 0 if r[12] is not None else False,
+                }
             } for r in rows]
         except Exception as e:
             raise e
@@ -151,7 +165,10 @@ class EntradasRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT CODPROVEEDOR, RAZONSOCIAL, CODPROVEEDORAPLICACION, NOMBRECOMERCIAL
+                SELECT CODPROVEEDOR, RAZONSOCIAL, CODPROVEEDORAPLICACION, NOMBRECOMERCIAL,
+                       PRM_ENTRADADEMERCANCIANOPEDIDA, PRM_PERMITIRENTRADAMERCANCIA,
+                       PRM_PERMITIRENTRADASINPROART, PRM_PERMITIRPEDIR, PRM_PROPIETARIOMERCANCIASINPED,
+                       PRM_CASARCONPEDIDOSPENDIENTES, PRM_PEDIDOSFALTAS, PRM_PERMITIRENTRARMASSOLICIT
                 FROM GSM.TMST_PROVEEDORES
                 ORDER BY RAZONSOCIAL ASC
             """
@@ -161,7 +178,17 @@ class EntradasRepository:
                 "CODPROVEEDOR": r[0],
                 "RAZONSOCIAL": r[1],
                 "CODPROVEEDORAPLICACION": r[2],
-                "NOMBRECOMERCIAL": r[3]
+                "NOMBRECOMERCIAL": r[3],
+                "permisos": {
+                    "PRM_ENTRADADEMERCANCIANOPEDIDA": r[4] != 0 if r[4] is not None else False,
+                    "PRM_PERMITIRENTRADAMERCANCIA": r[5] != 0 if r[5] is not None else False,
+                    "PRM_PERMITIRENTRADASINPROART": r[6] != 0 if r[6] is not None else False,
+                    "PRM_PERMITIRPEDIR": r[7] != 0 if r[7] is not None else False,
+                    "PRM_PROPIETARIOMERCANCIASINPED": r[8] != 0 if r[8] is not None else False,
+                    "PRM_CASARCONPEDIDOSPENDIENTES": r[9] != 0 if r[9] is not None else False,
+                    "PRM_PEDIDOSFALTAS": r[10] != 0 if r[10] is not None else False,
+                    "PRM_PERMITIRENTRARMASSOLICIT": r[11] != 0 if r[11] is not None else False,
+                }
             } for r in rows]
         except Exception as e:
             raise e
