@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Box, List, MapPin, Barcode } from 'lucide-react';
 import TerminalHeader from '../components/TerminalHeader';
+import ActionMenu from '../components/ActionMenu';
+import { useLongPress } from '../hooks/useLongPress';
 import apiService from '../api/apiService';
 
 export default function StockResults() {
@@ -17,6 +19,10 @@ export default function StockResults() {
   const [tabData, setTabData] = useState(null);
   const [loadingTab, setLoadingTab] = useState(false);
   const [tabError, setTabError] = useState('');
+
+  // Long press y Menú de acciones
+  const [selectedUbicacionForMenu, setSelectedUbicacionForMenu] = useState(null);
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   // Si se accede a esta ruta sin datos, volver a la búsqueda
   useEffect(() => {
@@ -108,20 +114,26 @@ export default function StockResults() {
     return (
       <div className="flex flex-col gap-3 mt-4">
         {tabData.map((ubi, idx) => (
-          <div key={idx} className="bg-white p-4 rounded-lg shadow flex items-center justify-between border-l-8 border-sga-success">
-            <div>
-              <span className="block text-3xl font-black text-sga-dark">{ubi.etiqueta}</span>
-              <span className="block text-sm text-gray-500 font-semibold mt-1">
-                Lote: {ubi.lote || '-'} | {ubi.cod_ubicacion}
-                {ubi.fecha_caducidad && <span> | Cad: {ubi.fecha_caducidad}</span>}
-              </span>
-            </div>
-            <div className="text-right flex flex-col items-end">
-              <span className="text-4xl font-black text-sga-success">{ubi.cantidad}</span>
-              <span className="text-xs uppercase font-bold text-gray-400">UDS</span>
-            </div>
-          </div>
+          <UbicacionRow 
+            key={idx} 
+            ubi={ubi} 
+            onLongPress={(ubi) => {
+              setSelectedUbicacionForMenu(ubi);
+              setShowActionMenu(true);
+            }} 
+          />
         ))}
+
+        {/* Action Menu */}
+        <ActionMenu 
+          title={selectedUbicacionForMenu?.etiqueta || selectedUbicacionForMenu?.cod_ubicacion}
+          subtitle={selectedUbicacionForMenu?.etiqueta ? `Cod: ${selectedUbicacionForMenu?.cod_ubicacion}` : ''}
+          isOpen={showActionMenu}
+          onClose={() => setShowActionMenu(false)}
+          onInfo={() => navigate('/utilidades/info-ubicacion', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion }})}
+          onAjustes={() => navigate('/stock/ajustes')}
+          infoLabel="Info Ubicación"
+        />
       </div>
     );
   };
@@ -238,6 +250,29 @@ export default function StockResults() {
           <Box className="w-8 h-8" />
           Nueva Búsqueda
         </button>
+      </div>
+    </div>
+  );
+}
+
+function UbicacionRow({ ubi, onLongPress }) {
+  const longPressProps = useLongPress(() => onLongPress(ubi), null, { delay: 600 });
+  
+  return (
+    <div 
+      className="bg-white p-4 rounded-lg shadow flex items-center justify-between border-l-8 border-sga-success select-none active:bg-blue-50 transition-colors"
+      {...longPressProps}
+    >
+      <div>
+        <span className="block text-3xl font-black text-sga-dark">{ubi.etiqueta}</span>
+        <span className="block text-sm text-gray-500 font-semibold mt-1">
+          Lote: {ubi.lote || '-'} | {ubi.cod_ubicacion}
+          {ubi.fecha_caducidad && <span> | Cad: {ubi.fecha_caducidad}</span>}
+        </span>
+      </div>
+      <div className="text-right flex flex-col items-end">
+        <span className="text-4xl font-black text-sga-success">{ubi.cantidad}</span>
+        <span className="text-xs uppercase font-bold text-gray-400">UDS</span>
       </div>
     </div>
   );

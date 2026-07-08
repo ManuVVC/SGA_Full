@@ -71,8 +71,8 @@ export function SubMenuUtilidades() {
   const { hasPermission } = usePermissions();
   const items = [
     { label: 'Info Articulo', icon: Info, path: '/stock', show: true },
-    { label: 'Info Ubicacion', icon: MapPin, path: '', show: true },
-    { label: 'Nuevo C.Barras', icon: QrCode, path: '', show: hasPermission('PRM_ALTAEAN') },
+    { label: 'Info Ubicacion', icon: MapPin, path: '/utilidades/info-ubicacion', show: true },
+    { label: 'Nuevo C.Barras', icon: QrCode, path: '/utilidades/nuevo-ean', show: hasPermission('PRM_ALTAEAN') },
     { label: 'Regula Stock', icon: RefreshCcw, path: '', show: hasPermission('PRM_REGULARIZARSTOCK') },
     { label: 'Montar Kits', icon: Layers, path: '', show: true },
     { label: 'Montar Palets', icon: Blocks, path: '', show: true },

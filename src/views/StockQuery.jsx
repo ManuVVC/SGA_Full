@@ -55,8 +55,8 @@ export default function StockQuery() {
       <div className="flex-1 flex flex-col p-4">
         
         <div className="flex items-center gap-2 mb-6">
-          <button onClick={() => navigate('/menu')} className="p-2 bg-white border border-gray-300 shadow rounded text-sga-dark">
-            <ArrowLeft className="w-6 h-6" />
+          <button onClick={() => navigate('/utilidades')} className="p-2 bg-white border border-gray-300 shadow rounded text-sga-dark">
+             <ArrowLeft className="w-6 h-6" />
           </button>
           <span className="font-bold text-sga-dark">Volver</span>
         </div>

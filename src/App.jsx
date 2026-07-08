@@ -11,6 +11,9 @@ import {
 import ReubicacionLibre from './views/ReubicacionLibre';
 import ReubicacionEntrada from './views/ReubicacionEntrada';
 import EntradaMercancia from './views/EntradaMercancia';
+import NuevoEan from './views/NuevoEan';
+import InfoUbicacion from './views/InfoUbicacion';
+import AjustesStock from './views/AjustesStock';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function PrivateRoute({ children }) {
@@ -58,6 +61,9 @@ function App() {
                 <Route path="/inventario" element={<PrivateRoute><SubMenuInventario /></PrivateRoute>} />
                 <Route path="/devoluciones" element={<PrivateRoute><SubMenuDevoluciones /></PrivateRoute>} />
                 <Route path="/utilidades" element={<PrivateRoute><SubMenuUtilidades /></PrivateRoute>} />
+                <Route path="/utilidades/nuevo-ean" element={<PrivateRoute><NuevoEan /></PrivateRoute>} />
+                <Route path="/utilidades/info-ubicacion" element={<PrivateRoute><InfoUbicacion /></PrivateRoute>} />
+                <Route path="/stock/ajustes" element={<PrivateRoute><AjustesStock /></PrivateRoute>} />
 
                 {/* Funcionalidades */}
                 <Route path="/stock" element={

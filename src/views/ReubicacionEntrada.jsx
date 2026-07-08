@@ -231,10 +231,10 @@ export default function ReubicacionEntrada() {
                 ref={destinoRef}
                 type="text" 
                 inputMode={isKeyboardOpen ? "text" : "none"}
-                className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
-                placeholder="Escanee destino"
+                className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
+                placeholder="Escanea ubicación de destino..."
                 value={destinoInput}
-                onChange={(e) => setDestinoInput(e.target.value.toUpperCase())}
+                onChange={(e) => setDestinoInput(e.target.value)}
                 onKeyDown={handleDestinoKeyDown}
                 disabled={loading}
               />

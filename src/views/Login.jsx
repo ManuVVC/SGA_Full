@@ -115,7 +115,8 @@ export default function Login() {
                <input 
                  ref={usernameRef}
                  type="text" 
-                 inputMode={isKeyboardOpen ? "numeric" : "none"}
+                 inputMode="numeric"
+                 pattern="[0-9]*"
                  className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase disabled:opacity-50"
                  value={username}
                  onChange={(e) => setUsername(e.target.value.toUpperCase())}
@@ -129,7 +130,8 @@ export default function Login() {
                <input 
                  ref={passwordRef}
                  type="password" 
-                 inputMode={isKeyboardOpen ? "text" : "none"}
+                 inputMode="numeric"
+                 pattern="[0-9]*"
                  className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 disabled:opacity-50"
                  value={password}
                  onChange={(e) => setPassword(e.target.value)}

@@ -282,10 +282,10 @@ export default function ReubicacionLibre() {
               ref={origenRef}
               type="text" 
               inputMode={isKeyboardOpen ? "text" : "none"}
-              className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
-              placeholder="Escanee o escriba"
+              className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
+              placeholder="Escanea etiqueta de origen..."
               value={origenInput}
-              onChange={(e) => setOrigenInput(e.target.value.toUpperCase())}
+              onChange={(e) => setOrigenInput(e.target.value)}
               onKeyDown={handleOrigenKeyDown}
               disabled={loading}
             />
@@ -377,10 +377,10 @@ export default function ReubicacionLibre() {
                 ref={destinoRef}
                 type="text" 
                 inputMode={isKeyboardOpen ? "text" : "none"}
-                className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none uppercase"
-                placeholder="Escanee destino"
+                className="w-full border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
+                placeholder="Escanea ubicación de destino..."
                 value={destinoInput}
-                onChange={(e) => setDestinoInput(e.target.value.toUpperCase())}
+                onChange={(e) => setDestinoInput(e.target.value)}
                 onKeyDown={handleDestinoKeyDown}
                 disabled={loading}
               />
