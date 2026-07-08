@@ -49,6 +49,41 @@ class StockService:
         return resultado
 
     @staticmethod
+    def actualizar_configuracion_ubicacion(cod_ubicacion: int, bloqueo_entrada: int, bloqueo_salida: int, ubicar_docs: int) -> dict:
+        """
+        Actualiza los parámetros de configuración de una ubicación.
+        """
+        if not cod_ubicacion:
+            raise ValueError("El código de ubicación no puede estar vacío.")
+
+        success = StockRepository.actualizar_configuracion_ubicacion(
+            cod_ubicacion, bloqueo_entrada, bloqueo_salida, ubicar_docs
+        )
+        if not success:
+            raise ValueError(f"No se pudo actualizar la configuración de la ubicación {cod_ubicacion}.")
+
+        return {"status": "success", "message": "Configuración actualizada correctamente"}
+
+    @staticmethod
+    def consultar_stock_ubicacion(cod_ubicacion: int) -> dict:
+        """
+        Consulta el contenido (stock) de una ubicación.
+        Retorna la lista de artículos, lotes y cantidades almacenadas ahí.
+        """
+        if not cod_ubicacion:
+            raise ValueError("El código de ubicación no puede estar vacío.")
+
+        articulos = StockRepository.get_stock_por_ubicacion(cod_ubicacion)
+        stock_total = sum(item["stock"] for item in articulos)
+        
+        return {
+            "cod_ubicacion": cod_ubicacion,
+            "tiene_stock": len(articulos) > 0,
+            "stock_total": stock_total,
+            "articulos": articulos
+        }
+
+    @staticmethod
     def consultar_stock_ean(ean_leido: str) -> dict:
         from ..utils.exceptions import EanNoEncontrado
         if not ean_leido:

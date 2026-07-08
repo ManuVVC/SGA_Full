@@ -14,7 +14,8 @@ class ReubicacionesRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT U.CODUBICACION, U.NOMBRECORTO, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO
+                SELECT U.CODUBICACION, U.NOMBRECORTO, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO,
+                       NVL(U.BLOQUEOENTRADA, 0), NVL(U.BLOQUEOSALIDA, 0), NVL(U.PRM_UBICARDOCUMENTOS, 0)
                 FROM GSM.VMST_UBICACIONES U
                 LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
                 WHERE U.CODUBICACION = :1
@@ -28,7 +29,10 @@ class ReubicacionesRepository:
                     "PRM_TRAZABILIDAD": row[2],
                     "PRM_CADUCIDAD": row[3],
                     "CODTIPODATOMAESTRO": row[4],
-                    "CODDATOMAESTRO": row[5]
+                    "CODDATOMAESTRO": row[5],
+                    "BLOQUEOENTRADA": row[6],
+                    "BLOQUEOSALIDA": row[7],
+                    "PRM_UBICARDOCS": row[8]
                 }
             return None
         except Exception as e:
@@ -61,7 +65,8 @@ class ReubicacionesRepository:
             for hueco in huecos:
                 cod_hueco = hueco[0]
                 query_ubic = """
-                    SELECT U.CODUBICACION, U.NOMBRECORTO, U.POSICION, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO
+                    SELECT U.CODUBICACION, U.NOMBRECORTO, U.POSICION, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO,
+                           NVL(U.BLOQUEOENTRADA, 0), NVL(U.BLOQUEOSALIDA, 0), NVL(U.PRM_UBICARDOCUMENTOS, 0)
                     FROM GSM.VMST_UBICACIONES U
                     LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
                     WHERE U.CODHUECO = :1
@@ -76,7 +81,10 @@ class ReubicacionesRepository:
                         "PRM_TRAZABILIDAD": ub[3],
                         "PRM_CADUCIDAD": ub[4],
                         "CODTIPODATOMAESTRO": ub[5],
-                        "CODDATOMAESTRO": ub[6]
+                        "CODDATOMAESTRO": ub[6],
+                        "BLOQUEOENTRADA": ub[7],
+                        "BLOQUEOSALIDA": ub[8],
+                        "PRM_UBICARDOCS": ub[9]
                     })
                     
             return resultados

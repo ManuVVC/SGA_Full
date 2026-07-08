@@ -146,6 +146,105 @@ class StockRepository:
                     pass
 
     @staticmethod
+    def actualizar_configuracion_ubicacion(cod_ubicacion: int, bloqueo_entrada: int, bloqueo_salida: int, ubicar_docs: int) -> bool:
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+
+            query = """
+                UPDATE GSM.TMST_UBICACIONES 
+                SET BLOQUEOENTRADA = :1, 
+                    BLOQUEOSALIDA = :2, 
+                    PRM_UBICARDOCUMENTOS = :3 
+                WHERE CODUBICACION = :4
+            """
+            cursor.execute(query, [bloqueo_entrada, bloqueo_salida, ubicar_docs, cod_ubicacion])
+            connection.commit()
+            return cursor.rowcount > 0
+
+        except Exception as e:
+            logger.error(f"Error al actualizar la configuracion de ubicacion ID {cod_ubicacion}: {e}", exc_info=True)
+            if connection:
+                connection.rollback()
+            raise e
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if connection:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def get_stock_por_ubicacion(cod_ubicacion: int) -> list:
+        """
+        Obtiene el stock de una ubicación específica.
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+
+            query = """
+                SELECT 
+                    A.CODARTICULOAPLICACION AS COD_INTERNO,
+                    A.NOMBREARTICULO AS NOMBRE,
+                    L.NUMEROLOTE AS LOTE,
+                    UA.Stock AS STOCK,
+                    UA.FechaCaducidad AS FECHA_CADUCIDAD
+                FROM GSM.VSYS_UBICACIONESARTICULO UA
+                LEFT JOIN GSM.TMST_ARTICULOS A ON UA.CodArticulo = A.CodArticulo
+                LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES L ON UA.CodNumeroLote = L.CODNUMEROLOTE
+                WHERE UA.CodUbicacion = :cod_ubic AND UA.Stock > 0
+                ORDER BY A.NOMBREARTICULO ASC, UA.FechaCaducidad ASC
+            """
+            cursor.execute(query, cod_ubic=cod_ubicacion)
+            rows = cursor.fetchall()
+            
+            columns = [col[0].upper() for col in cursor.description]
+            stock_list = []
+            
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+                f_cad = row_dict.get("FECHA_CADUCIDAD")
+                if hasattr(f_cad, "strftime"):
+                    f_cad_str = f_cad.strftime("%Y-%m-%d")
+                else:
+                    f_cad_str = str(f_cad) if f_cad else None
+
+                stock_list.append({
+                    "cod_interno": row_dict.get("COD_INTERNO"),
+                    "nombre": row_dict.get("NOMBRE"),
+                    "lote": row_dict.get("LOTE"),
+                    "stock": float(row_dict.get("STOCK")) if row_dict.get("STOCK") is not None else 0.0,
+                    "fecha_caducidad": f_cad_str
+                })
+
+            return stock_list
+
+        except Exception as e:
+            logger.error(f"Error al obtener stock de la ubicacion ID {cod_ubicacion}: {e}", exc_info=True)
+            raise e
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if connection:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    @staticmethod
     def get_articulo_por_ean(ean_leido: str) -> dict or None:
         if not ean_leido:
             return None
