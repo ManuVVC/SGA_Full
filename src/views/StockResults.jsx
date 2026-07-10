@@ -131,7 +131,7 @@ export default function StockResults() {
           isOpen={showActionMenu}
           onClose={() => setShowActionMenu(false)}
           onInfo={() => navigate('/utilidades/info-ubicacion', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion }})}
-          onAjustes={() => navigate('/stock/ajustes')}
+          onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion, codArticulo: tabData.articulo?.CODARTICULOAPLICACION || tabData.articulo?.CODARTICULO, articleData: tabData.articulo }})}
           infoLabel="Info Ubicación"
         />
       </div>

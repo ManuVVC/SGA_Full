@@ -1,7 +1,10 @@
 import React from 'react';
 import { Info, Settings2, X } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function ActionMenu({ title, subtitle, isOpen, onClose, onInfo, onAjustes, infoLabel = "Info Artículo" }) {
+  const { hasPermission } = usePermissions();
+  
   if (!isOpen) return null;
 
   return (
@@ -28,15 +31,17 @@ export default function ActionMenu({ title, subtitle, isOpen, onClose, onInfo, o
             <span className="font-bold text-gray-700 text-lg">{infoLabel}</span>
           </button>
 
-          <button 
-            onClick={() => { onClose(); onAjustes(); }}
-            className="flex items-center gap-3 w-full p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-brand-olive/10 hover:border-brand-olive transition-colors"
-          >
-            <div className="bg-brand-olive/20 p-2 rounded-full text-brand-olive">
-              <Settings2 className="w-6 h-6" />
-            </div>
-            <span className="font-bold text-gray-700 text-lg">Ajustes de Stock</span>
-          </button>
+          {hasPermission('PRM_AJUSTESDESTOCK') && (
+            <button 
+              onClick={() => { onClose(); onAjustes(); }}
+              className="flex items-center gap-3 w-full p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-brand-olive/10 hover:border-brand-olive transition-colors"
+            >
+              <div className="bg-brand-olive/20 p-2 rounded-full text-brand-olive">
+                <Settings2 className="w-6 h-6" />
+              </div>
+              <span className="font-bold text-gray-700 text-lg">Ajustes de Stock</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Box, AlertTriangle, CheckCircle, MapPin, Search, Info, Settings, Save } from 'lucide-react';
+import { ArrowLeft, Box, AlertTriangle, CheckCircle, MapPin, Search, Info, Settings, Save, Lock } from 'lucide-react';
 import TerminalHeader from '../components/TerminalHeader';
 import ActionMenu from '../components/ActionMenu';
 import { useKeyboard } from '../contexts/KeyboardContext';
 import { useLongPress } from '../hooks/useLongPress';
+import { usePermissions } from '../hooks/usePermissions';
 import { validarUbicacion } from '../api/reubicacionesService';
 import apiService from '../api/apiService';
 
@@ -13,6 +14,7 @@ export default function InfoUbicacion() {
   const locationState = useLocation();
   const initialUbicacion = locationState.state?.codUbicacion ? String(locationState.state.codUbicacion) : '';
   const { isKeyboardOpen } = useKeyboard();
+  const { hasPermission } = usePermissions();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -275,14 +277,16 @@ export default function InfoUbicacion() {
                 )}
               </button>
               
-              <button
-                onClick={irAConfigurar}
-                disabled={loading}
-                className="w-full py-3 bg-gray-600 text-white rounded font-bold text-lg shadow disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <Settings className="w-6 h-6" />
-                CONFIGURAR
-              </button>
+              {(hasPermission('PRM_BLOQUEARUBICACIONESENTRADA') || hasPermission('PRM_BLOQUEARUBICACIONESSALIDA') || hasPermission('PRM_MODIFUBICPARAUBICARDOCS')) && (
+                <button
+                  onClick={irAConfigurar}
+                  disabled={loading}
+                  className="w-full py-3 bg-gray-600 text-white rounded font-bold text-lg shadow disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Settings className="w-6 h-6" />
+                  CONFIGURAR
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -330,33 +334,39 @@ export default function InfoUbicacion() {
               Configurar Ubicación
             </h2>
             <div className="flex flex-col gap-4 mb-6">
-              <div className="flex justify-between items-center bg-gray-50 p-3 rounded border">
-                <span className="font-bold text-gray-700">Bloqueo Entrada</span>
-                <button
-                  onClick={() => setConfigData({...configData, bloqueoEntrada: configData.bloqueoEntrada === 0 ? -1 : 0})}
-                  className={`px-6 py-2 rounded font-bold text-white shadow ${configData.bloqueoEntrada === 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                >
-                  {configData.bloqueoEntrada === 0 ? 'NO' : 'SÍ'}
-                </button>
-              </div>
-              <div className="flex justify-between items-center bg-gray-50 p-3 rounded border">
-                <span className="font-bold text-gray-700">Bloqueo Salida</span>
-                <button
-                  onClick={() => setConfigData({...configData, bloqueoSalida: configData.bloqueoSalida === 0 ? -1 : 0})}
-                  className={`px-6 py-2 rounded font-bold text-white shadow ${configData.bloqueoSalida === 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                >
-                  {configData.bloqueoSalida === 0 ? 'NO' : 'SÍ'}
-                </button>
-              </div>
-              <div className="flex justify-between items-center bg-gray-50 p-3 rounded border">
-                <span className="font-bold text-gray-700">Ubicar Docs</span>
-                <button
-                  onClick={() => setConfigData({...configData, ubicarDocs: configData.ubicarDocs === 0 ? -1 : 0})}
-                  className={`px-6 py-2 rounded font-bold text-white shadow ${configData.ubicarDocs === 0 ? 'bg-gray-400' : 'bg-blue-500'}`}
-                >
-                  {configData.ubicarDocs === 0 ? 'NO' : 'SÍ'}
-                </button>
-              </div>
+              {hasPermission('PRM_BLOQUEARUBICACIONESENTRADA') && (
+                <div className="flex justify-between items-center bg-gray-50 p-3 rounded border">
+                  <span className="font-bold text-gray-700">Bloqueo Entrada</span>
+                  <button
+                    onClick={() => setConfigData({...configData, bloqueoEntrada: configData.bloqueoEntrada === 0 ? -1 : 0})}
+                    className={`px-6 py-2 rounded font-bold text-white shadow ${configData.bloqueoEntrada === 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                  >
+                    {configData.bloqueoEntrada === 0 ? 'NO' : 'SÍ'}
+                  </button>
+                </div>
+              )}
+              {hasPermission('PRM_BLOQUEARUBICACIONESSALIDA') && (
+                <div className="flex justify-between items-center bg-gray-50 p-3 rounded border">
+                  <span className="font-bold text-gray-700">Bloqueo Salida</span>
+                  <button
+                    onClick={() => setConfigData({...configData, bloqueoSalida: configData.bloqueoSalida === 0 ? -1 : 0})}
+                    className={`px-6 py-2 rounded font-bold text-white shadow ${configData.bloqueoSalida === 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                  >
+                    {configData.bloqueoSalida === 0 ? 'NO' : 'SÍ'}
+                  </button>
+                </div>
+              )}
+              {hasPermission('PRM_MODIFUBICPARAUBICARDOCS') && (
+                <div className="flex justify-between items-center bg-gray-50 p-3 rounded border">
+                  <span className="font-bold text-gray-700">Ubicar Docs</span>
+                  <button
+                    onClick={() => setConfigData({...configData, ubicarDocs: configData.ubicarDocs === 0 ? -1 : 0})}
+                    className={`px-6 py-2 rounded font-bold text-white shadow ${configData.ubicarDocs === 0 ? 'bg-gray-400' : 'bg-blue-500'}`}
+                  >
+                    {configData.ubicarDocs === 0 ? 'NO' : 'SÍ'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -378,7 +388,7 @@ export default function InfoUbicacion() {
         isOpen={showActionMenu}
         onClose={() => setShowActionMenu(false)}
         onInfo={navigateToInfoArticulo}
-        onAjustes={() => navigate('/stock/ajustes')}
+        onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: ubicacionData?.UBICACION, codArticulo: selectedArticleForMenu?.cod_interno, articleData: selectedArticleForMenu }})}
         infoLabel="Info Artículo"
       />
 
