@@ -107,7 +107,7 @@ class ReubicacionesRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT C.CODARTICULO, C.FACTORCONVERSION, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0)
+                SELECT C.CODARTICULO, C.FACTORCONVERSION, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0), A.CODARTICULOAPLICACION, A.NOMBREARTICULO
                 FROM GSM.TMST_CODFACTURACION C
                 JOIN GSM.TMST_ARTICULOS A ON C.CODARTICULO = A.CODARTICULO
                 WHERE C.CODFACTURACION = :1
@@ -119,7 +119,9 @@ class ReubicacionesRepository:
                     "CODARTICULO": row[0],
                     "UNIDADES": row[1],
                     "PRM_TRAZABILIDAD": row[2],
-                    "GESTIONARCADUCIDAD": row[3]
+                    "GESTIONARCADUCIDAD": row[3],
+                    "CODARTICULOAPLICACION": row[4],
+                    "NOMBREARTICULO": row[5]
                 }
             return None
         except Exception as e:
@@ -141,7 +143,7 @@ class ReubicacionesRepository:
             cursor = conn.cursor()
             # SPGET_CODARTICULO devuelve CODARTICULO
             query = """
-                SELECT A.CODARTICULO, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0)
+                SELECT A.CODARTICULO, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0), A.CODARTICULOAPLICACION, A.NOMBREARTICULO
                 FROM DUAL
                 JOIN GSM.TMST_ARTICULOS A ON A.CODARTICULO = GSM_ARTICULOS.SPGET_CODARTICULO(:1)
             """
@@ -152,7 +154,9 @@ class ReubicacionesRepository:
                     "CODARTICULO": row[0],
                     "UNIDADES": 1,
                     "PRM_TRAZABILIDAD": row[1],
-                    "GESTIONARCADUCIDAD": row[2]
+                    "GESTIONARCADUCIDAD": row[2],
+                    "CODARTICULOAPLICACION": row[3],
+                    "NOMBREARTICULO": row[4]
                 }
             return None
         except Exception as e:
@@ -173,9 +177,9 @@ class ReubicacionesRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT CODARTICULO, DESCRIPCION, NVL(PRM_TRAZABILIDAD, 0), NVL(GESTIONARCADUCIDAD, 0) 
+                SELECT CODARTICULO, NOMBREARTICULO, NVL(PRM_TRAZABILIDAD, 0), NVL(GESTIONARCADUCIDAD, 0) 
                 FROM TMST_ARTICULOS 
-                WHERE UPPER(DESCRIPCION) LIKE UPPER(:1)
+                WHERE UPPER(NOMBREARTICULO) LIKE UPPER(:1)
             """
             cursor.execute(query, [f"%{descripcion}%"])
             rows = cursor.fetchall()
