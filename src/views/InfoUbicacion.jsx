@@ -388,7 +388,7 @@ export default function InfoUbicacion() {
         isOpen={showActionMenu}
         onClose={() => setShowActionMenu(false)}
         onInfo={navigateToInfoArticulo}
-        onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: ubicacionData?.UBICACION, codArticulo: selectedArticleForMenu?.cod_interno, articleData: selectedArticleForMenu }})}
+        onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: ubicacionData?.CODUBICACION, codArticulo: selectedArticleForMenu?.cod_interno, articleData: selectedArticleForMenu }})}
         infoLabel="Info Artículo"
       />
 

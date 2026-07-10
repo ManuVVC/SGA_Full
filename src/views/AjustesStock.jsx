@@ -61,6 +61,9 @@ export default function AjustesStock() {
   
   const [cantidadInput, setCantidadInput] = useState('');
 
+  const [showPosicionModal, setShowPosicionModal] = useState(false);
+  const [posicionesDisponibles, setPosicionesDisponibles] = useState([]);
+
   // Inputs
   const [ubicacionInput, setUbicacionInput] = useState(locationState.state?.codUbicacion ? String(locationState.state.codUbicacion) : '');
   const [articuloInput, setArticuloInput] = useState(locationState.state?.codArticulo || '');
@@ -92,12 +95,12 @@ export default function AjustesStock() {
     }
   }, []);
 
-  const handleValidarUbicacion = async (val = ubicacionInput) => {
+  const handleValidarUbicacion = async (val = ubicacionInput, pos = null) => {
     if (!val.trim()) return;
     setError('');
     setLoading(true);
     try {
-      const res = await validarUbicacion(val.trim());
+      const res = await validarUbicacion(val.trim(), pos);
       if (res.status === 'success') {
         setUbicacionData(res.ubicacion);
         setUbicacionInput(res.ubicacion.UBICACION);
@@ -109,6 +112,9 @@ export default function AjustesStock() {
         } else {
           setTimeout(() => articuloRef.current?.focus(), 100);
         }
+      } else if (res.status === 'necesita_posicion') {
+        setPosicionesDisponibles(res.opciones);
+        setShowPosicionModal(true);
       } else {
         setError(res.message || 'Error validando ubicación');
       }
@@ -117,6 +123,11 @@ export default function AjustesStock() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectPosicion = async (posicion) => {
+    setShowPosicionModal(false);
+    handleValidarUbicacion(ubicacionInput, posicion);
   };
 
   const handleValidarArticulo = async (val = articuloInput) => {
@@ -231,7 +242,10 @@ export default function AjustesStock() {
       navigate(-1);
     } else if (step === 2) {
       setStep(1);
+      setUbicacionInput('');
+      setUbicacionData(null);
       setArticuloInput('');
+      setArticuloData(null);
     } else if (step === 3) {
       setStep(2);
       setSelectedLote('');
@@ -418,30 +432,34 @@ export default function AjustesStock() {
                 
                 {isManualLote ? (
                   <form onSubmit={confirmarLoteManual} className="flex flex-col gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Lote (Opcional)</label>
-                      <input
-                        ref={loteRef}
-                        type="text"
-                        value={selectedLote}
-                        onChange={(e) => setSelectedLote(e.target.value.toUpperCase())}
-                        placeholder="Nº Lote..."
-                        className="w-full p-3 border-2 border-gray-300 rounded font-bold uppercase outline-none focus:border-sga-primary"
-                        autoFocus
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Fecha Caducidad (Opcional)</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={selectedFecha}
-                        onChange={(e) => setSelectedFecha(e.target.value)}
-                        onBlur={() => setSelectedFecha(parseShorthandDate(selectedFecha))}
-                        placeholder="DD, DDMM o DDMMYY"
-                        className="w-full p-3 border-2 border-gray-300 rounded font-bold outline-none focus:border-sga-primary"
-                      />
-                    </div>
+                    {articuloData?.PRM_TRAZABILIDAD !== 0 && (
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Lote</label>
+                        <input
+                          ref={loteRef}
+                          type="text"
+                          value={selectedLote}
+                          onChange={(e) => setSelectedLote(e.target.value.toUpperCase())}
+                          placeholder="Nº Lote..."
+                          className="w-full p-3 border-2 border-gray-300 rounded font-bold uppercase outline-none focus:border-sga-primary"
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                    {articuloData?.GESTIONARCADUCIDAD !== 0 && (
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Fecha Caducidad</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={selectedFecha}
+                          onChange={(e) => setSelectedFecha(e.target.value)}
+                          onBlur={() => setSelectedFecha(parseShorthandDate(selectedFecha))}
+                          placeholder="DD, DDMM o DDMMYY"
+                          className="w-full p-3 border-2 border-gray-300 rounded font-bold outline-none focus:border-sga-primary"
+                        />
+                      </div>
+                    )}
                     <div className="flex gap-2 mt-2">
                       <button type="button" onClick={() => setIsManualLote(false)} className="flex-1 py-3 bg-gray-200 text-gray-800 rounded font-bold">CANCELAR</button>
                       <button type="submit" className="flex-1 py-3 bg-sga-primary text-white rounded font-bold">CONFIRMAR</button>
@@ -582,6 +600,42 @@ export default function AjustesStock() {
 
       {/* Margen para teclado en móvil */}
       {isKeyboardOpen && <div className="h-48"></div>}
+
+      {/* Modal Múltiples Posiciones */}
+      {showPosicionModal && (
+        <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="bg-sga-primary text-white p-4 font-bold text-lg flex items-center gap-2">
+              <MapPin />
+              Selecciona Posición
+            </div>
+            <div className="p-4 overflow-y-auto flex flex-col gap-2">
+              <p className="text-sm text-gray-600 mb-2 text-center">
+                Múltiples posiciones para esta etiqueta.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {posicionesDisponibles.map((posObj, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSelectPosicion(posObj.POSICION)}
+                    className="w-full py-4 px-4 bg-gray-50 border-2 border-gray-300 rounded text-center font-bold text-xl text-sga-dark hover:bg-sga-primary hover:text-white hover:border-sga-primary transition-colors"
+                  >
+                    Pos {posObj.POSICION}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50">
+              <button
+                onClick={() => setShowPosicionModal(false)}
+                className="w-full py-3 bg-gray-400 text-white rounded font-bold shadow"
+              >
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

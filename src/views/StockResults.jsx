@@ -9,7 +9,7 @@ import apiService from '../api/apiService';
 export default function StockResults() {
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   const rawData = location.state?.stockData;
   const articlesList = rawData?.data || [];
 
@@ -45,7 +45,7 @@ export default function StockResults() {
 
   const fetchTab = async (type) => {
     if (!selectedArticle) return;
-    
+
     setLoadingTab(true);
     setTabError('');
     setActiveTab(type);
@@ -77,12 +77,12 @@ export default function StockResults() {
       <h3 className="text-xl font-bold text-sga-dark mb-2 px-1">Artículos encontrados:</h3>
       {articlesList.length === 0 ? (
         <div className="bg-white p-6 rounded-lg text-center shadow">
-           <span className="text-xl font-bold text-sga-danger">No se encontraron artículos</span>
+          <span className="text-xl font-bold text-sga-danger">No se encontraron artículos</span>
         </div>
       ) : (
         articlesList.map((article, idx) => (
-          <button 
-            key={idx} 
+          <button
+            key={idx}
             onClick={() => handleSelectArticle(article)}
             className="bg-white p-4 rounded-lg shadow text-left flex flex-col border-l-8 border-sga-primary active:bg-gray-100 transition-colors"
           >
@@ -114,24 +114,24 @@ export default function StockResults() {
     return (
       <div className="flex flex-col gap-3 mt-4">
         {tabData.map((ubi, idx) => (
-          <UbicacionRow 
-            key={idx} 
-            ubi={ubi} 
+          <UbicacionRow
+            key={idx}
+            ubi={ubi}
             onLongPress={(ubi) => {
               setSelectedUbicacionForMenu(ubi);
               setShowActionMenu(true);
-            }} 
+            }}
           />
         ))}
 
         {/* Action Menu */}
-        <ActionMenu 
+        <ActionMenu
           title={selectedUbicacionForMenu?.etiqueta || selectedUbicacionForMenu?.cod_ubicacion}
           subtitle={selectedUbicacionForMenu?.etiqueta ? `Cod: ${selectedUbicacionForMenu?.cod_ubicacion}` : ''}
           isOpen={showActionMenu}
           onClose={() => setShowActionMenu(false)}
-          onInfo={() => navigate('/utilidades/info-ubicacion', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion }})}
-          onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion, codArticulo: tabData.articulo?.CODARTICULOAPLICACION || tabData.articulo?.CODARTICULO, articleData: tabData.articulo }})}
+          onInfo={() => navigate('/utilidades/info-ubicacion', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion } })}
+          onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion, codArticulo: tabData.articulo?.CODARTICULOAPLICACION || tabData.articulo?.CODARTICULO, articleData: tabData.articulo } })}
           infoLabel="Info Ubicación"
         />
       </div>
@@ -179,10 +179,10 @@ export default function StockResults() {
     <div className="flex flex-col flex-1 h-full bg-brand-light">
       <TerminalHeader title="INFO ARTÍCULO" />
       <div className="flex flex-col flex-1 relative p-4 pb-20 overflow-y-auto">
-        
+
         {/* Navigation / Back Button */}
         {selectedArticle && articlesList.length > 1 && (
-          <button 
+          <button
             onClick={() => setSelectedArticle(null)}
             className="flex items-center gap-2 mb-4 p-2 w-fit bg-white border border-gray-300 shadow rounded text-sga-dark font-bold"
           >
@@ -208,25 +208,23 @@ export default function StockResults() {
 
             {/* Dos opciones de consulta */}
             <div className="grid grid-cols-2 gap-3 mt-2">
-              <button 
+              <button
                 onClick={() => fetchTab('eans')}
-                className={`flex flex-col items-center justify-center p-4 rounded-lg shadow-md font-bold transition-colors ${
-                  activeTab === 'eans' 
-                    ? 'bg-sga-secondary text-white' 
-                    : 'bg-white text-sga-dark hover:bg-gray-50 border-2 border-transparent'
-                }`}
+                className={`flex flex-col items-center justify-center p-4 rounded-lg shadow-md font-bold transition-colors ${activeTab === 'eans'
+                  ? 'bg-sga-secondary text-white'
+                  : 'bg-white text-sga-dark hover:bg-gray-50 border-2 border-transparent'
+                  }`}
               >
                 <List className="w-8 h-8 mb-2" />
                 <span>Mostrar EANs</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => fetchTab('ubicaciones')}
-                className={`flex flex-col items-center justify-center p-4 rounded-lg shadow-md font-bold transition-colors ${
-                  activeTab === 'ubicaciones' 
-                    ? 'bg-sga-primary text-white' 
-                    : 'bg-white text-sga-dark hover:bg-gray-50 border-2 border-transparent'
-                }`}
+                className={`flex flex-col items-center justify-center p-4 rounded-lg shadow-md font-bold transition-colors ${activeTab === 'ubicaciones'
+                  ? 'bg-sga-primary text-white'
+                  : 'bg-white text-sga-dark hover:bg-gray-50 border-2 border-transparent'
+                  }`}
               >
                 <MapPin className="w-8 h-8 mb-2" />
                 <span>Mostrar Stock</span>
@@ -243,12 +241,12 @@ export default function StockResults() {
 
       {/* Botón flotante grande para regresar rápidamente al escáner */}
       <div className="absolute bottom-0 left-0 right-0 p-2 bg-sga-light shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)]">
-        <button 
+        <button
           onClick={() => navigate('/stock')}
           className="w-full bg-sga-primary hover:bg-blue-800 text-white font-bold p-5 rounded-lg text-2xl shadow flex items-center justify-center gap-3 active:bg-blue-900 transition-colors"
         >
           <Box className="w-8 h-8" />
-          Nueva Búsqueda
+          Volver / Nueva Busqueda
         </button>
       </div>
     </div>
@@ -257,9 +255,9 @@ export default function StockResults() {
 
 function UbicacionRow({ ubi, onLongPress }) {
   const longPressProps = useLongPress(() => onLongPress(ubi), null, { delay: 600 });
-  
+
   return (
-    <div 
+    <div
       className="bg-white p-4 rounded-lg shadow flex items-center justify-between border-l-8 border-sga-success select-none active:bg-blue-50 transition-colors"
       {...longPressProps}
     >

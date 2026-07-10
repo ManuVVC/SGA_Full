@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ScanLine, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft, AlertTriangle } from 'lucide-react';
 import apiService from '../api/apiService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useScannerFocus } from '../hooks/useScannerFocus';
@@ -14,14 +14,14 @@ export default function StockQuery() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { isKeyboardOpen } = useKeyboard();
-  
+
   // Custom hook para forzar que el input reciba los datos del escáner
   const inputRef = useScannerFocus();
 
   const handleScan = async (e) => {
     e.preventDefault();
     if (!ean) return;
-    
+
     setLoading(true);
     setError('');
 
@@ -50,56 +50,53 @@ export default function StockQuery() {
   };
 
   return (
-    <div className="flex flex-col flex-1 h-full bg-brand-light">
-      <TerminalHeader title="CONSULTA DE STOCK" />
-      <div className="flex-1 flex flex-col p-4">
-        
-        <div className="flex items-center gap-2 mb-6">
+    <div className="flex flex-col flex-1 h-full bg-gray-100">
+      <TerminalHeader title="INFO ARTICULO" />
+      <div className="flex-1 p-4 overflow-y-auto pb-32">
+
+        <div className="flex items-center gap-2 mb-4">
           <button onClick={() => navigate('/utilidades')} className="p-2 bg-white border border-gray-300 shadow rounded text-sga-dark">
-             <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <span className="font-bold text-sga-dark">Volver</span>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center">
-          
-          <div className="bg-white p-6 rounded-full shadow-lg border-4 border-sga-secondary mb-6 animate-pulse">
-            <ScanLine className="w-20 h-20 text-sga-secondary" />
+        {error && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded shadow-sm font-bold flex items-center gap-2">
+            <AlertTriangle className="shrink-0" />
+            <span>{error}</span>
           </div>
-          
-          <h3 className="text-2xl font-bold text-center text-sga-dark mb-4">
-            {loading ? 'Consultando...' : 'Escanee o escriba el EAN'}
-          </h3>
+        )}
 
-          <form onSubmit={handleScan} className="w-full flex flex-col gap-4 max-w-sm px-4">
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <h2 className="text-lg font-bold text-brand-dark mb-4 border-b pb-2 flex items-center gap-2">
+            <Search className="text-sga-primary" />
+            {loading ? 'Consultando...' : 'Escanear Artículo'}
+          </h2>
+
+          <form onSubmit={handleScan} className="flex flex-col gap-3">
             <SearchTypeToggle value={searchType} onChange={setSearchType} />
-            <input 
+            <input
               ref={inputRef}
               type="text"
               inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' ? 'text' : 'numeric') : 'none'}
               value={ean}
               onChange={(e) => setEan(e.target.value)}
-              className="w-full p-4 text-2xl font-mono text-center border-2 border-gray-400 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase shadow-inner"
+              className="w-full p-4 border-2 border-sga-primary rounded text-center text-xl font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all uppercase"
               placeholder="Ej. 12345"
               disabled={loading}
               autoFocus
             />
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading || !ean}
-              className="w-full bg-sga-secondary hover:bg-yellow-600 text-white font-bold py-4 px-6 rounded text-xl shadow disabled:opacity-50 uppercase tracking-wider"
+              className="w-full bg-sga-primary text-white py-3 rounded font-bold shadow disabled:opacity-50"
             >
-              {loading ? 'Buscando...' : 'Consultar Manual'}
+              {loading ? 'BUSCANDO...' : 'BUSCAR'}
             </button>
           </form>
-
-          {error && (
-            <div className="mt-8 bg-sga-danger text-white w-full p-6 rounded-lg shadow-xl text-center">
-              <span className="block text-2xl font-black">{error}</span>
-            </div>
-          )}
-          
         </div>
+
       </div>
     </div>
   );
