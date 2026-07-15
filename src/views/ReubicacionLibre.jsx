@@ -102,8 +102,8 @@ export default function ReubicacionLibre() {
   const handleArticleSelected = async (article) => {
     setArticuloData(article);
     
-    // Comprobar si gestiona lote (ambos origen y articulo deben tener trazabilidad != 0)
-    const gestionaLote = (article.PRM_TRAZABILIDAD !== 0) && (origenData.PRM_TRAZABILIDAD !== 0);
+    // Comprobar si gestiona lote o fecha de caducidad (se comprueba la trazabilidad o la caducidad del artículo)
+    const gestionaLote = (article.PRM_TRAZABILIDAD !== 0) || (article.GESTIONARCADUCIDAD !== 0);
 
     if (gestionaLote) {
       setLoading(true);
@@ -179,10 +179,10 @@ export default function ReubicacionLibre() {
           setShowPosicionModal(true);
         } else {
           setError(res.message || 'Ubicación destino no encontrada');
-          setLoading(false);
         }
       } catch (err) {
         setError(err.response?.data?.message || 'Error al validar ubicación destino.');
+      } finally {
         setLoading(false);
       }
     }

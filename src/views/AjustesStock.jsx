@@ -6,6 +6,7 @@ import { useKeyboard } from '../contexts/KeyboardContext';
 import { usePermissions } from '../hooks/usePermissions';
 import apiService from '../api/apiService';
 import { validarUbicacion, validarArticulo } from '../api/reubicacionesService';
+import ArticleSearchInput from '../components/ArticleSearchInput';
 
 const parseShorthandDate = (input) => {
   if (!input) return '';
@@ -138,15 +139,30 @@ export default function AjustesStock() {
       const res = await validarArticulo(val.trim(), 'auto');
       if (res.status === 'success' && res.articulo) {
         setArticuloData(res.articulo);
-        setFactorConversion(res.conversion || 1);
-        
-        // Ahora cargar lotes
+        setArticuloInput(res.articulo.CODARTICULOAPLICACION);
         await loadLotes(ubicacionData.CODUBICACION, res.articulo.CODARTICULO, res.articulo);
+      } else if (res.status === 'multiples_resultados') {
+        setError('Múltiples resultados encontrados. Usa la búsqueda avanzada.');
       } else {
-        setError(res.message || 'Artículo no encontrado');
+        setError(res.message || 'Artículo no encontrado en la ubicación destino');
+        setTimeout(() => articuloRef.current?.focus(), 100);
       }
     } catch (e) {
-      setError('Error al validar artículo');
+      setError(e.response?.data?.message || 'Error de conexión validando artículo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleArticleSelected = async (article) => {
+    setError('');
+    setLoading(true);
+    try {
+      setArticuloData(article);
+      setArticuloInput(article.CODARTICULOAPLICACION);
+      await loadLotes(ubicacionData.CODUBICACION, article.CODARTICULO, article);
+    } catch (e) {
+      setError('Error al cargar datos del artículo');
     } finally {
       setLoading(false);
     }
@@ -401,24 +417,11 @@ export default function AjustesStock() {
                   <Search className="w-5 h-5 text-sga-primary" />
                   Escanear Artículo
                 </h3>
-                <form onSubmit={(e) => { e.preventDefault(); handleValidarArticulo(); }} className="flex flex-col gap-3">
-                  <input
-                    ref={articuloRef}
-                    type="text"
-                    value={articuloInput}
-                    onChange={(e) => setArticuloInput(e.target.value.toUpperCase())}
-                    placeholder="EAN o Código..."
-                    className="w-full p-4 text-lg border-2 border-gray-300 rounded font-bold uppercase focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    disabled={!articuloInput.trim() || loading}
-                    className="w-full py-4 bg-sga-primary text-white rounded font-bold text-lg shadow disabled:opacity-50"
-                  >
-                    {loading ? 'VALIDANDO...' : 'SIGUIENTE'}
-                  </button>
-                </form>
+                <ArticleSearchInput 
+                  onArticleSelected={handleArticleSelected}
+                  autoFocus
+                  disabled={loading}
+                />
               </div>
             )}
 

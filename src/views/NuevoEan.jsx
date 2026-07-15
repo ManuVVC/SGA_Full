@@ -89,7 +89,7 @@ export default function NuevoEan() {
 
   const handleArticleSelected = (article) => {
     setArticuloSelected(article);
-    setFactorInput(isUpdate && existingData ? existingData.FACTORCONVERSION.toString() : '1');
+    setFactorInput(isUpdate && existingData ? existingData.FACTORCONVERSION.toString() : '');
     setStep(3);
   };
 

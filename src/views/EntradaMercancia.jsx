@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, AlertTriangle, Truck, Search, PlusCircle, Save,
 import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendientes, getTodosProveedores, getPedidosPendientes, crearAlbaran, grabarLineaEntrada, finalizarEntrada, getLineasGrabadas, getDetalleLinea, getLineasPendientes, getArticuloInfoEan } from '../api/entradasService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
+import ArticleSearchInput from '../components/ArticleSearchInput';
 
 const parseShorthandDate = (input) => {
   if (!input) return '';
@@ -259,19 +260,54 @@ export default function EntradaMercancia() {
   };
 
   const handleGrabarLinea = async () => {
-    if (!ean.trim() || !unidades) {
-      setError('EAN y Unidades son obligatorios');
+    if (!articuloInfo || !unidades) {
+      setError('El artículo y las unidades son obligatorios');
       return;
     }
+    if (articuloInfo?.PRM_TRAZABILIDAD !== 0 && !lote) {
+      setError('El lote es obligatorio para este artículo');
+      return;
+    }
+    if (articuloInfo?.GESTIONARCADUCIDAD !== 0 && !caducidad) {
+      setError('La fecha de caducidad es obligatoria para este artículo');
+      return;
+    }
+
+    const parsedCaducidad = caducidad ? parseShorthandDate(caducidad) : null;
+
+    if (parsedCaducidad) {
+      const caducidadDate = new Date(parsedCaducidad);
+      const today = new Date();
+      caducidadDate.setHours(0,0,0,0);
+      today.setHours(0,0,0,0);
+
+      if (caducidadDate < today) {
+        setError('El artículo está caducado (fecha inferior a hoy).');
+        return;
+      }
+
+      if (articuloInfo?.MARGENCADUCIDAD > 0) {
+        const minDate = new Date(today);
+        minDate.setDate(minDate.getDate() + articuloInfo.MARGENCADUCIDAD);
+        
+        if (caducidadDate < minDate) {
+          setError(`Próximo a caducidad. El artículo requiere un margen de ${articuloInfo.MARGENCADUCIDAD} días.`);
+          return;
+        }
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
       const payload = {
         EAN: ean,
         CODARTICULO: articuloInfo?.CODARTICULO,
-        UNIDADES: parseInt(unidades, 10) * (articuloInfo?.FACTOR_EAN || 1),
+        COD_ARTICULO_APLICACION: articuloInfo?.CODARTICULOAPLICACION,
+        NOMBREARTICULO: articuloInfo?.NOMBREARTICULO,
+        UNIDADES: parseInt(unidades, 10) * (articuloInfo?.UNIDADES || 1),
         NUMEROLOTE: lote || null,
-        FECHACADUCIDAD: caducidad ? parseShorthandDate(caducidad) : null,
+        FECHACADUCIDAD: parsedCaducidad,
         ISPALET: isPalet,
         NUMBULTOS: numBultos || 1
       };
@@ -692,26 +728,49 @@ export default function EntradaMercancia() {
 
             <div className="space-y-4">
 
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">EAN / Artículo</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    ref={eanRef}
-                    type="text" 
-                    inputMode={isKeyboardOpen ? "text" : "none"}
-                    className="w-5/12 border border-gray-300 p-3 rounded text-lg focus:border-sga-primary focus:outline-none"
-                    value={ean}
-                    onChange={(e) => setEan(e.target.value)}
-                    onBlur={() => handleEanValidation(ean)}
-                    onKeyDown={(e) => { if (e.key==='Enter' && ean) handleEanValidation(ean) }}
+              {!articuloInfo ? (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">EAN / Artículo</label>
+                  <ArticleSearchInput 
+                    onArticleSelected={(article) => {
+                      if (article.FECHADESCATALOGACION) {
+                        const param1753 = parametros['1753'] || '0';
+                        if (String(param1753) === '0') {
+                          setError(`El código está descatalogado desde ${new Date(article.FECHADESCATALOGACION).toLocaleDateString()} y no se permite su entrada.`);
+                          return; // Bloquea la entrada
+                        } else {
+                          setError(`ATENCIÓN: Código descatalogado desde ${new Date(article.FECHADESCATALOGACION).toLocaleDateString()}.`);
+                        }
+                      } else {
+                        setError(null);
+                      }
+                      setArticuloInfo(article);
+                      setEan(article.CODARTICULOAPLICACION);
+                      setTimeout(() => unidadesRef.current?.focus(), 100);
+                    }}
+                    autoFocus
+                    disabled={loading}
                   />
-                  {articuloInfo && (
-                    <div className="flex-1 text-sm font-bold text-sga-primary leading-tight line-clamp-2 overflow-hidden">
-                      {articuloInfo.NOMBREARTICULO}
-                    </div>
-                  )}
                 </div>
-              </div>
+              ) : (
+                <div className={articuloInfo.FECHADESCATALOGACION ? "bg-orange-50 p-3 rounded border border-orange-500 shadow-sm" : "bg-blue-50 p-3 rounded border border-sga-blue shadow-sm"}>
+                  <div className="flex justify-between items-center mb-2">
+                    <div>
+                      <span className={articuloInfo.FECHADESCATALOGACION ? "font-bold text-orange-600 text-lg" : "font-bold text-sga-blue text-lg"}>{articuloInfo.CODARTICULOAPLICACION}</span>
+                      <div className="text-sm font-semibold text-gray-700 leading-tight">{articuloInfo.NOMBREARTICULO || articuloInfo.DESCRIPCION}</div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setArticuloInfo(null);
+                        setEan('');
+                      }} 
+                      className="bg-red-500 text-white px-3 py-1 rounded font-bold text-sm shadow hover:bg-red-600 transition-colors"
+                    >
+                      CAMBIAR
+                    </button>
+                  </div>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Unidades</label>
@@ -732,10 +791,16 @@ export default function EntradaMercancia() {
                       }
                     }}
                   />
-                  {articuloInfo && articuloInfo.FACTOR_EAN > 1 && (
-                    <span className="bg-gray-100 text-gray-700 font-bold p-3 rounded border border-gray-300 whitespace-nowrap text-lg">
-                      x {articuloInfo.FACTOR_EAN}
-                    </span>
+                  {articuloInfo && articuloInfo.UNIDADES > 1 && (
+                    <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded border border-blue-200 whitespace-nowrap">
+                      <span className="text-gray-600 font-bold text-lg">x {articuloInfo.UNIDADES}</span>
+                      {unidades && !isNaN(parseInt(unidades, 10)) && (
+                        <>
+                          <span className="text-gray-400 font-bold text-lg">=</span>
+                          <span className="text-blue-700 font-black text-xl">{parseInt(unidades, 10) * articuloInfo.UNIDADES}</span>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

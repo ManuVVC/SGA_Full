@@ -94,10 +94,10 @@ export default function ReubicacionEntrada() {
           setShowPosicionModal(true);
         } else {
           setError(res.message || 'Ubicación destino no encontrada');
-          setLoading(false);
         }
       } catch (err) {
         setError(err.response?.data?.message || 'Error al validar ubicación destino.');
+      } finally {
         setLoading(false);
       }
     }
