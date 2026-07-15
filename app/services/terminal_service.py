@@ -16,6 +16,8 @@ class TerminalService:
         if ip_address:
             # Si hay multiples IPs separadas por coma, tomar la primera
             ip_address = ip_address.split(',')[0].strip()
+            # Limpiar formato IPv6 mapeado a IPv4
+            ip_address = ip_address.replace('::ffff:', '')
 
         logger.info(f"Iniciando validación de terminal para la IP: {ip_address}")
 
@@ -28,7 +30,8 @@ class TerminalService:
             raise TerminalNoAutorizado(f"El terminal con IP '{ip_address}' no está autorizado o no existe en la configuración.")
 
         # Verificar si el terminal está bloqueado
-        prm_bloqueado = terminal_info.get("PRM_BLOQUEADO")
+        permisos_terminal = terminal_info.get("permisos", {})
+        prm_bloqueado = permisos_terminal.get("PRM_BLOQUEADO", False)
         # Asegurarse de manejar distintos tipos de datos (1, "1", True, etc.)
         if prm_bloqueado in (1, "1", True):
             raise TerminalBloqueado(f"El terminal '{terminal_info.get('CODTERMINAL')}' está bloqueado.")

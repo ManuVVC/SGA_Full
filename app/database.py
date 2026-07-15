@@ -46,7 +46,15 @@ class OracleDatabase:
         instance = cls()
         if instance.pool is None:
             raise RuntimeError("Oracle pool is not initialized")
-        return instance.pool.acquire()
+            
+        connection = instance.pool.acquire()
+        
+        # Envolver la conexión si el log de auditoría está activado
+        if current_app and current_app.config.get("AUDIT_LOG_ENABLED"):
+            from .utils.db_logger import AuditConnection
+            return AuditConnection(connection)
+            
+        return connection
 
 
 db = OracleDatabase()
