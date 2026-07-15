@@ -1,0 +1,42 @@
+# ============================================================
+# docker-compose.dev.yml — Sobreescritura para DESARROLLO
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# En modo dev:
+#   - El backend monta el código en caliente (Flask debug)
+#   - El frontend corre con Vite dev server (hot-reload)
+#     en lugar del build Nginx de producción
+# ============================================================
+
+services:
+
+  # ── Backend Flask en modo debug ─────────────────────────
+  backend:
+    volumes:
+      # Monta el código fuente para hot-reload sin reconstruir la imagen
+      - ./backend:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    # Sobreescribir healthcheck en dev para no bloquear el arranque
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 2s
+      retries: 1
+
+  # ── Frontend PDA con Vite dev server ────────────────────
+  pda:
+    build: ~               # No usa el Dockerfile de producción (Nginx)
+    image: node:20-alpine  # Usa directamente la imagen de Node
+    container_name: sga_pda_dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./pda:/app
+      - /app/node_modules  # Volumen anónimo para aislar node_modules del host
+    ports:
+      - "5173:5173"        # Puerto de Vite dev server
+    environment:
+      - NODE_ENV=development

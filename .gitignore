@@ -1,0 +1,37 @@
+# ── Entornos y secretos ──────────────────────────────────────
+.env
+*.env.local
+*.env.production
+
+# ── Python / Backend ─────────────────────────────────────────
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/log/
+backend/logs*.txt
+backend/backend_logs.txt
+backend/print_queue/
+backend/temp_*.py
+backend/test_*.py
+backend/patch.py
+backend/replace.py
+backend/explore_db.py
+
+# ── Node / Frontend PDA ──────────────────────────────────────
+pda/node_modules/
+pda/dist/
+
+# ── Docker ───────────────────────────────────────────────────
+*.dockerignore
+
+# ── Sistema Operativo ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user

@@ -1,0 +1,40 @@
+# ============================================================
+# docker-compose.yml — Orquestador de PRODUCCIÓN del monorepo SGA
+# Uso: docker compose up --build
+# ============================================================
+
+services:
+
+  # ── Backend Flask (API) ──────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sga_backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Frontend PDA (React → Nginx) ────────────────────────
+  pda:
+    build:
+      context: ./pda
+      dockerfile: Dockerfile
+    container_name: sga_pda
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
