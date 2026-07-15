@@ -13,6 +13,7 @@ class Config:
     ORACLE_MIN = int(os.getenv("ORACLE_MIN", "1"))
     ORACLE_MAX = int(os.getenv("ORACLE_MAX", "5"))
     ORACLE_CLIENT_PATH = os.getenv("ORACLE_CLIENT_PATH")
+    AUDIT_LOG_ENABLED = os.getenv("AUDIT_LOG_ENABLED", "False").lower() in ("true", "1", "t", "yes")
 
     @staticmethod
     def validate():
