@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+venv/
+.env.local
+.idea/
+.vscode/
+Logica_SGA_Exportada/
+docs/
+
