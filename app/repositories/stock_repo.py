@@ -314,7 +314,11 @@ class StockRepository:
                     A.CODARTICULO, 
                     A.CODARTICULOAPLICACION, 
                     A.NOMBREARTICULO,
-                    (SELECT MAX(FACTORCONVERSION) FROM GSM.TMST_CODFACTURACION C2 WHERE C2.CODARTICULO = A.CODARTICULO AND UPPER(C2.CODFACTURACION) = UPPER(:q)) AS FACTOR_EAN
+                    A.PRM_TRAZABILIDAD,
+                    A.GESTIONARCADUCIDAD,
+                    NVL(A.MARGENCADUCIDAD, 0) AS MARGENCADUCIDAD,
+                    (SELECT MAX(FACTORCONVERSION) FROM GSM.TMST_CODFACTURACION C2 WHERE C2.CODARTICULO = A.CODARTICULO AND UPPER(C2.CODFACTURACION) = UPPER(:q)) AS FACTOR_EAN,
+                    (SELECT MAX(FECHADESCATALOGACION) FROM GSM.TMST_CODFACTURACION C3 WHERE C3.CODARTICULO = A.CODARTICULO AND UPPER(C3.CODFACTURACION) = UPPER(:q)) AS FECHADESCATALOGACION
                 FROM GSM.TMST_ARTICULOS A
                 LEFT JOIN GSM.TMST_CODFACTURACION C ON A.CODARTICULO = C.CODARTICULO
             """
@@ -352,7 +356,11 @@ class StockRepository:
                     "CODARTICULO": row_dict.get("CODARTICULO"),
                     "CODARTICULOAPLICACION": row_dict.get("CODARTICULOAPLICACION"),
                     "NOMBREARTICULO": row_dict.get("NOMBREARTICULO"),
-                    "FACTORCONVERSION": row_dict.get("FACTOR_EAN") or 1
+                    "FACTORCONVERSION": row_dict.get("FACTOR_EAN") or 1,
+                    "PRM_TRAZABILIDAD": row_dict.get("PRM_TRAZABILIDAD", 0),
+                    "GESTIONARCADUCIDAD": row_dict.get("GESTIONARCADUCIDAD", 0),
+                    "MARGENCADUCIDAD": row_dict.get("MARGENCADUCIDAD", 0),
+                    "FECHADESCATALOGACION": row_dict.get("FECHADESCATALOGACION")
                 })
 
             return articulos

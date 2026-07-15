@@ -35,7 +35,7 @@ class EntradasRepository:
                 SELECT p.codparametro, pa.valor
                 FROM GSM.tsys_parametros p 
                 INNER JOIN GSM.tsys_parametrosxambito pa ON pa.codparametro = p.codparametro 
-                WHERE p.codparametro IN (1687, 1693, 1702, 1745, 1750)
+                WHERE p.codparametro IN (1687, 1693, 1702, 1745, 1750, 1753, 1707)
             """
             cursor.execute(query)
             rows = cursor.fetchall()
@@ -349,6 +349,22 @@ class EntradasRepository:
             p_codmuelle = row_doc[1] if row_doc else None
             p_codproveedor = row_doc[2] if row_doc else None
 
+            # Consultar parámetro 1707 para saber si se gestiona propiedad
+            prm_1707 = '1'
+            try:
+                cursor.execute("""
+                    SELECT pa.valor
+                    FROM GSM.tsys_parametros p
+                    INNER JOIN GSM.tsys_parametrosxambito pa ON pa.codparametro = p.codparametro
+                    WHERE p.codparametro = 1707
+                """)
+                row_p1707 = cursor.fetchone()
+                if row_p1707:
+                    prm_1707 = str(row_p1707[0]).strip()
+            except Exception as e:
+                # logger no esta importado en entradas_repo, pero podemos usar print o simplemente ignorar
+                pass
+
             p_codubicacion = None
             p_codubicacionpalets = None
             if p_codmuelle:
@@ -364,6 +380,8 @@ class EntradasRepository:
                     weight = 3 if i % 2 == 0 else 1
                     total += int(digit) * weight
                 return str((10 - (total % 10)) % 10)
+
+            palets_imprimir = []  # datos de etiquetas a imprimir tras el commit
 
             for _ in range(num_bultos):
                 var_unidades = cursor.var(int)
@@ -424,6 +442,9 @@ class EntradasRepository:
                     cursor.execute("SELECT GSM.SQ_CODPALET.NEXTVAL FROM DUAL")
                     cod_palet = cursor.fetchone()[0]
 
+                    cod_tipo_datomaestro = 6 if prm_1707 == '0' else -1
+                    cod_datomaestro = 1 if prm_1707 == '0' else -1
+
                     insert_palet = """
                         INSERT INTO GSM.TMST_PALETS (
                             CODPALET, SSCC, CODARTICULO, UNIDADES, CODTIPOUNIDAD, 
@@ -431,13 +452,24 @@ class EntradasRepository:
                             CODNUMEROLOTE, CODTIPODATOMAESTRO, CODDATOMAESTRO, 
                             ULTIMOCODTERMINAL, ULTIMOFECHAEJECUTIVA, 
                             ULTIMOCODCONCEPTOESTADISTICO, CODFACTURACION
-                        ) VALUES (:1, :2, :3, :4, 4, :5, :6, :7, :8, 6, 1, :9, SYSDATE, 3, :10)
+                        ) VALUES (:1, :2, :3, :4, 4, :5, :6, :7, :8, :9, :10, :11, SYSDATE, 3, :12)
                     """
                     cursor.execute(insert_palet, [
                         cod_palet, full_sscc, p_codarticulo, p_unidades,
                         p_coddocumento, p_codubicacionpalets, fecha_caducidad_obj,
-                        cod_num_lote_generado, p_codterminal, p_ean
+                        cod_num_lote_generado, cod_tipo_datomaestro, cod_datomaestro,
+                        p_codterminal, p_ean
                     ])
+
+                    # Guardamos datos para imprimir la etiqueta tras el commit
+                    palets_imprimir.append({
+                        'sscc': full_sscc,
+                        'cod_articulo': payload.get('COD_ARTICULO_APLICACION', p_codarticulo),
+                        'nombre': payload.get('NOMBREARTICULO', ''),
+                        'lote': p_numlote,
+                        'fecha_caducidad': fecha_caducidad_obj,
+                        'codterminal': p_codterminal
+                    })
 
                 kwargs_guardar = {
                     'P_CODLINEADOCUMENTOPROVEEDOR': var_codlinea.getvalue(),
@@ -479,15 +511,15 @@ class EntradasRepository:
                         'P_PESODESTINO': 0,
                         'P_CADCODNUMEROSDESERIE': None,
                         'P_CODOPERADOR': p_codoperador,
-                        'P_CODTIPODATOMAESTRO': 1,
-                        'P_CODDATOMAESTRO': p_codproveedor
+                        'P_CODTIPODATOMAESTRO': 6 if prm_1707 == '0' else 1,
+                        'P_CODDATOMAESTRO': 1 if prm_1707 == '0' else p_codproveedor
                     }
                     res_reub = cursor.callfunc('GSM.SPREU_ENTRADAMERCANCIA', int, keywordParameters=kwargs_reub)
                     if res_reub != 0:
                         raise Exception(f"SPREU_ENTRADAMERCANCIA Error: {res_reub}")
 
             conn.commit()
-            return p_coddocumento
+            return {'coddocumento': p_coddocumento, 'palets_imprimir': palets_imprimir}
 
         except Exception as e:
             if 'conn' in locals():

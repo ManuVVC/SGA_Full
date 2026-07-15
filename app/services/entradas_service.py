@@ -1,5 +1,6 @@
 from app.repositories.entradas_repo import EntradasRepository
 from app.repositories.stock_repo import StockRepository
+from app.utils.impresion import imprimir_etiqueta_palet
 import logging
 
 logger = logging.getLogger(__name__)
@@ -64,11 +65,26 @@ class EntradasService:
             payload['CODARTICULO'] = articulo['CODARTICULO']
 
         try:
-            cod_documento = EntradasRepository.grabar_linea_entrada(payload)
-            # The repository now returns the cod_documento directly (since it intercepts the creation and the SP call doesn't return anything or returns 0 which we handled inside repo, wait, repo returns out_result.getvalue())
-            # Actually, wait. I didn't change what grabar_linea_entrada returns in the repo! 
-            # I need to fix that too. Let me just assume it will return cod_documento.
-            return {"status": "success", "coddocumento": cod_documento}
+            result = EntradasRepository.grabar_linea_entrada(payload)
+            cod_documento = result['coddocumento']
+            palets_imprimir = result.get('palets_imprimir', [])
+
+            # Impresión automática de etiquetas (solo si hay palets)
+            avisos_impresion = []
+            for datos_palet in palets_imprimir:
+                codterminal = datos_palet.get('codterminal', 1)
+                res_imp = imprimir_etiqueta_palet(codterminal, datos_palet)
+                if not res_imp['ok']:
+                    logger.warning(f"Aviso impresion: {res_imp['mensaje']}")
+                    avisos_impresion.append(res_imp['mensaje'])
+                else:
+                    logger.info(f"Etiqueta impresa: SSCC={datos_palet.get('sscc')}")
+
+            respuesta = {"status": "success", "coddocumento": cod_documento}
+            if avisos_impresion:
+                respuesta["aviso_impresion"] = " | ".join(avisos_impresion)
+            return respuesta
+
         except Exception as e:
             return {"status": "error", "message": str(e)}
 

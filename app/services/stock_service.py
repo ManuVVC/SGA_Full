@@ -118,7 +118,11 @@ class StockService:
                 "cod_articulo": a["CODARTICULO"],
                 "cod_articulo_aplicacion": a["CODARTICULOAPLICACION"],
                 "nombre": a["NOMBREARTICULO"],
-                "factor_conversion": a["FACTORCONVERSION"]
+                "factor_conversion": a["FACTORCONVERSION"] if "FACTORCONVERSION" in a else a.get("FACTOR_EAN"),
+                "PRM_TRAZABILIDAD": a.get("PRM_TRAZABILIDAD", 0),
+                "GESTIONARCADUCIDAD": a.get("GESTIONARCADUCIDAD", 0),
+                "MARGENCADUCIDAD": a.get("MARGENCADUCIDAD", 0),
+                "FECHADESCATALOGACION": a.get("FECHADESCATALOGACION")
             })
             
         return resultados
