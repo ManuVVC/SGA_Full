@@ -14,7 +14,9 @@ def create_app():
     # ── Endpoint de salud para el healthcheck de Docker ──────
     # Responde 200 OK en cuanto Flask está arriba.
     # No depende de Oracle para no bloquear el arranque.
-    @app.route('/api/health')
+    # Nginx hace rewrite /api/* → /*, por lo que el endpoint queda en /health.
+    # El healthcheck de docker-compose llama directamente a Flask (sin Nginx).
+    @app.route('/health')
     def health():
         return jsonify({'status': 'ok', 'service': 'sga-backend'}), 200
 
