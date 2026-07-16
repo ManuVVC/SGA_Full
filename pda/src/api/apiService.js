@@ -19,9 +19,22 @@ const apiService = axios.create({
 // ── Detección de IP del terminal (solución Docker NAT en Windows) ─────────────
 // Docker Desktop en Windows NAT-ea todas las conexiones a 172.19.0.1,
 // impidiendo que el backend identifique el terminal por IP de socket.
-// Detectamos la IP local del dispositivo via WebRTC y la enviamos en
-// la cabecera X-Terminal-IP para que Flask la use en TMST_TERMINALES.
-initClientIP(); // inicia en segundo plano, se cachea en sessionStorage
+//
+// Para evitar condiciones de carrera (que la primera petición se envíe antes
+// de que WebRTC resuelva), extraemos y guardamos la IP de la URL de forma SÍNCRONA
+// inmediatamente durante la inicialización de este script.
+try {
+  const urlParams = new URLSearchParams(window.location.search);
+  const forcedIp = urlParams.get('terminal_ip');
+  if (forcedIp) {
+    sessionStorage.setItem('sga_terminal_ip', forcedIp);
+    console.info(`[SGA] IP del terminal forzada por URL de forma síncrona: ${forcedIp}`);
+  }
+} catch (e) {
+  console.error('[SGA] Error al extraer terminal_ip de la URL:', e);
+}
+
+initClientIP(); // Inicia la autodetección WebRTC asíncrona en segundo plano (como fallback)
 
 // ── Reintentos automáticos con backoff exponencial ───────────────────────────
 //
