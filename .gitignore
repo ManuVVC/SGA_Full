@@ -10,6 +10,5 @@ venv/
 .idea/
 .vscode/
 Logica_SGA_Exportada/
-docs/
+interno/
 print_queue/
-

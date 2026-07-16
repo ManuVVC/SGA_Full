@@ -5,16 +5,24 @@ from flask import current_app
 db = None
 
 
-class OracleDB:
+class OracleDatabase:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(OracleDatabase, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
     def __init__(self):
-        self.pool = None
+        if not hasattr(self, "pool"):
+            self.pool = None
 
     def init_app(self, app):
         from .config import Config
 
         Config.validate()
 
-        # Activar el Modo Thick (requerido para conectar con base de datos Oracle 10g)
+        # Activar el Modo Thick (requerido para conectar con base de datos Oracle 10g/11g)
         client_path = app.config.get("ORACLE_CLIENT_PATH")
         try:
             if client_path:
@@ -33,10 +41,22 @@ class OracleDB:
             increment=1,
         )
 
-    def get_connection(self):
-        if self.pool is None:
+    @classmethod
+    def get_connection(cls):
+        instance = cls()
+        if instance.pool is None:
             raise RuntimeError("Oracle pool is not initialized")
-        return self.pool.acquire()
+            
+        connection = instance.pool.acquire()
+        
+        # Envolver la conexión si el log de auditoría está activado
+        if current_app and current_app.config.get("AUDIT_LOG_ENABLED"):
+            from .utils.db_logger import AuditConnection
+            return AuditConnection(connection)
+            
+        return connection
 
 
-db = OracleDB()
+db = OracleDatabase()
+OracleDB = OracleDatabase  # Alias para compatibilidad hacia atrás
+
