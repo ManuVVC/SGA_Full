@@ -21,10 +21,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 30s
 
   # ── Frontend PDA (React → Nginx) ────────────────────────
   pda:
@@ -33,7 +33,7 @@ services:
       dockerfile: Dockerfile
     container_name: sga_pda
     ports:
-      - "80:80"
+      - "8080:80"
     depends_on:
       backend:
         condition: service_healthy
