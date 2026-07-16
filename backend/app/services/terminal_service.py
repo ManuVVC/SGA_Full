@@ -1,4 +1,5 @@
 import logging
+import os
 from ..repositories.terminal_repo import TerminalRepository
 from ..utils.exceptions import TerminalNoAutorizado, TerminalBloqueado
 
@@ -21,6 +22,13 @@ class TerminalService:
             ip_address = ip_address.split(',')[0].strip()
             # Limpiar formato IPv6 mapeado a IPv4
             ip_address = ip_address.replace('::ffff:', '')
+
+        # Bypass automático para desarrollo en Windows (Docker NAT)
+        # Si la IP es localhost o el gateway de Docker (172.x.x.x), forzamos a la IP definida en .env
+        dev_default_ip = os.getenv("DEV_DEFAULT_TERMINAL_IP")
+        if dev_default_ip and (not ip_address or ip_address in ("172.19.0.1", "172.25.96.1", "127.0.0.1") or ip_address.startswith("172.19.")):
+            logger.info(f"[SGA][Dev Mode] Redireccionando IP Docker NAT '{ip_address}' a IP configurada '{dev_default_ip}'")
+            ip_address = dev_default_ip
 
         logger.info(f"Iniciando validación de terminal para la IP: {ip_address}")
 

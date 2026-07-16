@@ -11,47 +11,35 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [terminal, setTerminal] = useState(null);
   const [terminalError, setTerminalError] = useState('');
-  const [customIp, setCustomIp] = useState('');
   const navigate = useNavigate();
   const { isKeyboardOpen } = useKeyboard();
   
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
 
-  const fetchTerminal = async () => {
-    try {
-      const response = await apiService.get('/auth/terminal');
-      if (response.status === 200 && response.data.terminal) {
-        const termData = response.data.terminal;
-        setTerminal(termData);
-        setTerminalError(''); // Limpiamos errores anteriores si conecta
-        
-        if (termData.CODOPERADOR) {
-          setUsername(termData.CODOPERADOR);
-          // Autofocus password if operator is already set
-          setTimeout(() => passwordRef.current?.focus(), 50);
-        } else {
-          // Autofocus username
-          setTimeout(() => usernameRef.current?.focus(), 50);
-        }
-      }
-    } catch (err) {
-      setTerminalError(err.response?.data?.message || 'Terminal no autorizado o IP desconocida');
-    }
-  };
-
   useEffect(() => {
+    const fetchTerminal = async () => {
+      try {
+        const response = await apiService.get('/auth/terminal');
+        if (response.status === 200 && response.data.terminal) {
+          const termData = response.data.terminal;
+          setTerminal(termData);
+          
+          if (termData.CODOPERADOR) {
+            setUsername(termData.CODOPERADOR);
+            // Autofocus password if operator is already set
+            setTimeout(() => passwordRef.current?.focus(), 50);
+          } else {
+            // Autofocus username
+            setTimeout(() => usernameRef.current?.focus(), 50);
+          }
+        }
+      } catch (err) {
+        setTerminalError(err.response?.data?.message || 'Terminal no autorizado o IP desconocida');
+      }
+    };
     fetchTerminal();
   }, []);
-
-  const handleForceIp = (e) => {
-    e.preventDefault();
-    if (customIp.trim()) {
-      sessionStorage.setItem('sga_terminal_ip', customIp.trim());
-      // Reintentar consultar
-      fetchTerminal();
-    }
-  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -102,30 +90,7 @@ export default function Login() {
         <div className="bg-gray-100 p-3 rounded mb-6 flex flex-col items-center border border-gray-300">
           <Monitor className="w-8 h-8 text-gray-500 mb-1" />
           {terminalError ? (
-            <div className="flex flex-col items-center w-full">
-              <span className="text-red-600 font-bold text-center text-sm mb-3">{terminalError}</span>
-              <div className="w-full border-t border-gray-300 pt-3">
-                <label className="block text-xs font-bold text-gray-700 mb-1 text-left w-full">
-                  Forzar IP del Terminal (Pruebas / Docker NAT):
-                </label>
-                <div className="flex gap-2 w-full">
-                  <input
-                    type="text"
-                    placeholder="Ej: 192.168.5.178"
-                    className="flex-1 p-2 text-sm border border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50"
-                    value={customIp}
-                    onChange={(e) => setCustomIp(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleForceIp}
-                    className="bg-sga-primary hover:bg-blue-900 text-white font-bold px-3 py-2 text-xs rounded shadow"
-                  >
-                    GUARDAR
-                  </button>
-                </div>
-              </div>
-            </div>
+            <span className="text-red-600 font-bold text-center">{terminalError}</span>
           ) : terminal ? (
             <>
               <span className="font-bold text-sga-dark text-lg">{terminal.CODTERMINAL}</span>
