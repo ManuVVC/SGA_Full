@@ -11,8 +11,11 @@ class TerminalService:
         Valida y obtiene la información del terminal utilizando la IP 
         de la solicitud.
         """
-        # Extraer IP
-        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        # Extraer IP (Priorizar X-Terminal-IP para resolver el NAT de Docker en Windows)
+        ip_address = (
+            request.headers.get('X-Terminal-IP')
+            or request.headers.get('X-Forwarded-For', request.remote_addr)
+        )
         if ip_address:
             # Si hay multiples IPs separadas por coma, tomar la primera
             ip_address = ip_address.split(',')[0].strip()

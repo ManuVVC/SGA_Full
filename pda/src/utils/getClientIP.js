@@ -79,13 +79,25 @@ export const getClientIP = () =>
  * @returns {Promise<string|null>}
  */
 export const initClientIP = async () => {
+  // 1. Permitir sobreescribir la IP mediante parámetro de consulta ?terminal_ip=X.X.X.X
+  //    Esto es muy útil en desarrollo/pruebas locales para simular la IP de la PDA en Docker Windows.
+  const urlParams = new URLSearchParams(window.location.search);
+  const forcedIp = urlParams.get('terminal_ip');
+  if (forcedIp) {
+    sessionStorage.setItem('sga_terminal_ip', forcedIp);
+    console.info(`[SGA] IP del terminal forzada por URL: ${forcedIp}`);
+    return forcedIp;
+  }
+
+  // 2. Verificar caché en sessionStorage
   const cached = sessionStorage.getItem('sga_terminal_ip');
   if (cached) return cached;
 
+  // 3. Autodetección WebRTC
   const ip = await getClientIP();
   if (ip) {
     sessionStorage.setItem('sga_terminal_ip', ip);
-    console.info(`[SGA] IP del terminal detectada: ${ip}`);
+    console.info(`[SGA] IP del terminal detectada via WebRTC: ${ip}`);
   } else {
     console.warn('[SGA] No se pudo detectar la IP del terminal via WebRTC.');
   }
