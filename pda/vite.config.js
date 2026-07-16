@@ -11,6 +11,7 @@ export default defineConfig({
         target: 'http://backend:5000', // Apunta al backend de Docker en la red interna
         changeOrigin: true,
         xfwd: true, // Añade la IP original (PDA) en la cabecera X-Forwarded-For
+        rewrite: (path) => path.replace(/^\/api/, ''), // Elimina /api para coincidir con el comportamiento de Nginx
       }
     }
   }
