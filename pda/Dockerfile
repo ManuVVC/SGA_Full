@@ -1,32 +1,28 @@
 # ============================================================
 # Dockerfile — SGA PDA (Frontend React)
-# Build multi-stage: Compila con Node, sirve con Nginx
+# Build multi-stage: Soporta desarrollo y producción
 # ============================================================
 
-# ── Etapa 1: Build de producción con Node ───────────────────
-FROM node:20-alpine AS builder
-
+# ── Etapa 1: Base común de Node ─────────────────────────────
+FROM node:20-alpine AS base
 WORKDIR /app
-
-# Copiar manifiestos primero para aprovechar la caché de Docker
 COPY package*.json ./
 RUN npm ci --only=production=false
 
-# Copiar el resto del código fuente y compilar
+# ── Etapa 2: Entorno de Desarrollo (Vite Dev Server) ────────
+FROM base AS development
+COPY . .
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# ── Etapa 3: Build de Producción ────────────────────────────
+FROM base AS builder
 COPY . .
 RUN npm run build
 
-# ── Etapa 2: Servidor Nginx ligero ──────────────────────────
-FROM nginx:1.27-alpine
-
-# Copiar el build generado por Vite al directorio de Nginx
+# ── Etapa 4: Servidor Nginx (Producción) ────────────────────
+FROM nginx:1.27-alpine AS production
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copiar la configuración personalizada de Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Puerto HTTP estándar
 EXPOSE 80
-
-# Nginx arranca en foreground para que Docker gestione el proceso
 CMD ["nginx", "-g", "daemon off;"]
