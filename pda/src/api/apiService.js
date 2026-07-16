@@ -1,5 +1,6 @@
 import axios from 'axios';
 import axiosRetry from 'axios-retry';
+import { initClientIP } from '../utils/getClientIP';
 
 // ── Instancia principal de Axios ─────────────────────────────────────────────
 // El timeout se amplía a 8s para dar margen al último reintento.
@@ -14,6 +15,13 @@ const apiService = axios.create({
     'Expires': '0',
   },
 });
+
+// ── Detección de IP del terminal (solución Docker NAT en Windows) ─────────────
+// Docker Desktop en Windows NAT-ea todas las conexiones a 172.19.0.1,
+// impidiendo que el backend identifique el terminal por IP de socket.
+// Detectamos la IP local del dispositivo via WebRTC y la enviamos en
+// la cabecera X-Terminal-IP para que Flask la use en TMST_TERMINALES.
+initClientIP(); // inicia en segundo plano, se cachea en sessionStorage
 
 // ── Reintentos automáticos con backoff exponencial ───────────────────────────
 //
@@ -52,13 +60,22 @@ axiosRetry(apiService, {
   },
 });
 
-// ── Interceptor de Peticiones: Adjuntar token JWT ────────────────────────────
+// ── Interceptor de Peticiones: token JWT + IP del terminal ───────────────────
 apiService.interceptors.request.use(
   (config) => {
+    // Adjuntar token JWT si existe
     const token = localStorage.getItem('sga_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Adjuntar IP local del terminal (detectada por WebRTC al arrancar)
+    // Flask la leerá en X-Terminal-IP para identificar el dispositivo en Oracle.
+    const terminalIP = sessionStorage.getItem('sga_terminal_ip');
+    if (terminalIP) {
+      config.headers['X-Terminal-IP'] = terminalIP;
+    }
+
     return config;
   },
   (error) => {

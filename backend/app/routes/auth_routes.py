@@ -11,9 +11,15 @@ auth_bp = Blueprint("auth", __name__)
 # Nginx pasa la IP real del cliente en la cabecera X-Real-IP.
 @auth_bp.route("/terminal", methods=["GET"])
 def get_terminal():
-    # Obtener IP real del terminal (Nginx la inyecta vía X-Real-IP)
+    # Prioridad de fuentes de IP del cliente:
+    # 1. X-Terminal-IP: IP auto-detectada por el navegador PDA via WebRTC
+    #    (enviada por apiService.js para resolver el NAT de Docker en Windows)
+    # 2. X-Real-IP: IP vista por Nginx (172.19.0.1 en Docker Desktop Windows)
+    # 3. X-Forwarded-For: cabecera estándar de proxy
+    # 4. remote_addr: IP del socket TCP (siempre Docker gateway en contenedor)
     client_ip = (
-        request.headers.get("X-Real-IP")
+        request.headers.get("X-Terminal-IP")
+        or request.headers.get("X-Real-IP")
         or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         or request.remote_addr
     )
