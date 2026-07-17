@@ -94,6 +94,49 @@ Solo se muestra el error rojo tras agotar los 3 intentos (~7s máximo).
 
 ---
 
+## Control de Sesiones e Inactividad (PDA)
+
+Para evitar inconsistencias de datos, el sistema implementa una política estricta de sesiones y control de inactividad:
+
+### 1. Sesión Única por Terminal (IP física)
+*   **Comportamiento**: Un terminal físico de PDA (identificado por su IP en la cabecera `X-Terminal-IP`) **solo puede tener una sesión activa**.
+*   **Lógica**: Al iniciar sesión con éxito en un terminal, el gestor de sesiones del backend (`SessionManager`) invalida de forma inmediata cualquier token JWT emitido previamente para ese terminal.
+*   **Resultados de invalidación**: Al realizar cualquier petición posterior con el token anterior, el backend responde con un error `401 Unauthorized` y el código `SESSION_INVALIDATED`. El cliente React limpia las variables locales y redirige a la pantalla de login con un mensaje explicativo.
+
+### 2. Cierre por Inactividad Configurable
+*   **Parámetro**: Variable de entorno `SESSION_TIMEOUT_MINUTES` (configurable en `.env`, valor por defecto de 30 minutos).
+*   **Validación en Backend**: El decorador `@token_required` comprueba el tiempo transcurrido desde la última interacción de la sesión contra `SESSION_TIMEOUT_MINUTES`. Si expira, responde con `401 Unauthorized` y el código `SESSION_EXPIRED`.
+*   **Cierre Proactivo en Frontend**: El componente `<InactivityHandler />` en `App.jsx` vigila las interacciones del operario en la PDA (`mousedown`, `keydown`, `touchstart`, `scroll`). Si transcurre el tiempo configurado sin actividad, se borra la sesión local de forma proactiva, se solicita el logout pasivo al backend y se redirige a la pantalla de login con el mensaje de expiración.
+
+---
+
+## Módulo de Devoluciones de Cliente (PDA)
+
+El sistema soporta la gestión interactiva de devoluciones de cliente, integrada de forma segura con la base de datos Oracle:
+
+### 1. Cabecera de Devolución
+*   **Contador de Documento**: El número de documento de la devolución se genera autoincrementando el contador con `CODCONTADOR = 1` en la tabla `GSM.TSYS_CONTADORES`.
+*   **Lógica de Inserción**:
+    *   Se crea un registro inicial en `GSM.TMST_CODDOCUMENTOS` usando los siguientes parámetros de negocio:
+        *   `CODTIPODOCUMENTO = 7` (Devoluciones de Cliente)
+        *   `CODTIPOMOVIMIENTO = 32`
+        *   `CODESTADODOCUMENTO = 27` (Estado de Devolución)
+        *   `CODPRIORIDAD = 2`
+        *   `ULTIMOCODCONCEPTOESTADISTICO = 31`
+        *   `SERIE`: Obtenida dinámicamente a través del parámetro de configuración `1768` (si existe).
+    *   Se registra la cabecera correspondiente en la tabla `GSM.TMST_DOCUMENTOSCLIENTES` utilizando el `CODDOCUMENTO` autogenerado y los datos del cliente seleccionado (recuperando su ID interno `CODCLIENTE`).
+
+### 2. Grabado de Líneas (Artículos de Devolución)
+*   **Lógica de Negocio y Ubicaciones**:
+    *   **Parámetro 1636**: Indica si se utiliza una ubicación fija para la devolución (`0`) o si el operario debe escanear una ubicación destino en la PDA (distinto de `0`).
+    *   **Parámetro 1637**: Si se utiliza ubicación fija, indica el `CODUBICACION` por defecto en base de datos.
+*   **Determinación de Nº de Línea (`NUMLINEA`)**:
+    *   Si el artículo escaneado ya ha sido registrado previamente en este documento, se reutiliza su `NUMLINEA` (agrupando por artículo para permitir el grabado de detalles con fechas/lotes distintos).
+    *   Si es la primera vez que se escanea el artículo, se le asigna el siguiente número disponible (`MAX(NUMLINEA) + 1`).
+*   **Función SQL**: Cada línea se graba mediante la invocación a la función de base de datos `GSM.SPREU_DEVOLUCIONCLIENTE`. Los parámetros no requeridos (`P_CREARRECUENTO`, `P_STOCKDESTINO`, `P_PESODESTINO`, `P_PESO`) se envían por defecto como `0` y `P_CADCODNUMEROSDESERIE` como `NULL`.
+
+---
+
 ## Migración desde los Repos Originales
 
 El monorepo se construyó con `git subtree` para preservar el historial completo:
@@ -110,4 +153,6 @@ verificado el correcto funcionamiento del monorepo.
 
 ---
 
-*Última actualización: 2026-07-15*
+*Última actualización: 2026-07-17*
+
+

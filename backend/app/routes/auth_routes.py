@@ -49,7 +49,8 @@ def login():
             "token": result["token"],
             "permisos": result["permisos"],
             "terminal": result["terminal"],
-            "operador_nombre": result["operador_nombre"]
+            "operador_nombre": result["operador_nombre"],
+            "session_timeout_minutes": result["session_timeout_minutes"]
         }), 200
 
     except UserNotFoundError as e:
@@ -84,4 +85,16 @@ def login():
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
+    token = None
+    if "Authorization" in request.headers:
+        auth_header = request.headers["Authorization"]
+        parts = auth_header.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+
+    if token:
+        from ..utils.session_manager import session_manager
+        session_manager.remove_session(token)
+
     return jsonify({"message": "Logout exitoso"}), 200
+

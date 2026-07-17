@@ -64,11 +64,18 @@ class AuthService:
         secret_key = current_app.config.get("SECRET_KEY", "change-me")
         token = jwt.encode(payload, secret_key, algorithm="HS256")
 
+        # Registrar la sesión en el gestor de sesiones
+        from ..utils.session_manager import session_manager
+        cod_terminal = terminal_info.get("CODTERMINAL")
+        cod_operador = str(operador["CODOPERADOR"])
+        session_manager.register_session(token, cod_terminal, cod_operador)
+
         return {
             "token": token,
             "permisos": operador["permisos"],
             "terminal": terminal_info,
-            "operador_nombre": operador["NOMBRE"]
+            "operador_nombre": operador["NOMBRE"],
+            "session_timeout_minutes": current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
         }
 
     @staticmethod

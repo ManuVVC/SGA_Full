@@ -104,6 +104,24 @@ export default function EntradaMercancia() {
     cargarParametrosYMuelles();
   }, []);
 
+  // Forzar foco en la entrada de datos al alternar el teclado virtual
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (step === 4 && albaranRef.current) {
+        albaranRef.current.focus();
+      } else if (step === 5 && articuloInfo) {
+        if (!unidades) {
+          unidadesRef.current?.focus();
+        } else if (articuloInfo.PRM_TRAZABILIDAD !== 0 && !lote) {
+          loteRef.current?.focus();
+        } else if (articuloInfo.GESTIONARCADUCIDAD !== 0 && !caducidad) {
+          caducidadRef.current?.focus();
+        }
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [isKeyboardOpen]);
+
   const cargarParametrosYMuelles = async () => {
     setLoading(true);
     try {

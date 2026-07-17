@@ -59,10 +59,12 @@ export function SubMenuInventario() {
 }
 
 export function SubMenuDevoluciones() {
-  const { hasPermission } = usePermissions();
+  const { hasOperatorPermission } = usePermissions();
   const items = [
-    { label: 'Dev. Cliente', icon: Undo2, path: '', show: hasPermission('PRM_DEVOLUCIONESCLIENTE') },
-    { label: 'Dev. Proveedor', icon: Reply, path: '', show: hasPermission('PRM_DEVOLUCIONESPROVEEDOR') },
+    { label: 'Dev. Cliente', icon: Undo2, path: '/devoluciones/cliente', show: hasOperatorPermission('PRM_DEVOLUCIONESCLIENTE') },
+    { label: 'Finalizar Dev. Cliente', icon: CheckSquare, path: '/devoluciones/finalizar-cliente', show: hasOperatorPermission('PRM_DEVOLUCIONESCLIENTE') },
+    { label: 'Dev. Proveedor', icon: Reply, path: '', show: hasOperatorPermission('PRM_DEVOLUCIONESPROVEEDOR') },
+    { label: 'Finalizar Dev. Proveedor', icon: CheckSquare, path: '/devoluciones/finalizar-proveedor', show: hasOperatorPermission('PRM_DEVOLUCIONESPROVEEDOR') },
   ].filter(i => i.show);
   return <SubMenuLayout title="DEVOLUCIONES" items={items} />;
 }

@@ -29,6 +29,28 @@ def token_required(f):
             secret_key = current_app.config.get("SECRET_KEY", "change-me")
             # Decodificar el token JWT
             payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+            
+            # Validar la sesión activa y controlar inactividad
+            from .session_manager import session_manager
+            timeout_minutes = current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+            is_valid, error_reason = session_manager.validate_session(token, timeout_minutes)
+            
+            if not is_valid:
+                if error_reason == "session_expired":
+                    return jsonify({
+                        "status": "error",
+                        "error": "Unauthorized",
+                        "code": "SESSION_EXPIRED",
+                        "message": "La sesión ha expirado por inactividad. Por favor, inicie sesión de nuevo."
+                    }), 401
+                else:
+                    return jsonify({
+                        "status": "error",
+                        "error": "Unauthorized",
+                        "code": "SESSION_INVALIDATED",
+                        "message": "Esta sesión ya no está activa. Se ha iniciado sesión desde otra pestaña o dispositivo para este terminal."
+                    }), 401
+            
             # Guardar la información del operador en el contexto g de Flask
             g.operador = {
                 "cod_operador": payload.get("sub"),

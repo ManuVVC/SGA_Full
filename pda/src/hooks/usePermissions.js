@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import apiService from '../api/apiService';
 
 export function usePermissions() {
@@ -33,7 +33,7 @@ export function usePermissions() {
     fetchTerminal();
   }, []);
 
-  const hasPermission = (permName) => {
+  const hasPermission = useCallback((permName) => {
     // Primero mira terminal, si es verdadero, lo permite.
     if (terminalPerms[permName] === true) return true;
     
@@ -41,7 +41,11 @@ export function usePermissions() {
     if (operadorPerms[permName] === true) return true;
     
     return false;
-  };
+  }, [terminalPerms, operadorPerms]);
 
-  return { hasPermission, loading };
+  const hasOperatorPermission = useCallback((permName) => {
+    return operadorPerms[permName] === true;
+  }, [operadorPerms]);
+
+  return { hasPermission, hasOperatorPermission, loading };
 }

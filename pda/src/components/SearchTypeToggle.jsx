@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScanBarcode, AlignLeft, FileText } from 'lucide-react';
 
-export default function SearchTypeToggle({ value, onChange }) {
+export default function SearchTypeToggle({ value, onChange, inputRef }) {
   const options = [
     { id: 'codfacturacion', label: 'EAN', icon: ScanBarcode },
     { id: 'codarticuloaplicacion', label: 'Interno', icon: FileText },
@@ -16,7 +16,12 @@ export default function SearchTypeToggle({ value, onChange }) {
           <button
             key={opt.id}
             type="button"
-            onClick={() => onChange(opt.id)}
+            onClick={() => {
+              onChange(opt.id);
+              if (inputRef && inputRef.current) {
+                inputRef.current.focus();
+              }
+            }}
             className={`flex-1 flex flex-col items-center justify-center py-2 rounded-md transition-all duration-200 ${
               isActive 
                 ? 'bg-sga-primary text-white shadow-md' 

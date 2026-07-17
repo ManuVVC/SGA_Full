@@ -45,6 +45,45 @@ class ReubicacionesRepository:
                 conn.close()
 
     @staticmethod
+    def get_ubicacion_by_nombre_corto(nombre_corto: str):
+        """
+        Busca una ubicación por su nombre corto en la vista GSM.VMST_UBICACIONES.
+        """
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT U.CODUBICACION, U.NOMBRECORTO, NVL(T.PRM_TRAZABILIDAD, 0), NVL(T.PRM_CADUCIDAD, 0), U.CODTIPODATOMAESTRO, U.CODDATOMAESTRO,
+                       NVL(U.BLOQUEOENTRADA, 0), NVL(U.BLOQUEOSALIDA, 0), NVL(U.PRM_UBICARDOCUMENTOS, 0)
+                FROM GSM.VMST_UBICACIONES U
+                LEFT JOIN GSM.TSYS_TIPOSHUECOS T ON U.CODTIPOHUECO = T.CODTIPOHUECO
+                WHERE UPPER(U.NOMBRECORTO) = UPPER(:1)
+            """
+            cursor.execute(query, [str(nombre_corto)])
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "CODUBICACION": row[0],
+                    "UBICACION": row[1],
+                    "PRM_TRAZABILIDAD": row[2],
+                    "PRM_CADUCIDAD": row[3],
+                    "CODTIPODATOMAESTRO": row[4],
+                    "CODDATOMAESTRO": row[5],
+                    "BLOQUEOENTRADA": row[6],
+                    "BLOQUEOSALIDA": row[7],
+                    "PRM_UBICARDOCS": row[8]
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error al buscar ubicación por nombre corto {nombre_corto}: {e}")
+            raise
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+
+    @staticmethod
     def get_ubicaciones_by_etiqueta(etiqueta: str):
         """
         Busca ubicaciones a partir del texto (etiqueta) en GSM.VMST_HUECOS y luego GSM.VMST_UBICACIONES.

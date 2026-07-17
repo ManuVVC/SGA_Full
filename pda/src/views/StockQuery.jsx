@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ArrowLeft, AlertTriangle } from 'lucide-react';
 import apiService from '../api/apiService';
@@ -17,6 +17,16 @@ export default function StockQuery() {
 
   // Custom hook para forzar que el input reciba los datos del escáner
   const inputRef = useScannerFocus();
+
+  // Forzar el foco en el input al cambiar el método de entrada o alternar teclado
+  useEffect(() => {
+    if (inputRef.current) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [searchType, isKeyboardOpen]);
 
   const handleScan = async (e) => {
     e.preventDefault();
@@ -75,7 +85,7 @@ export default function StockQuery() {
           </h2>
 
           <form onSubmit={handleScan} className="flex flex-col gap-3">
-            <SearchTypeToggle value={searchType} onChange={setSearchType} />
+            <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} />
             <input
               ref={inputRef}
               type="text"

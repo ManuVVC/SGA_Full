@@ -27,9 +27,12 @@ export default function NuevoEan() {
   const factorRef = useRef(null);
 
   useEffect(() => {
-    if (step === 1 && eanRef.current) eanRef.current.focus();
-    if (step === 3 && factorRef.current) factorRef.current.focus();
-  }, [step]);
+    const timer = setTimeout(() => {
+      if (step === 1 && eanRef.current) eanRef.current.focus();
+      if (step === 3 && factorRef.current) factorRef.current.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [step, isKeyboardOpen]);
 
   const handleBack = () => {
     if (step > 1) {

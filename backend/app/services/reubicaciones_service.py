@@ -20,7 +20,12 @@ class ReubicacionesService:
             # Si no la encuentra como código numérico, podría ser un código de barras
             # que contenga solo números (etiqueta). Continuamos la ejecución.
         
-        # Si no es numérico, o era numérico pero no existía como CodUbicacion, buscar por etiqueta en huecos
+        # Intentar buscar por NOMBRECORTO (formato alfanumérico o nombre de ubicación en VMST_UBICACIONES)
+        ubic = ReubicacionesRepository.get_ubicacion_by_nombre_corto(input_value)
+        if ubic:
+            return {"status": "success", "ubicacion": ubic}
+        
+        # Si no es numérico, o era numérico pero no existía como CodUbicacion o NombreCorto, buscar por etiqueta en huecos
         ubicaciones = ReubicacionesRepository.get_ubicaciones_by_etiqueta(input_value)
         
         if not ubicaciones:

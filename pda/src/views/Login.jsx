@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import apiService from '../api/apiService';
 import { LogIn, Monitor } from 'lucide-react';
 import { useKeyboard } from '../contexts/KeyboardContext';
@@ -12,10 +12,25 @@ export default function Login() {
   const [terminal, setTerminal] = useState(null);
   const [terminalError, setTerminalError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { isKeyboardOpen } = useKeyboard();
   
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
+
+  // Escuchar el motivo del cierre de sesión si proviene de una redirección
+  useEffect(() => {
+    if (location.state?.reason) {
+      const reason = location.state.reason;
+      if (reason === 'SESSION_EXPIRED') {
+        setError('La sesión ha expirado por inactividad. Por favor, inicie sesión de nuevo.');
+      } else if (reason === 'SESSION_INVALIDATED') {
+        setError('Esta sesión se ha cerrado porque se ha iniciado sesión desde otra pestaña en este terminal.');
+      }
+      // Limpiar el estado de navegación para evitar repetir el mensaje si se recarga la página
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   useEffect(() => {
     const fetchTerminal = async () => {
@@ -59,6 +74,7 @@ export default function Login() {
         localStorage.setItem('sga_permissions', JSON.stringify(response.data.permisos));
         localStorage.setItem('sga_operador', username);
         localStorage.setItem('sga_operador_nombre', response.data.operador_nombre);
+        localStorage.setItem('sga_session_timeout', response.data.session_timeout_minutes || '30');
         navigate('/menu');
       }
     } catch (err) {

@@ -14,6 +14,8 @@ class Config:
     ORACLE_MAX = int(os.getenv("ORACLE_MAX", "5"))
     ORACLE_CLIENT_PATH = os.getenv("ORACLE_CLIENT_PATH")
     AUDIT_LOG_ENABLED = os.getenv("AUDIT_LOG_ENABLED", "False").lower() in ("true", "1", "t", "yes")
+    SESSION_TIMEOUT_MINUTES = int(os.getenv("SESSION_TIMEOUT_MINUTES", "30"))
+
 
     @staticmethod
     def validate():

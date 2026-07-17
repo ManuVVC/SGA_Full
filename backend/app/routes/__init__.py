@@ -4,6 +4,7 @@ from .reubicaciones_routes import reubicaciones_bp
 from .entradas_routes import entradas_bp
 from .utilidades_routes import utilidades_bp
 from .ajustes_stock_routes import ajustes_stock_bp
+from .devoluciones_routes import devoluciones_bp
 
 def register_routes(app):
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
@@ -12,3 +13,4 @@ def register_routes(app):
     app.register_blueprint(entradas_bp, url_prefix="/api/entradas")
     app.register_blueprint(utilidades_bp, url_prefix="/api/utilidades")
     app.register_blueprint(ajustes_stock_bp) # url_prefix is already in the blueprint
+    app.register_blueprint(devoluciones_bp, url_prefix="/api/devoluciones")

@@ -21,6 +21,16 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
     }
   }, [autoFocus, disabled]);
 
+  // Forzar el foco en el input cuando el operario cambie el tipo de búsqueda o el teclado virtual
+  useEffect(() => {
+    if (inputRef.current && !disabled) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [searchType, isKeyboardOpen, disabled]);
+
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -68,6 +78,8 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
       GESTIONARCADUCIDAD: item.GESTIONARCADUCIDAD,
       MARGENCADUCIDAD: item.MARGENCADUCIDAD,
       FECHADESCATALOGACION: item.FECHADESCATALOGACION,
+      searchType,
+      searchQuery: query
     };
     onArticleSelected(normalizedArticle);
   };
@@ -75,7 +87,7 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
   return (
     <div className="w-full">
       <form onSubmit={handleSearch} className="flex flex-col gap-3">
-        <SearchTypeToggle value={searchType} onChange={setSearchType} />
+        <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} />
         <input
           ref={inputRef}
           type="text"

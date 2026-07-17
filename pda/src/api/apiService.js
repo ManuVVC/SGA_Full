@@ -105,10 +105,18 @@ apiService.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Sesión expirada o token inválido: limpiar datos locales y redirigir al login
+      // Extraer el código específico de error (SESSION_EXPIRED o SESSION_INVALIDATED)
+      const code = error.response.data?.code;
+      
+      // Sesión expirada o token inválido: limpiar datos locales
       localStorage.removeItem('sga_token');
       localStorage.removeItem('sga_permissions');
-      window.dispatchEvent(new Event('auth_unauthorized'));
+      localStorage.removeItem('sga_operador');
+      localStorage.removeItem('sga_operador_nombre');
+      
+      // Disparar evento personalizado con el motivo del 401
+      const authEvent = new CustomEvent('auth_unauthorized', { detail: { reason: code } });
+      window.dispatchEvent(authEvent);
     }
     return Promise.reject(error);
   }
