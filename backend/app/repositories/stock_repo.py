@@ -255,18 +255,38 @@ class StockRepository:
             connection = OracleDatabase.get_connection()
             cursor = connection.cursor()
 
-            query = """
-                SELECT A.CODARTICULO, A.CODARTICULOAPLICACION, A.NOMBREARTICULO 
+            # Fase 1: Búsqueda exacta
+            query_exact = """
+                SELECT DISTINCT A.CODARTICULO, A.CODARTICULOAPLICACION, A.NOMBREARTICULO 
                 FROM GSM.TMST_ARTICULOS A
                 INNER JOIN GSM.TMST_CODFACTURACION C ON A.CODARTICULO = C.CODARTICULO
                 WHERE UPPER(C.CODFACTURACION) = UPPER(:ean)
             """
-            cursor.execute(query, ean=ean_leido)
-            row = cursor.fetchone()
-            if not row:
+            cursor.execute(query_exact, ean=ean_leido)
+            rows = cursor.fetchall()
+
+            # Fase 2: Si falla la exacta, tiene cero inicial y longitud > 1, omitir primer cero y buscar LIKE
+            if not rows and ean_leido.startswith('0') and len(ean_leido) > 1:
+                ean_recortado = ean_leido[1:]
+                logger.info(f"EAN '{ean_leido}' no encontrado de forma exacta. Probando coincidencia parcial (eliminando primer cero): '%{ean_recortado}'")
+                query_like = """
+                    SELECT DISTINCT A.CODARTICULO, A.CODARTICULOAPLICACION, A.NOMBREARTICULO 
+                    FROM GSM.TMST_ARTICULOS A
+                    INNER JOIN GSM.TMST_CODFACTURACION C ON A.CODARTICULO = C.CODARTICULO
+                    WHERE UPPER(C.CODFACTURACION) LIKE '%' || UPPER(:ean_sin_cero)
+                """
+                cursor.execute(query_like, ean_sin_cero=ean_recortado)
+                rows = cursor.fetchall()
+
+            if not rows:
                 logger.info(f"Artículo con EAN '{ean_leido}' no encontrado.")
                 return None
 
+            # Opción A: Si coincide con múltiples artículos distintos, lanzar error de ambigüedad
+            if len(rows) > 1:
+                raise ValueError("Coincidencia de EAN ambigua")
+
+            row = rows[0]
             columns = [col[0].upper() for col in cursor.description]
             row_dict = dict(zip(columns, row))
 
@@ -309,6 +329,12 @@ class StockRepository:
             connection = OracleDatabase.get_connection()
             cursor = connection.cursor()
 
+            # Procesar query para EAN: si tiene un cero inicial, omitir únicamente el primero
+            query_processed = query
+            if search_type in ("codfacturacion", ""):
+                if query.startswith('0') and len(query) > 1:
+                    query_processed = query[1:]
+
             base_sql = """
                 SELECT DISTINCT 
                     A.CODARTICULO, 
@@ -317,16 +343,16 @@ class StockRepository:
                     A.PRM_TRAZABILIDAD,
                     A.GESTIONARCADUCIDAD,
                     NVL(A.MARGENCADUCIDAD, 0) AS MARGENCADUCIDAD,
-                    (SELECT MAX(FACTORCONVERSION) FROM GSM.TMST_CODFACTURACION C2 WHERE C2.CODARTICULO = A.CODARTICULO AND UPPER(C2.CODFACTURACION) = UPPER(:q)) AS FACTOR_EAN,
-                    (SELECT MAX(FECHADESCATALOGACION) FROM GSM.TMST_CODFACTURACION C3 WHERE C3.CODARTICULO = A.CODARTICULO AND UPPER(C3.CODFACTURACION) = UPPER(:q)) AS FECHADESCATALOGACION
+                    (SELECT MAX(FACTORCONVERSION) FROM GSM.TMST_CODFACTURACION C2 WHERE C2.CODARTICULO = A.CODARTICULO AND UPPER(C2.CODFACTURACION) LIKE '%' || UPPER(:q)) AS FACTOR_EAN,
+                    (SELECT MAX(FECHADESCATALOGACION) FROM GSM.TMST_CODFACTURACION C3 WHERE C3.CODARTICULO = A.CODARTICULO AND UPPER(C3.CODFACTURACION) LIKE '%' || UPPER(:q)) AS FECHADESCATALOGACION
                 FROM GSM.TMST_ARTICULOS A
                 LEFT JOIN GSM.TMST_CODFACTURACION C ON A.CODARTICULO = C.CODARTICULO
             """
 
-            params = {"q": query}
+            params = {"q": query_processed}
             
             if search_type == "codfacturacion":
-                sql = base_sql + " WHERE UPPER(C.CODFACTURACION) = UPPER(:q)"
+                sql = base_sql + " WHERE UPPER(C.CODFACTURACION) LIKE '%' || UPPER(:q)"
             elif search_type == "codarticuloaplicacion":
                 sql = base_sql + " WHERE UPPER(A.CODARTICULOAPLICACION) LIKE UPPER(:q_like)"
                 params["q_like"] = f"%{query}%"
@@ -336,7 +362,7 @@ class StockRepository:
             else:
                 # Fallback por defecto a búsqueda global
                 sql = base_sql + """
-                    WHERE UPPER(C.CODFACTURACION) = UPPER(:q)
+                    WHERE UPPER(C.CODFACTURACION) LIKE '%' || UPPER(:q)
                        OR UPPER(A.CODARTICULOAPLICACION) LIKE UPPER(:q_like)
                        OR UPPER(A.NOMBREARTICULO) LIKE UPPER(:q_like)
                 """

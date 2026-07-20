@@ -42,7 +42,7 @@ export function SubMenuEntrada() {
   const { hasPermission } = usePermissions();
   const items = [
     { label: 'Entrada Mercan', icon: LogIn, path: '/entrada/recepcion', show: hasPermission('PRM_ENTRADADEMERCANCIAS') },
-    { label: 'Finalizar', icon: CheckSquare, path: '', show: true },
+    { label: 'Finalizar', icon: CheckSquare, path: '/entrada/finalizar-lista', show: hasPermission('PRM_FINALIZARENTRADAMERCANCIA') },
     { label: 'Recepcion Inter.', icon: ArrowLeftRight, path: '', show: hasPermission('PRM_REC_MERCANCIA_INTERCOMPANY') },
     { label: 'Ent. Devolucion', icon: Undo2, path: '', show: hasPermission('PRM_ENTRADADEVOLUCION') },
     { label: 'Ent. Prod. Fabrica', icon: PackagePlus, path: '', show: hasPermission('PRM_ENTRADA_PROD_FABRICA') },

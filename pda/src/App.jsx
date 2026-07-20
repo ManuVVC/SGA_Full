@@ -12,6 +12,8 @@ import {
 import ReubicacionLibre from './views/ReubicacionLibre';
 import ReubicacionEntrada from './views/ReubicacionEntrada';
 import EntradaMercancia from './views/EntradaMercancia';
+import ListaFinalizarEntradas from './views/ListaFinalizarEntradas';
+import FinalizarEntradaMercancia from './views/FinalizarEntradaMercancia';
 import NuevoEan from './views/NuevoEan';
 import InfoUbicacion from './views/InfoUbicacion';
 import AjustesStock from './views/AjustesStock';
@@ -117,6 +119,8 @@ function App() {
                 <Route path="/reubicar/entrada" element={<PrivateRoute><ReubicacionEntrada /></PrivateRoute>} />
                 <Route path="/entrada" element={<PrivateRoute><SubMenuEntrada /></PrivateRoute>} />
                 <Route path="/entrada/recepcion" element={<PrivateRoute><EntradaMercancia /></PrivateRoute>} />
+                <Route path="/entrada/finalizar-lista" element={<PrivateRoute><ListaFinalizarEntradas /></PrivateRoute>} />
+                <Route path="/entradas/finalizar-detalle" element={<PrivateRoute><FinalizarEntradaMercancia /></PrivateRoute>} />
                 <Route path="/inventario" element={<PrivateRoute><SubMenuInventario /></PrivateRoute>} />
                 <Route path="/devoluciones" element={<PrivateRoute><SubMenuDevoluciones /></PrivateRoute>} />
                 <Route path="/devoluciones/cliente" element={<PrivateRoute><DevolucionCliente /></PrivateRoute>} />

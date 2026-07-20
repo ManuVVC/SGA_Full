@@ -145,24 +145,46 @@ class ReubicacionesRepository:
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
-            query = """
-                SELECT C.CODARTICULO, C.FACTORCONVERSION, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0), A.CODARTICULOAPLICACION, A.NOMBREARTICULO
+            
+            # Fase 1: Búsqueda exacta
+            query_exact = """
+                SELECT DISTINCT C.CODARTICULO, C.FACTORCONVERSION, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0), A.CODARTICULOAPLICACION, A.NOMBREARTICULO
                 FROM GSM.TMST_CODFACTURACION C
                 JOIN GSM.TMST_ARTICULOS A ON C.CODARTICULO = A.CODARTICULO
                 WHERE C.CODFACTURACION = :1
             """
-            cursor.execute(query, [ean])
-            row = cursor.fetchone()
-            if row:
-                return {
-                    "CODARTICULO": row[0],
-                    "UNIDADES": row[1],
-                    "PRM_TRAZABILIDAD": row[2],
-                    "GESTIONARCADUCIDAD": row[3],
-                    "CODARTICULOAPLICACION": row[4],
-                    "NOMBREARTICULO": row[5]
-                }
-            return None
+            cursor.execute(query_exact, [ean])
+            rows = cursor.fetchall()
+
+            # Fase 2: Si no hay coincidencia, tiene un cero inicial y longitud > 1, omitimos primer cero y buscamos LIKE
+            if not rows and ean.startswith('0') and len(ean) > 1:
+                ean_recortado = ean[1:]
+                logger.info(f"EAN '{ean}' no encontrado de forma exacta en reubicaciones. Probando coincidencia parcial (eliminando primer cero): '%{ean_recortado}'")
+                query_like = """
+                    SELECT DISTINCT C.CODARTICULO, C.FACTORCONVERSION, NVL(A.PRM_TRAZABILIDAD, 0), NVL(A.GESTIONARCADUCIDAD, 0), A.CODARTICULOAPLICACION, A.NOMBREARTICULO
+                    FROM GSM.TMST_CODFACTURACION C
+                    JOIN GSM.TMST_ARTICULOS A ON C.CODARTICULO = A.CODARTICULO
+                    WHERE C.CODFACTURACION LIKE '%' || :1
+                """
+                cursor.execute(query_like, [ean_recortado])
+                rows = cursor.fetchall()
+
+            if not rows:
+                return None
+
+            # Control de ambigüedad: si hay múltiples artículos distintos, lanzar error
+            if len(rows) > 1:
+                raise ValueError("Coincidencia de EAN ambigua")
+
+            row = rows[0]
+            return {
+                "CODARTICULO": row[0],
+                "UNIDADES": row[1],
+                "PRM_TRAZABILIDAD": row[2],
+                "GESTIONARCADUCIDAD": row[3],
+                "CODARTICULOAPLICACION": row[4],
+                "NOMBREARTICULO": row[5]
+            }
         except Exception as e:
             logger.error(f"Error al buscar articulo por EAN {ean}: {e}")
             raise

@@ -72,34 +72,67 @@ export const getClientIP = () =>
   });
 
 /**
+ * Devuelve true si la IP es una dirección LAN real (no Docker ni loopback).
+ * Usado para filtrar IPs de gateway/Docker que no identifican un terminal físico.
+ * Acepta 192.168.x.x y 10.x.x.x como IPs de LAN válidas.
+ */
+const esIpLanReal = (ip) => {
+  if (!ip || typeof ip !== 'string') return false;
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  const [a, b] = parts.map(Number);
+  if (isNaN(a) || isNaN(b)) return false;
+  if (a === 127) return false;                        // loopback
+  if (a === 169 && b === 254) return false;           // link-local
+  if (a === 172 && b >= 16 && b <= 31) return false; // Docker/private bridge
+  return true;
+};
+
+/**
  * Obtiene y almacena en caché la IP local del dispositivo en sessionStorage.
- * Llama a esta función al inicio de la app para que esté lista cuando se
- * necesite identificar el terminal.
+ * Cadena de prioridad (de más a menos fiable):
+ *
+ *   1. Parámetro URL ?terminal_ip=X   (síncrono, 100% fiable, ideal para bookmark PDA)
+ *   2. window.__NGINX_IP__            (inyectada por Nginx sub_filter al servir index.html,
+ *                                      síncrono, sin WebRTC, funciona en todos los navegadores)
+ *   3. Caché en sessionStorage        (sesión anterior ya resuelta)
+ *   4. WebRTC                         (fallback async, puede estar bloqueado en PDAs)
  *
  * @returns {Promise<string|null>}
  */
 export const initClientIP = async () => {
-  // 1. Permitir sobreescribir la IP mediante parámetro de consulta ?terminal_ip=X.X.X.X
-  //    Esto es muy útil en desarrollo/pruebas locales para simular la IP de la PDA en Docker Windows.
-  const urlParams = new URLSearchParams(window.location.search);
-  const forcedIp = urlParams.get('terminal_ip');
-  if (forcedIp) {
-    sessionStorage.setItem('sga_terminal_ip', forcedIp);
-    console.info(`[SGA] IP del terminal forzada por URL: ${forcedIp}`);
-    return forcedIp;
+  // 1. Parámetro de URL (ya guardado síncronamente en apiService.js al arrancar)
+  const cached = sessionStorage.getItem('sga_terminal_ip');
+  if (cached) {
+    console.info(`[SGA] IP del terminal desde caché: ${cached}`);
+    return cached;
   }
 
-  // 2. Verificar caché en sessionStorage
-  const cached = sessionStorage.getItem('sga_terminal_ip');
-  if (cached) return cached;
+  // 2. IP inyectada por Nginx (window.__NGINX_IP__)
+  //    Nginx la pone vía sub_filter en nginx.conf: window.__NGINX_IP__="$remote_addr"
+  //    Si Docker Desktop preserva la IP real (modo mirrored/WSL2) es la IP del terminal.
+  //    Si la NAT (modo vpnkit), es el gateway Docker → la descartamos con esIpLanReal.
+  const nginxIp = window.__NGINX_IP__;
+  if (esIpLanReal(nginxIp)) {
+    sessionStorage.setItem('sga_terminal_ip', nginxIp);
+    console.info(`[SGA] IP del terminal detectada via Nginx: ${nginxIp}`);
+    return nginxIp;
+  }
+  if (nginxIp) {
+    console.warn(`[SGA] IP de Nginx descartada (Docker/interna): ${nginxIp}`);
+  }
 
-  // 3. Autodetección WebRTC
+  // 3. WebRTC (fallback, puede estar bloqueado en navegadores modernos o PDAs)
   const ip = await getClientIP();
   if (ip) {
     sessionStorage.setItem('sga_terminal_ip', ip);
     console.info(`[SGA] IP del terminal detectada via WebRTC: ${ip}`);
-  } else {
-    console.warn('[SGA] No se pudo detectar la IP del terminal via WebRTC.');
+    return ip;
   }
-  return ip;
+
+  console.warn(
+    '[SGA] No se pudo detectar la IP del terminal automáticamente. ' +
+    'Accede con ?terminal_ip=TU.IP en la URL (ej: http://servidor:5173/?terminal_ip=192.168.5.178)'
+  );
+  return null;
 };

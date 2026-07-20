@@ -28,21 +28,28 @@ def validar_ubicacion():
 @reubicaciones_bp.route("/validar-articulo", methods=["POST"])
 @token_required
 def validar_articulo():
-    data = request.get_json() or {}
-    input_value = data.get("articulo")
-    tipo_busqueda = data.get("tipo_busqueda", "auto")
+    try:
+        data = request.get_json() or {}
+        input_value = data.get("articulo")
+        tipo_busqueda = data.get("tipo_busqueda", "auto")
 
-    if not input_value:
-        return jsonify({"status": "error", "message": "Debe proporcionar un artículo."}), 400
+        if not input_value:
+            return jsonify({"status": "error", "message": "Debe proporcionar un artículo."}), 400
 
-    result = ReubicacionesService.validar_articulo(str(input_value), tipo_busqueda)
-    
-    if result["status"] == "success":
-        return jsonify(result), 200
-    elif result["status"] == "multiples_resultados":
-        return jsonify(result), 200
-    else:
-        return jsonify(result), 404
+        result = ReubicacionesService.validar_articulo(str(input_value), tipo_busqueda)
+        
+        if result["status"] == "success":
+            return jsonify(result), 200
+        elif result["status"] == "multiples_resultados":
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+    except ValueError as e:
+        logger.warning(f"Error de validación al validar artículo: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error inesperado al validar artículo: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "Error interno al validar el artículo."}), 500
 
 @reubicaciones_bp.route("/validar-cantidad", methods=["POST"])
 @token_required

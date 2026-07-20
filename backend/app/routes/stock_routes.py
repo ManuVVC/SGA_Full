@@ -118,6 +118,14 @@ def get_stock_ean(ean_leido):
             "message": str(e)
         }), 404
 
+    except ValueError as e:
+        logger.warning(f"Error de validación al consultar stock EAN '{ean_leido}': {e}")
+        return jsonify({
+            "status": "error",
+            "error": "Bad Request",
+            "message": str(e)
+        }), 400
+
     except Exception as e:
         logger.error(f"Error inesperado al consultar stock EAN '{ean_leido}': {e}", exc_info=True)
         return jsonify({

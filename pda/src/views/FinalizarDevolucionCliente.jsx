@@ -53,7 +53,7 @@ export default function FinalizarDevolucionCliente() {
 
   const handleFinalizar = async () => {
     if (!devolucion) return;
-    if (window.confirm(`¿Seguro que desea finalizar la devolución nº ${devolucion.num_documento}? Esta acción consolidará el documento.`)) {
+    if (window.confirm(`¿Seguro que desea finalizar la devolución nº ${devolucion.num_documento}? Esta acción no se podrá deshacer.`)) {
       setLoading(true);
       setError(null);
       try {
@@ -110,6 +110,16 @@ export default function FinalizarDevolucionCliente() {
           </div>
         ) : devolucion ? (
           <div className="space-y-4">
+
+            {/* Acción finalizar */}
+            <button
+              onClick={handleFinalizar}
+              className="w-full bg-sga-primary hover:bg-blue-900 text-white font-bold p-4 rounded-xl text-xl shadow flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            >
+              <CheckSquare className="w-6 h-6" />
+              FINALIZAR DEVOLUCIÓN
+            </button>
+
             {/* Detalles cabecera */}
             <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
               <div className="flex justify-between items-start border-b pb-2 mb-3">
@@ -157,15 +167,6 @@ export default function FinalizarDevolucionCliente() {
                 </div>
               )}
             </div>
-
-            {/* Acción finalizar */}
-            <button
-              onClick={handleFinalizar}
-              className="w-full bg-sga-primary hover:bg-blue-900 text-white font-bold p-4 rounded-xl text-xl shadow flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            >
-              <CheckSquare className="w-6 h-6" />
-              FINALIZAR DEVOLUCIÓN
-            </button>
           </div>
         ) : (
           <div className="bg-white p-6 rounded-lg shadow border border-gray-200 text-center space-y-4">

@@ -1,5 +1,8 @@
+import logging
 from app.database import db
 import datetime
+
+logger = logging.getLogger(__name__)
 
 class EntradasRepository:
     @staticmethod
@@ -77,6 +80,40 @@ class EntradasRepository:
                 "NUMDOCUMENTO": r[3],
                 "FECHADOCUMENTO": r[4].strftime('%d-%m-%Y') if r[4] else None,
                 "NUMPEDIDO": r[5]
+            } for r in rows]
+        except Exception as e:
+            raise e
+        finally:
+            if 'cursor' in locals():
+                try: cursor.close()
+                except: pass
+            if 'conn' in locals():
+                try: conn.close()
+                except: pass
+
+    @staticmethod
+    def get_albaranes_para_finalizar():
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT v.CODDOCUMENTO, v.NUMDOCUMENTO, v.FECHADOCUMENTO, v.RAZONSOCIAL, v.CODPROVEEDOR
+                FROM GSM.VMST_DOCUMENTOSPROVEEDOR v
+                INNER JOIN GSM.TMST_CODDOCUMENTOS c ON c.CODDOCUMENTO = v.CODDOCUMENTO
+                WHERE v.CODESTADODOCUMENTO = 16
+                  AND v.CODTIPOMOVIMIENTO = 30
+                  AND v.CODTIPODOCUMENTO = 3 
+                  AND NVL(c.PRM_PERMITIRFINALIZAR, 0) != 0
+                ORDER BY v.FECHADOCUMENTO DESC
+            """
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            return [{
+                "CODDOCUMENTO": r[0],
+                "NUMDOCUMENTO": r[1],
+                "FECHADOCUMENTO": r[2].strftime('%d-%m-%Y') if r[2] else None,
+                "RAZONSOCIAL": r[3],
+                "CODPROVEEDOR": r[4]
             } for r in rows]
         except Exception as e:
             raise e
@@ -539,16 +576,14 @@ class EntradasRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             
-            out_result = cursor.var(int)
-            args = [
-                0, # P_DESPRECIARRESTOS
-                codoperador, # P_CODOPERADOR
-                coddocumento, # P_CODDOCUMENTO
-                out_result # OUT result
-            ]
-            cursor.callproc('GSM.SPEME_FINENTRADAMERCANCIA', args)
+            kwargs = {
+                'P_CODDOCUMENTO': coddocumento,
+                'P_CODOPERADOR': codoperador,
+                'P_DESPRECIARRESTOS': 0
+            }
+            res = cursor.callfunc('GSM.SPEME_FINENTRADAMERCANCIA', int, keywordParameters=kwargs)
             conn.commit()
-            return out_result.getvalue()
+            return res
         except Exception as e:
             if 'conn' in locals():
                 conn.rollback()
@@ -675,16 +710,39 @@ class EntradasRepository:
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
+            
+            # Fase 1: Encontrar candidato exacto
+            cursor.execute("SELECT DISTINCT CODARTICULO FROM GSM.TMST_CODFACTURACION WHERE CODFACTURACION = :1", [ean])
+            candidates = [r[0] for r in cursor.fetchall()]
+            
+            used_ean_pattern = ean
+            
+            # Fase 2: Encontrar candidato fallback si falla el exacto, tiene cero inicial y longitud > 1
+            if not candidates and ean.startswith('0') and len(ean) > 1:
+                ean_recortado = ean[1:]
+                logger.info(f"EAN '{ean}' no encontrado de forma exacta en entradas. Probando coincidencia parcial (eliminando primer cero): '%{ean_recortado}'")
+                cursor.execute("SELECT DISTINCT CODARTICULO FROM GSM.TMST_CODFACTURACION WHERE CODFACTURACION LIKE '%' || :1", [ean_recortado])
+                candidates = [r[0] for r in cursor.fetchall()]
+                used_ean_pattern = ean_recortado
+                
+            if not candidates:
+                return None
+                
+            if len(candidates) > 1:
+                raise ValueError("Coincidencia de EAN ambigua")
+                
+            cod_articulo = candidates[0]
+            
+            # Consultar los datos del artículo y su factor de conversión
+            # Para el factor de conversión, buscamos con LIKE usando la coincidencia de sufijo resuelta
             query = """
                 SELECT a.CODARTICULO, a.NOMBREARTICULO, a.PRM_TRAZABILIDAD, a.GESTIONARCADUCIDAD,
                        NVL(c.FACTORCONVERSION, 1) as FACTOR_EAN
                 FROM GSM.TMST_ARTICULOS a
-                LEFT JOIN GSM.TMST_CODFACTURACION c ON a.CODARTICULO = c.CODARTICULO AND c.CODFACTURACION = :1
-                WHERE a.CODARTICULO = (
-                    SELECT MIN(CODARTICULO) FROM GSM.TMST_CODFACTURACION WHERE CODFACTURACION = :1
-                )
+                LEFT JOIN GSM.TMST_CODFACTURACION c ON a.CODARTICULO = c.CODARTICULO AND c.CODFACTURACION LIKE '%' || :1
+                WHERE a.CODARTICULO = :2
             """
-            cursor.execute(query, [ean, ean])
+            cursor.execute(query, [used_ean_pattern, cod_articulo])
             row = cursor.fetchone()
             if row:
                 return {

@@ -59,10 +59,13 @@ class EntradasService:
             return {"status": "error", "message": "EAN y Unidades son obligatorios."}
         if not payload.get('CODARTICULO'):
             # Fallback if CODARTICULO wasn't sent
-            articulo = EntradasRepository.get_info_articulo_por_ean(ean)
-            if not articulo:
-                return {"status": "error", "message": "Artículo no encontrado."}
-            payload['CODARTICULO'] = articulo['CODARTICULO']
+            try:
+                articulo = EntradasRepository.get_info_articulo_por_ean(ean)
+                if not articulo:
+                    return {"status": "error", "message": "Artículo no encontrado."}
+                payload['CODARTICULO'] = articulo['CODARTICULO']
+            except ValueError as e:
+                return {"status": "error", "message": str(e)}
 
         try:
             result = EntradasRepository.grabar_linea_entrada(payload)
@@ -89,16 +92,25 @@ class EntradasService:
             return {"status": "error", "message": str(e)}
 
     @staticmethod
-    def finalizar_entrada(coddocumento: int):
+    def finalizar_entrada(coddocumento: int, codoperador: int):
         if not coddocumento:
             return {"status": "error", "message": "No se indicó el documento a finalizar."}
             
         try:
-            EntradasRepository.finalizar_entrada(coddocumento)
+            EntradasRepository.finalizar_entrada(coddocumento, codoperador)
             return {"status": "success", "message": "Entrada finalizada con éxito"}
         except Exception as e:
             logger.error(f"Error al finalizar entrada: {e}", exc_info=True)
             return {"status": "error", "message": "Error interno al finalizar la entrada."}
+
+    @staticmethod
+    def get_albaranes_para_finalizar():
+        try:
+            albaranes = EntradasRepository.get_albaranes_para_finalizar()
+            return {"status": "success", "albaranes": albaranes}
+        except Exception as e:
+            logger.error(f"Error al obtener albaranes para finalizar: {e}", exc_info=True)
+            return {"status": "error", "message": "Error interno al consultar albaranes."}
 
     @staticmethod
     def get_lineas_grabadas(coddocumento: int):
@@ -136,6 +148,8 @@ class EntradasService:
             if not info:
                 return {"status": "error", "message": f"EAN {ean} no encontrado"}
             return {"status": "success", "info": info}
+        except ValueError as e:
+            return {"status": "error", "message": str(e)}
         except Exception as e:
             logger.error(f"Error al obtener info del EAN {ean}: {e}", exc_info=True)
             return {"status": "error", "message": "Error al buscar EAN"}

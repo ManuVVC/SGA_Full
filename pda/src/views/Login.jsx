@@ -11,10 +11,15 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [terminal, setTerminal] = useState(null);
   const [terminalError, setTerminalError] = useState('');
+
+  // Easter egg Jubilación Operador 1
+  const [showRetirementModal, setShowRetirementModal] = useState(false);
+  const [retirementDays, setRetirementDays] = useState(0);
+
   const navigate = useNavigate();
   const location = useLocation();
   const { isKeyboardOpen } = useKeyboard();
-  
+
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
 
@@ -39,7 +44,7 @@ export default function Login() {
         if (response.status === 200 && response.data.terminal) {
           const termData = response.data.terminal;
           setTerminal(termData);
-          
+
           if (termData.CODOPERADOR) {
             setUsername(termData.CODOPERADOR);
             // Autofocus password if operator is already set
@@ -59,7 +64,7 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!username || !password) {
       setError('Introduce código y contraseña');
       return;
@@ -68,14 +73,29 @@ export default function Login() {
     setLoading(true);
     try {
       const response = await apiService.post('/auth/login', { username, password });
-      
+
       if (response.status === 200) {
         localStorage.setItem('sga_token', response.data.token);
         localStorage.setItem('sga_permissions', JSON.stringify(response.data.permisos));
         localStorage.setItem('sga_operador', username);
         localStorage.setItem('sga_operador_nombre', response.data.operador_nombre);
         localStorage.setItem('sga_session_timeout', response.data.session_timeout_minutes || '30');
-        navigate('/menu');
+
+        console.log('[SGA] Login exitoso. Operador:', username);
+
+        // Easter egg para Operador 1
+        if (username.trim() === '1') {
+          console.log('[SGA] Detectado operador 1, calculando jubilación...');
+          const retirementDate = new Date('2029-12-31T00:00:00');
+          const today = new Date();
+          const diffTime = retirementDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          setRetirementDays(diffDays > 0 ? diffDays : 0);
+          setShowRetirementModal(true);
+        } else {
+          navigate('/menu');
+        }
       }
     } catch (err) {
       if (err.response) {
@@ -127,37 +147,37 @@ export default function Login() {
         {!terminalError && (
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div>
-               <label className="block text-lg font-semibold text-sga-dark mb-1">Código de Operador</label>
-               <input 
-                 ref={usernameRef}
-                 type="text" 
-                 inputMode="numeric"
-                 pattern="[0-9]*"
-                 className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase disabled:opacity-50"
-                 value={username}
-                 onChange={(e) => setUsername(e.target.value.toUpperCase())}
-                 placeholder="EJ: 105"
-                 disabled={!terminal}
-               />
+              <label className="block text-lg font-semibold text-sga-dark mb-1">Código de Operador</label>
+              <input
+                ref={usernameRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 uppercase disabled:opacity-50"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toUpperCase())}
+                placeholder="EJ: 105"
+                disabled={!terminal}
+              />
             </div>
 
             <div>
-               <label className="block text-lg font-semibold text-sga-dark mb-1">Contraseña</label>
-               <input 
-                 ref={passwordRef}
-                 type="password" 
-                 inputMode="numeric"
-                 pattern="[0-9]*"
-                 className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 disabled:opacity-50"
-                 value={password}
-                 onChange={(e) => setPassword(e.target.value)}
-                 placeholder="***"
-                 disabled={!terminal}
-               />
+              <label className="block text-lg font-semibold text-sga-dark mb-1">Contraseña</label>
+              <input
+                ref={passwordRef}
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="w-full p-4 text-xl border-2 border-gray-300 rounded focus:border-sga-secondary focus:ring focus:ring-sga-secondary focus:ring-opacity-50 disabled:opacity-50"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="***"
+                disabled={!terminal}
+              />
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading || !terminal}
               className="mt-4 w-full bg-sga-primary hover:bg-blue-900 text-white font-bold p-4 rounded text-xl shadow disabled:opacity-50"
             >
@@ -166,6 +186,32 @@ export default function Login() {
           </form>
         )}
       </div>
+
+      {/* Modal de Jubilación (Operador 1) */}
+      {showRetirementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl text-center border-t-8 border-sga-secondary transform scale-105 transition-transform duration-300">
+            <h3 className="text-2xl font-bold text-sga-primary mb-4 flex items-center justify-center gap-2">
+              🎉 ¡Aviso Importante! 🎉
+            </h3>
+            <p className="text-lg text-gray-700 mb-2 font-medium">
+              Estimado Alfonso, te recordamos que faltan:
+            </p>
+            <div className="text-5xl font-black text-sga-danger my-6 drop-shadow-md">
+              {retirementDays} días
+            </div>
+            <p className="text-lg text-gray-700 mb-8 font-medium">
+              para su merecida jubilación (31/12/2029).<br />¡Ánimo que ya queda menos!
+            </p>
+            <button
+              onClick={() => navigate('/menu')}
+              className="w-full bg-sga-primary hover:bg-blue-900 text-white font-bold p-4 rounded-lg text-xl shadow-lg transition-colors"
+            >
+              Continuar a la aplicación
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

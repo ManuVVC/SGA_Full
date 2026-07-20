@@ -12,13 +12,14 @@ services:
 
   # ── Backend Flask en modo debug ─────────────────────────
   backend:
+    container_name: sga_backend_dev
     volumes:
       # Monta el código fuente para hot-reload sin reconstruir la imagen
       - ./backend:/app
     environment:
+      # Sobreescribir sólo lo que cambia respecto al compose base
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-      - PYTHONUNBUFFERED=1
     # Sobreescribir healthcheck en dev para no bloquear el arranque
     healthcheck:
       test: ["CMD", "true"]

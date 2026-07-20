@@ -1,5 +1,7 @@
 # ── Entornos y secretos ──────────────────────────────────────
 .env
+.env.prod
+.env.dev
 *.env.local
 *.env.production
 

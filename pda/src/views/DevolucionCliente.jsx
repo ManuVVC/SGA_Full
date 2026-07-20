@@ -11,13 +11,13 @@ import { usePermissions } from '../hooks/usePermissions';
 const parseShorthandDate = (input) => {
   if (!input) return '';
   if (input.includes('-') || input.includes('/')) return input;
-  
+
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-  
+
   const clean = input.replace(/\D/g, '');
-  
+
   if (clean.length === 1 || clean.length === 2) {
     const dd = clean.padStart(2, '0');
     return `${currentYear}-${currentMonth}-${dd}`;
@@ -31,7 +31,7 @@ const parseShorthandDate = (input) => {
     const aa = clean.substring(4, 6);
     return `20${aa}-${mm}-${dd}`;
   }
-  
+
   return input;
 };
 
@@ -80,6 +80,7 @@ export default function DevolucionCliente() {
   const [ubicacionDestino, setUbicacionDestino] = useState('');
   const [ubicacionDestinoId, setUbicacionDestinoId] = useState(null);
   const [ubicacionConfirmada, setUbicacionConfirmada] = useState(false);
+  const [ubicacionNombre, setUbicacionNombre] = useState('');
 
   // Historial de líneas grabadas en la sesión actual
   const [lineasGrabadas, setLineasGrabadas] = useState([]);
@@ -200,6 +201,7 @@ export default function DevolucionCliente() {
       const res = await validarUbicacion(ubicacionDestino.trim());
       if (res.status === 'success') {
         setUbicacionDestinoId(res.ubicacion.CODUBICACION);
+        setUbicacionNombre(res.ubicacion.UBICACION);
         setUbicacionConfirmada(true);
       } else if (res.status === 'necesita_posicion') {
         setPosicionesDisponibles(res.opciones);
@@ -226,6 +228,7 @@ export default function DevolucionCliente() {
       const res = await validarUbicacion(ubicacionDestino.trim(), posicion);
       if (res.status === 'success') {
         setUbicacionDestinoId(res.ubicacion.CODUBICACION);
+        setUbicacionNombre(res.ubicacion.UBICACION);
         setUbicacionConfirmada(true);
       } else {
         setError(res.message || 'Error al seleccionar la posición.');
@@ -266,8 +269,8 @@ export default function DevolucionCliente() {
     if (parsedCaducidad) {
       const caducidadDate = new Date(parsedCaducidad);
       const today = new Date();
-      caducidadDate.setHours(0,0,0,0);
-      today.setHours(0,0,0,0);
+      caducidadDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
 
       if (caducidadDate < today) {
         const accept = window.confirm('El artículo está caducado (fecha inferior a hoy). ¿Desea aceptar la devolución de todas formas?');
@@ -275,7 +278,7 @@ export default function DevolucionCliente() {
       } else if (articuloInfo.MARGENCADUCIDAD > 0) {
         const minDate = new Date(today);
         minDate.setDate(minDate.getDate() + articuloInfo.MARGENCADUCIDAD);
-        
+
         if (caducidadDate < minDate) {
           const accept = window.confirm(`El artículo no cumple el margen de caducidad requerido (${articuloInfo.MARGENCADUCIDAD} días). ¿Desea aceptar la devolución de todas formas?`);
           if (!accept) return;
@@ -313,6 +316,7 @@ export default function DevolucionCliente() {
           POBLACION: selectedCliente.POBLACION,
           FECHADOCUMENTO: fechaDocumento,
           OBSERVACIONES: observaciones,
+          CODUBICACION: codUbicacion,
         };
 
         const resCabecera = await crearCabecera(payloadCabecera);
@@ -339,7 +343,7 @@ export default function DevolucionCliente() {
       const res = await grabarLineaDevolucion(payload);
       if (res.status === 'success') {
         setSuccess(`Grabado: ${articuloInfo.CODARTICULOAPLICACION} x ${totalUnits}`);
-        
+
         // Agregar a lista local para control visual del operario
         setLineasGrabadas(prev => [
           {
@@ -368,7 +372,7 @@ export default function DevolucionCliente() {
 
   const handleBack = () => {
     if (step === 3 && documentoCreado) {
-      if (window.confirm('¿Seguro que desea salir al submenú de devoluciones? La devolución en curso quedará guardada y pendiente.')) {
+      if (window.confirm('¿Seguro que desea salir? La devolución en curso quedará guardada y pendiente.')) {
         navigate('/devoluciones');
       }
     } else {
@@ -406,6 +410,7 @@ export default function DevolucionCliente() {
     setUbicacionDestino('');
     setUbicacionDestinoId(null);
     setUbicacionConfirmada(false);
+    setUbicacionNombre('');
     setLineasGrabadas([]);
     setShowLineasGrabadas(false);
     setError(null);
@@ -562,13 +567,19 @@ export default function DevolucionCliente() {
                   <div className="flex items-center justify-between bg-green-50 border border-green-200 p-3 rounded">
                     <div className="flex items-center gap-2 text-green-700 font-bold">
                       <MapPin className="w-5 h-5" />
-                      <span>{ubicacionDestino.toUpperCase()}</span>
+                      <span>
+                        {ubicacionNombre && ubicacionNombre.toUpperCase() !== ubicacionDestino.toUpperCase()
+                          ? `${ubicacionNombre.toUpperCase()} (${ubicacionDestino.toUpperCase()})`
+                          : (ubicacionNombre ? ubicacionNombre.toUpperCase() : ubicacionDestino.toUpperCase())
+                        }
+                      </span>
                     </div>
                     <button
                       onClick={() => {
                         setUbicacionConfirmada(false);
                         setUbicacionDestinoId(null);
                         setUbicacionDestino('');
+                        setUbicacionNombre('');
                       }}
                       className="text-xs text-red-600 font-bold hover:underline"
                     >
@@ -681,7 +692,7 @@ export default function DevolucionCliente() {
                           </div>
                         )}
                       </div>
- 
+
                       {/* Lote */}
                       {articuloInfo.PRM_TRAZABILIDAD !== 0 && (
                         <div>
@@ -709,7 +720,7 @@ export default function DevolucionCliente() {
                         </div>
                       )}
                     </div>
- 
+
                     {/* Fecha de caducidad */}
                     {articuloInfo.GESTIONARCADUCIDAD !== 0 && (
                       <div>
@@ -766,12 +777,12 @@ export default function DevolucionCliente() {
                 <div className="bg-white flex-1 rounded-lg shadow-xl flex flex-col overflow-hidden">
                   <div className="p-4 bg-blue-800 text-white flex justify-between items-center">
                     <h3 className="font-bold text-lg">Líneas Grabadas</h3>
-                    <button 
-                      type="button" 
-                      onClick={() => setShowLineasGrabadas(false)} 
+                    <button
+                      type="button"
+                      onClick={() => setShowLineasGrabadas(false)}
                       className="p-1 hover:bg-blue-700 rounded text-white"
                     >
-                      <XCircle size={24}/>
+                      <XCircle size={24} />
                     </button>
                   </div>
                   <div className="flex-1 p-4 overflow-y-auto">
@@ -790,8 +801,8 @@ export default function DevolucionCliente() {
                               </p>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className="text-lg font-black text-sga-primary">{line.unidades}</span>
-                              <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Ubic: {line.ubicacion}</p>
+                              <span className="text-lg font-black text-sga-primary">{line.unidades} uds</span>
+
                             </div>
                           </div>
                         ))}

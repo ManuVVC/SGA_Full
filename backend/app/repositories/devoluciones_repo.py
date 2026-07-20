@@ -137,6 +137,33 @@ class DevolucionesRepository:
             row_vend = cursor.fetchone()
             cod_comercial = row_vend[0] if row_vend and row_vend[0] is not None else None
 
+            # Obtener CODPROVEEDOR según parámetro 1654 y 1307
+            cursor.execute("SELECT CODPARAMETRO, VALOR FROM GSM.TSYS_PARAMETROSXAMBITO WHERE CODPARAMETRO IN (1654, 1307)")
+            params_db = {str(r[0]): r[1] for r in cursor.fetchall()}
+            
+            prm_1654 = params_db.get('1654', '0')
+            cod_proveedor = None
+            
+            if prm_1654 != '0':
+                cod_ubicacion = payload.get('CODUBICACION')
+                if cod_ubicacion:
+                    query_prov = """
+                        SELECT aa.CODENTEAPLICACION 
+                        FROM GSM.TMST_ALMACENESADMINISTRATIVOS aa
+                        INNER JOIN GSM.TMST_ALMACENES a ON a.CODALMACENADMINISTRATIVO = aa.CODALMACENADMINISTRATIVO
+                        INNER JOIN GSM.TMST_HUECOS h ON h.CODALMACEN = a.CODALMACEN
+                        INNER JOIN GSM.TMST_UBICACIONES u ON u.CODHUECO = h.CODHUECO
+                        WHERE u.CODUBICACION = :1
+                    """
+                    cursor.execute(query_prov, [cod_ubicacion])
+                    row_p = cursor.fetchone()
+                    if row_p and row_p[0]:
+                        cod_proveedor = row_p[0]
+            
+            # Si prm_1654 == '0' o no se pudo resolver el almacén, usamos el 1307
+            if not cod_proveedor:
+                cod_proveedor = params_db.get('1307')
+
             # 3. Insertar en TMST_CODDOCUMENTOS
             # Para Devoluciones de Cliente: CODTIPODOCUMENTO = 7, CODTIPOMOVIMIENTO = 32, CODESTADODOCUMENTO = 27
             # Nuevos campos: CODTIPOMOVIMIENTOANTERIOR = 0, CODZONAALMACEN = -1, CODDOCUMENTOORIGEN = 0, CODDOCUMENTOPADRE = 0
@@ -151,15 +178,16 @@ class DevolucionesRepository:
             cod_documento = cod_doc_var.getvalue()[0]
 
             # 4. Insertar en TMST_DOCUMENTOSCLIENTES
-            # Nuevos campos: CODCOMERCIAL = CODVENDEDOR, ORIGEN = 0, NUMBULTOS = 0, FUERCEB = 0
+            # Nuevos campos: CODCOMERCIAL = CODVENDEDOR, ORIGEN = 0, NUMBULTOS = 0, FUERCEB = 0, CODPROVEEDOR = cod_proveedor
             query_doccli = """
                 INSERT INTO GSM.TMST_DOCUMENTOSCLIENTES
-                (CODDOCUMENTO, CODCLIENTE, CIF, RAZONSOCIAL, NOMBRECOMERCIAL, DIRECCION, POBLACION, FECHADOCUMENTO, FECHAINICIOPREPARACION, CODOPERADOR, CODTERMINAL, OBSERVACIONES, CODCOMERCIAL, ORIGEN, NUMBULTOS, FUERCEB)
-                VALUES (:1, :2, :3, :4, :5, :6, :7, :8, SYSDATE, :9, :10, :11, :12, 0, 0, 0)
+                (CODDOCUMENTO, CODCLIENTE, CIF, RAZONSOCIAL, NOMBRECOMERCIAL, DIRECCION, POBLACION, FECHADOCUMENTO, FECHAINICIOPREPARACION, CODOPERADOR, CODTERMINAL, OBSERVACIONES, CODCOMERCIAL, ORIGEN, NUMBULTOS, FUERCEB, CODPROVEEDOR)
+                VALUES (:1, :2, :3, :4, :5, :6, :7, :8, SYSDATE, :9, :10, :11, :12, 0, 0, 0, :13)
             """
             cursor.execute(query_doccli, [
                 cod_documento, cod_cliente, cif, razonsocial, nombrecomercial,
-                direccion, poblacion, fecha_doc_val, cod_operador, cod_terminal, observaciones, cod_comercial
+                direccion, poblacion, fecha_doc_val, cod_operador, cod_terminal, observaciones, cod_comercial,
+                cod_proveedor
             ])
 
             connection.commit()

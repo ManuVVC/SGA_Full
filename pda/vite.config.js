@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true, // Expone el servidor en la IP local para que las PDAs puedan conectarse
+    watch: {
+      usePolling: true, // Necesario para que el hot-reload funcione con volúmenes de Docker en Windows
+    },
     proxy: {
       '/api': {
         target: 'http://backend:5000', // Apunta al backend de Docker en la red interna

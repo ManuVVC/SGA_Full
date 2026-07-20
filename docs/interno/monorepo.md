@@ -18,12 +18,15 @@ SGA/
 ├── docker-compose.yml    → Orquestador de PRODUCCIÓN
 ├── docker-compose.dev.yml → Sobreescritura para DESARROLLO
 ├── .env.example          → Plantilla de variables de entorno
-└── docs/interno/         → Esta documentación
+└── docs/interno/         → Esta documentación (monorepo.md, Análisis.md, multi-entorno.md, flujo-desarrollo.md)
 ```
 
 ---
 
 ## Comandos Habituales
+
+> [!NOTE]
+> Para la ejecución simultánea e independiente de los entornos de producción (real) y de desarrollo apuntando a bases de datos distintas, consulte la guía técnica [multi-entorno.md](file:///g:/Proyectos/SGA/docs/interno/multi-entorno.md).
 
 ### Desarrollo (hot-reload)
 ```bash
@@ -137,6 +140,17 @@ El sistema soporta la gestión interactiva de devoluciones de cliente, integrada
 
 ---
 
+## Resolución Flexible de EANs (Ceros a la izquierda / Interleaved 2 of 5)
+
+Para mitigar problemas con lectores de códigos de barras que leen ceros iniciales no registrados en base de datos, las consultas de EANs siguen una lógica de resolución de dos fases:
+1.  **Fase Exacta**: Se busca el EAN tal y como se ha leído (`WHERE CODFACTURACION = :ean`).
+2.  **Fase Parcial (Fallback)**: Si no hay coincidencia exacta, y el EAN empieza con `"0"` (con longitud mayor a 1), se elimina únicamente el primer cero a la izquierda y se realiza una búsqueda de sufijo por base de datos (`WHERE CODFACTURACION LIKE '%' || :ean_sin_primer_cero`).
+3.  **Control de Ambigüedad**:
+    *   En las consultas automáticas o registros directos (`get_articulo_por_ean` y `get_info_articulo_por_ean`), si la consulta parcial del sufijo localiza **más de un artículo distinto**, se lanza una excepción `ValueError("Coincidencia de EAN ambigua")` que se reporta al frontend de la PDA con un código `400 Bad Request` para evitar grabar en el artículo incorrecto.
+    *   En el buscador global de la PDA (`search_articulos`), se retornan todos los artículos coincidentes de la lista para la libre elección del operario.
+
+---
+
 ## Migración desde los Repos Originales
 
 El monorepo se construyó con `git subtree` para preservar el historial completo:
@@ -153,6 +167,6 @@ verificado el correcto funcionamiento del monorepo.
 
 ---
 
-*Última actualización: 2026-07-17*
+*Última actualización: 2026-07-20*
 
 

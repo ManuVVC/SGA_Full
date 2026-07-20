@@ -20,9 +20,10 @@ const apiService = axios.create({
 // Docker Desktop en Windows NAT-ea todas las conexiones a 172.19.0.1,
 // impidiendo que el backend identifique el terminal por IP de socket.
 //
-// Para evitar condiciones de carrera (que la primera petición se envíe antes
-// de que WebRTC resuelva), extraemos y guardamos la IP de la URL de forma SÍNCRONA
-// inmediatamente durante la inicialización de este script.
+// La detección WebRTC es asíncrona (puede tardar hasta 3s). Para evitar la
+// condición de carrera donde la primera petición se envía antes de que WebRTC
+// resuelva, almacenamos la Promise de initClientIP y el interceptor la awaita
+// si la IP aún no está en caché — garantizando que X-Terminal-IP siempre se envía.
 try {
   const urlParams = new URLSearchParams(window.location.search);
   const forcedIp = urlParams.get('terminal_ip');
@@ -34,7 +35,8 @@ try {
   console.error('[SGA] Error al extraer terminal_ip de la URL:', e);
 }
 
-initClientIP(); // Inicia la autodetección WebRTC asíncrona en segundo plano (como fallback)
+// Promise global: se awaita en el interceptor si la IP aún no está resuelta.
+const ipReadyPromise = initClientIP();
 
 // ── Reintentos automáticos con backoff exponencial ───────────────────────────
 //
@@ -75,16 +77,20 @@ axiosRetry(apiService, {
 
 // ── Interceptor de Peticiones: token JWT + IP del terminal ───────────────────
 apiService.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Adjuntar token JWT si existe
     const token = localStorage.getItem('sga_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Adjuntar IP local del terminal (detectada por WebRTC al arrancar)
-    // Flask la leerá en X-Terminal-IP para identificar el dispositivo en Oracle.
-    const terminalIP = sessionStorage.getItem('sga_terminal_ip');
+    // Adjuntar IP local del terminal para que el backend identifique el dispositivo.
+    // Si aún no está en caché (WebRTC resolviendo), esperamos la Promise global
+    // antes de enviar — evita que la primera petición salga sin X-Terminal-IP.
+    let terminalIP = sessionStorage.getItem('sga_terminal_ip');
+    if (!terminalIP) {
+      terminalIP = await ipReadyPromise;
+    }
     if (terminalIP) {
       config.headers['X-Terminal-IP'] = terminalIP;
     }

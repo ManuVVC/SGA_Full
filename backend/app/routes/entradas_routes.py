@@ -68,12 +68,23 @@ def grabar_linea():
     res = EntradasService.grabar_linea(data)
     return jsonify(res), 200 if res['status'] == 'success' else 400
 
+@entradas_bp.route('/albaranes-para-finalizar', methods=['GET'])
+@token_required
+def get_albaranes_para_finalizar():
+    res = EntradasService.get_albaranes_para_finalizar()
+    return jsonify(res), 200 if res['status'] == 'success' else 400
+
 @entradas_bp.route('/finalizar', methods=['POST'])
 @token_required
 def finalizar_entrada():
+    from flask import g
     data = request.json
     coddocumento = data.get('CODDOCUMENTO')
-    res = EntradasService.finalizar_entrada(coddocumento)
+    codoperador = 1
+    if hasattr(g, 'operador') and g.operador:
+        codoperador = g.operador.get('cod_operador', 1)
+        
+    res = EntradasService.finalizar_entrada(coddocumento, codoperador)
     return jsonify(res), 200 if res['status'] == 'success' else 400
 
 @entradas_bp.route('/lineas-grabadas/<int:coddocumento>', methods=['GET'])
