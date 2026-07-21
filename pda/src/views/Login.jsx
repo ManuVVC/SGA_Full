@@ -83,6 +83,19 @@ export default function Login() {
 
         console.log('[SGA] Login exitoso. Operador:', username);
 
+        // Intentar forzar pantalla completa si el navegador lo permite
+        try {
+          if (!document.fullscreenElement) {
+            if (document.documentElement.requestFullscreen) {
+              document.documentElement.requestFullscreen().catch(() => {});
+            } else if (document.documentElement.webkitRequestFullscreen) {
+              document.documentElement.webkitRequestFullscreen();
+            }
+          }
+        } catch (e) {
+          console.warn('[SGA] No se pudo activar pantalla completa', e);
+        }
+
         // Easter egg para Operador 1
         if (username.trim() === '1') {
           console.log('[SGA] Detectado operador 1, calculando jubilación...');
