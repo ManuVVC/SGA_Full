@@ -160,8 +160,11 @@ export default function Login() {
         {!terminalError && (
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div>
-              <label className="block text-lg font-semibold text-sga-dark mb-1">Código de Operador</label>
+              <label htmlFor="login-username" className="block text-lg font-semibold text-sga-dark mb-1">Código de Operador</label>
               <input
+                id="login-username"
+                name="username"
+                autoComplete="username"
                 ref={usernameRef}
                 type="text"
                 inputMode="numeric"
@@ -175,8 +178,11 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-lg font-semibold text-sga-dark mb-1">Contraseña</label>
+              <label htmlFor="login-password" className="block text-lg font-semibold text-sga-dark mb-1">Contraseña</label>
               <input
+                id="login-password"
+                name="password"
+                autoComplete="current-password"
                 ref={passwordRef}
                 type="password"
                 inputMode="numeric"

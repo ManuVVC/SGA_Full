@@ -103,11 +103,18 @@ class PedidosRepository:
             cursor = connection.cursor()
             
             query = """
-                SELECT CODDOCUMENTO, NUMDOCUMENTO, RAZONSOCIAL, NOMBRECOMERCIAL, NUMLINEAS
-                FROM VMST_DOCCLIENTESVISIBLES
-                WHERE CODESTADODOCUMENTO = 3
-                  AND CODOPERADOR = :cod_operador
-                  AND CODTERMINAL = :cod_terminal
+                SELECT v.CODDOCUMENTO, v.NUMDOCUMENTO, v.RAZONSOCIAL, v.NOMBRECOMERCIAL, v.NUMLINEAS,
+                    CASE 
+                        WHEN COALESCE((SELECT VALOR FROM TSYS_PARAMETROSXAMBITO WHERE CODPARAMETRO = 1737 AND CODUSUARIOPERFIL = 0), '0') = '0' 
+                        THEN t.PRM_GESTIONARBULTOS 
+                        ELSE c.PRM_GESTIONARBULTOS 
+                    END AS GESTIONA_BULTOS
+                FROM VMST_DOCCLIENTESVISIBLES v
+                LEFT JOIN TMST_TIPOMOVIMIENTO t ON t.CODTIPOMOVIMIENTO = v.CODTIPOMOVIMIENTO
+                LEFT JOIN TMST_CLIENTES c ON c.CODCLIENTE = v.CODCLIENTE
+                WHERE v.CODESTADODOCUMENTO = 3
+                  AND v.CODOPERADOR = :cod_operador
+                  AND v.CODTERMINAL = :cod_terminal
             """
             
             cursor.execute(query, {
@@ -124,12 +131,44 @@ class PedidosRepository:
                     "num_documento": row[1],
                     "razon_social": row[2] or '',
                     "nombre_comercial": row[3] or '',
-                    "num_lineas": row[4] or 0
+                    "num_lineas": row[4] or 0,
+                    "gestiona_bultos": row[5] or 0
                 })
             return preparacion
         except Exception as e:
             logger.error(f"Error consultando en preparacion: {e}", exc_info=True)
             raise e
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
+
+    @staticmethod
+    def finalizar_documento(cod_documento: int, despreciar_restos: int, num_bultos: int = None) -> int:
+        """
+        Finaliza la preparación de un documento cliente (estado 3 -> siguiente estado).
+        Actualiza el NUMBULTOS si se indica.
+        Llama a GSM.SPPRP_ENDPREPARACIONDOC.
+        Retorna NUMBER
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+            
+            if num_bultos is not None and num_bultos >= 0:
+                update_query = "UPDATE TMST_DOCUMENTOSCLIENTES SET NUMBULTOS = :num_bultos WHERE CODDOCUMENTO = :cod_documento"
+                cursor.execute(update_query, {"num_bultos": num_bultos, "cod_documento": cod_documento})
+                
+            # SPPRP_ENDPREPARACIONDOC: P_CODDOCUMENTO (NUMBER), P_UBICACIONESDESTINO (VARCHAR2), P_DESPRECIARRESTOS (NUMBER)
+            result = cursor.callfunc('GSM.SPPRP_ENDPREPARACIONDOC', int, [cod_documento, None, despreciar_restos])
+            
+            connection.commit()
+            return result
+        except Exception as e:
+            logger.error(f"Error al finalizar preparacion: {e}", exc_info=True)
+            if connection: connection.rollback()
+            raise Exception(f"No se pudo finalizar el documento: {str(e)}")
         finally:
             if cursor: cursor.close()
             if connection: connection.close()

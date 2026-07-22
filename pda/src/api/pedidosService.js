@@ -38,6 +38,22 @@ export const aparcarDocumento = async (codDocumento) => {
   }
 };
 
+export const finalizarDocumento = async (codDocumento, despreciarRestos = false, numBultos = null) => {
+  try {
+    const payload = {
+      cod_documento: codDocumento,
+      despreciar_restos: despreciarRestos
+    };
+    if (numBultos !== null) {
+      payload.num_bultos = parseInt(numBultos, 10);
+    }
+    const response = await apiService.post('/pedidos/finalizar', payload);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data?.error || 'Error al finalizar documento';
+  }
+};
+
 export const recuperarDocumento = async (codDocumento, codTerminal) => {
   try {
     const response = await apiService.post('/pedidos/recuperar', {

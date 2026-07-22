@@ -69,3 +69,22 @@ def recuperar_documento():
         return jsonify({"error": str(pe)}), 403
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pedidos_bp.route('/finalizar', methods=['POST'])
+@token_required
+def finalizar_documento():
+    try:
+        data = request.json
+        cod_documento = data.get('cod_documento')
+        despreciar_restos = data.get('despreciar_restos', False)
+        num_bultos = data.get('num_bultos')
+
+        if not cod_documento:
+            return jsonify({"error": "cod_documento es requerido"}), 400
+
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        
+        result = PedidosService.finalizar_documento(int(cod_documento), current_user, despreciar_restos, num_bultos)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

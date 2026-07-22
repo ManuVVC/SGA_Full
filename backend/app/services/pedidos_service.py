@@ -47,6 +47,21 @@ class PedidosService:
             raise Exception(f"No se pudieron obtener los documentos en preparación: {str(e)}")
 
     @staticmethod
+    def finalizar_documento(cod_documento: int, operador_context: dict, despreciar_restos: bool = False, num_bultos: int = None) -> dict:
+        try:
+            permisos = operador_context.get("permisos", {})
+            prm_despreciar = permisos.get("PRM_DESPRECIARRESTOSDOCCLI", False)
+            
+            # Solo pasamos -1 si pide despreciar y tiene permiso
+            valor_despreciar = -1 if (despreciar_restos and prm_despreciar) else 0
+            
+            result = PedidosRepository.finalizar_documento(cod_documento, valor_despreciar, num_bultos)
+            return {"success": True, "codigo_resultado": result}
+        except Exception as e:
+            logger.error(f"Excepción al finalizar: {e}")
+            raise Exception(f"No se pudo finalizar el documento: {str(e)}")
+
+    @staticmethod
     def get_lineas_documento(cod_documento: int) -> list:
         try:
             return PedidosRepository.get_lineas_documento(cod_documento)
