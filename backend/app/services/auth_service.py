@@ -64,11 +64,22 @@ class AuthService:
         secret_key = current_app.config.get("SECRET_KEY", "change-me")
         token = jwt.encode(payload, secret_key, algorithm="HS256")
 
+        # Extraer la IP del cliente (misma lógica de prioridad que TerminalService)
+        ip_address = (
+            request.headers.get('X-Terminal-IP', '').strip()
+            or request.headers.get('X-Real-IP', '').strip()
+            or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+            or request.remote_addr
+            or ""
+        )
+        if ip_address:
+            ip_address = ip_address.replace('::ffff:', '').strip()
+
         # Registrar la sesión en el gestor de sesiones
         from ..utils.session_manager import session_manager
         cod_terminal = terminal_info.get("CODTERMINAL")
         cod_operador = str(operador["CODOPERADOR"])
-        session_manager.register_session(token, cod_terminal, cod_operador)
+        session_manager.register_session(token, cod_terminal, cod_operador, ip_address)
 
         return {
             "token": token,

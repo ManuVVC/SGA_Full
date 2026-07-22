@@ -14,7 +14,7 @@ class SessionManager:
             cls._instance._sessions_by_terminal = {}
         return cls._instance
 
-    def register_session(self, token: str, cod_terminal: str, cod_operador: str):
+    def register_session(self, token: str, cod_terminal: str, cod_operador: str, ip_address: str = ""):
         """
         Registra una nueva sesión para un terminal.
         Si el terminal ya tenía una sesión activa, esta se invalida.
@@ -36,12 +36,14 @@ class SessionManager:
         self._sessions_by_token[token] = {
             "cod_terminal": cod_terminal,
             "cod_operador": cod_operador,
+            "ip_address": ip_address,
+            "login_time": now,
             "last_activity": now,
         }
         self._sessions_by_terminal[cod_terminal] = token
         logger.info(
             f"[SGA][SessionManager] Nueva sesión registrada: Terminal '{cod_terminal}', "
-            f"Operario '{cod_operador}'."
+            f"Operario '{cod_operador}', IP '{ip_address}'."
         )
 
     def validate_session(self, token: str, timeout_minutes: int) -> tuple[bool, str]:
@@ -95,6 +97,27 @@ class SessionManager:
         if cod_terminal in self._sessions_by_terminal:
             token = self._sessions_by_terminal[cod_terminal]
             self.remove_session(token)
+
+    def get_active_sessions(self) -> list:
+        """
+        Retorna un snapshot de todas las sesiones activas con sus metadatos:
+        terminal, operador, IP, hora de login y minutos de inactividad.
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        result = []
+        for session in self._sessions_by_token.values():
+            elapsed = (now - session["last_activity"]).total_seconds() / 60.0
+            result.append({
+                "cod_terminal": session["cod_terminal"],
+                "cod_operador": session["cod_operador"],
+                "ip_address": session.get("ip_address", ""),
+                "login_time": session["login_time"].isoformat(),
+                "last_activity": session["last_activity"].isoformat(),
+                "inactividad_minutos": round(elapsed, 1),
+            })
+        # Ordenar por terminal para facilitar la lectura
+        result.sort(key=lambda x: x["cod_terminal"])
+        return result
 
 
 # Exportar instancia singleton

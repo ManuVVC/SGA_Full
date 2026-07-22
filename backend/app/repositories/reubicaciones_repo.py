@@ -293,11 +293,11 @@ class ReubicacionesRepository:
             conn = db.get_connection()
             cursor = conn.cursor()
             query = """
-                SELECT UA.CODNUMEROLOTE, NLP.NUMEROLOTE, NLP.FECHACADUCIDAD, SUM(UA.STOCK) as STOCK_TOTAL
+                SELECT UA.CODNUMEROLOTE, NLP.NUMEROLOTE, NVL(UA.FECHACADUCIDAD, NLP.FECHACADUCIDAD) AS FECHACADUCIDAD, SUM(UA.STOCK) as STOCK_TOTAL
                 FROM TMST_UBICACIONESARTICULO UA
                 LEFT JOIN TMST_NUMEROSLOTESPROVEEDORES NLP ON UA.CODNUMEROLOTE = NLP.CODNUMEROLOTE
                 WHERE UA.CODUBICACION = :1 AND UA.CODARTICULO = :2 AND UA.STOCK > 0
-                GROUP BY UA.CODNUMEROLOTE, NLP.NUMEROLOTE, NLP.FECHACADUCIDAD
+                GROUP BY UA.CODNUMEROLOTE, NLP.NUMEROLOTE, NVL(UA.FECHACADUCIDAD, NLP.FECHACADUCIDAD)
             """
             cursor.execute(query, [cod_ubicacion, cod_articulo])
             rows = cursor.fetchall()
@@ -356,51 +356,38 @@ class ReubicacionesRepository:
         """
         Llama al procedimiento SPREU_REUBICARUBICARTICULO de la base de datos.
         """
+        import datetime
         try:
             conn = db.get_connection()
             cursor = conn.cursor()
             
-            # Formato de la consulta para llamar a una funcion
-            query = '''
-            BEGIN
-                :ret := SPREU_REUBICARUBICARTICULO(
-                    p_CodTerminal => :p_CodTerminal,
-                    p_CodUbicacionOrigen => :p_CodUbicacionOrigen,
-                    p_CodArticulo => :p_CodArticulo,
-                    p_Cantidad => :p_Cantidad,
-                    p_CodUbicacionDestino => :p_CodUbicacionDestino,
-                    p_CodOperador => :p_CodOperador,
-                    p_CodNumeroLote => :p_CodNumeroLote,
-                    p_FechaCaducidad => TO_DATE(:p_FechaCaducidad, 'YYYY-MM-DD'),
-                    p_CodConceptoEstadistico => 1,
-                    p_CodTipoDatoMaestroOri => :p_CodTipoDatoMaestroOri,
-                    p_CodDatoMaestroOri => :p_CodDatoMaestroOri,
-                    p_CodTipoDatoMaestroDest => :p_CodTipoDatoMaestroDest,
-                    p_CodDatoMaestroDest => :p_CodDatoMaestroDest
-                );
-            END;
-            '''
-            # Definir la variable de retorno
-            ret_val = cursor.var(int)
+            fecha_cad_obj = None
+            if fecha_caducidad:
+                if isinstance(fecha_caducidad, str):
+                    fecha_cad_obj = datetime.datetime.strptime(fecha_caducidad, '%Y-%m-%d')
+                else:
+                    fecha_cad_obj = fecha_caducidad
+                    
+            kwargs = {
+                'P_CODTERMINAL': cod_terminal,
+                'P_CODUBICACIONORIGEN': cod_ubicacion_origen,
+                'P_CODARTICULO': cod_articulo,
+                'P_CANTIDAD': cantidad,
+                'P_CODUBICACIONDESTINO': cod_ubicacion_destino,
+                'P_CODOPERADOR': cod_operador,
+                'P_CODNUMEROLOTE': cod_numero_lote,
+                'P_FECHACADUCIDAD': fecha_cad_obj,
+                'P_CODCONCEPTOESTADISTICO': 1,
+                'P_CODTIPODATOMAESTROORI': tipo_dato_maestro_ori,
+                'P_CODDATOMAESTROORI': dato_maestro_ori,
+                'P_CODTIPODATOMAESTRODEST': tipo_dato_maestro_dest,
+                'P_CODDATOMAESTRODEST': dato_maestro_dest
+            }
             
-            cursor.execute(query, {
-                'ret': ret_val,
-                'p_CodTerminal': cod_terminal,
-                'p_CodUbicacionOrigen': cod_ubicacion_origen,
-                'p_CodArticulo': cod_articulo,
-                'p_Cantidad': cantidad,
-                'p_CodUbicacionDestino': cod_ubicacion_destino,
-                'p_CodOperador': cod_operador,
-                'p_CodNumeroLote': cod_numero_lote,
-                'p_FechaCaducidad': fecha_caducidad,
-                'p_CodTipoDatoMaestroOri': tipo_dato_maestro_ori,
-                'p_CodDatoMaestroOri': dato_maestro_ori,
-                'p_CodTipoDatoMaestroDest': tipo_dato_maestro_dest,
-                'p_CodDatoMaestroDest': dato_maestro_dest
-            })
+            ret_val = cursor.callfunc('GSM.SPREU_REUBICARUBICARTICULO', int, keywordParameters=kwargs)
             
             conn.commit()
-            return ret_val.getvalue()
+            return ret_val
         except Exception as e:
             logger.error(f"Error al grabar reubicación: {e}")
             raise
