@@ -20,6 +20,8 @@ import AjustesStock from './views/AjustesStock';
 import DevolucionCliente from './views/DevolucionCliente';
 import FinalizarDevolucionCliente from './views/FinalizarDevolucionCliente';
 import FinalizarDevolucionProveedor from './views/FinalizarDevolucionProveedor';
+import AparcarPedido from './views/AparcarPedido';
+import RecuperarAparcado from './views/RecuperarAparcado';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function PrivateRoute({ children }) {
@@ -114,6 +116,8 @@ function App() {
                 
                 {/* Submenús */}
                 <Route path="/prepara" element={<PrivateRoute><SubMenuPrepara /></PrivateRoute>} />
+                <Route path="/prepara/aparcar" element={<PrivateRoute><AparcarPedido /></PrivateRoute>} />
+                <Route path="/prepara/recuperar" element={<PrivateRoute><RecuperarAparcado /></PrivateRoute>} />
                 <Route path="/reubicar" element={<PrivateRoute><SubMenuReubicar /></PrivateRoute>} />
                 <Route path="/reubicar/libre" element={<PrivateRoute><ReubicacionLibre /></PrivateRoute>} />
                 <Route path="/reubicar/entrada" element={<PrivateRoute><ReubicacionEntrada /></PrivateRoute>} />

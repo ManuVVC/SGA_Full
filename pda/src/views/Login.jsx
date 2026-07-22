@@ -46,7 +46,7 @@ export default function Login() {
           setTerminal(termData);
 
           if (termData.CODOPERADOR) {
-            setUsername(termData.CODOPERADOR);
+            setUsername(String(termData.CODOPERADOR));
             // Autofocus password if operator is already set
             setTimeout(() => passwordRef.current?.focus(), 50);
           } else {

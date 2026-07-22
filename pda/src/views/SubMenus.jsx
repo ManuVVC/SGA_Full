@@ -20,8 +20,8 @@ export function SubMenuPrepara() {
     { label: 'Repasar Pedido', icon: ListChecks, path: '', show: hasPermission('PRM_REPASOORDENESDECARGAAUTO') },
     { label: 'Pedido Directo', icon: ArrowRightCircle, path: '', show: hasPermission('PRM_PREPARARPEDIDODIRECTO') },
     { label: 'Finalizar', icon: CheckSquare, path: '', show: true },
-    { label: 'Aparcar', icon: Archive, path: '', show: hasPermission('PRM_APARCARDOCUMENTO') },
-    { label: 'Recup.Aparcado', icon: ArchiveRestore, path: '', show: hasPermission('PRM_RECUPERARDOCUMENTOAPARCADO') },
+    { label: 'Aparcar', icon: Archive, path: '/prepara/aparcar', show: hasPermission('PRM_APARCARDOCUMENTO') },
+    { label: 'Recup.Aparcado', icon: ArchiveRestore, path: '/prepara/recuperar', show: hasPermission('PRM_RECUPERARDOCUMENTOAPARCADO') },
     { label: 'Etiq. Bultos', icon: Tags, path: '', show: true },
   ].filter(i => i.show);
   return <SubMenuLayout title="PREPARA PEDIDO" items={items} />;
