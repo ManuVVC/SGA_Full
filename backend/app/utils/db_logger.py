@@ -65,6 +65,10 @@ class AuditConnection:
         cursor = self._connection.cursor(*args, **kwargs)
         return AuditCursor(cursor)
 
+    def raw_cursor(self, *args, **kwargs):
+        """Devuelve un cursor nativo de oracledb (sin wrapper) para usar como parámetro OUT en REF CURSOR."""
+        return self._connection.cursor(*args, **kwargs)
+
     def __getattr__(self, item):
         return getattr(self._connection, item)
 

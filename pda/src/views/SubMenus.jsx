@@ -16,7 +16,7 @@ import {
 export function SubMenuPrepara() {
   const { hasPermission } = usePermissions();
   const items = [
-    { label: 'Prepara Pedido', icon: PackageCheck, path: '', show: hasPermission('PRM_PREPARARPEDIDOCLIENTE') },
+    { label: 'Prepara Pedido', icon: PackageCheck, path: '/prepara/pedido', show: hasPermission('PRM_PREPARARPEDIDOCLIENTE') },
     { label: 'Repasar Pedido', icon: ListChecks, path: '', show: hasPermission('PRM_REPASOORDENESDECARGAAUTO') },
     { label: 'Pedido Directo', icon: ArrowRightCircle, path: '', show: hasPermission('PRM_PREPARARPEDIDODIRECTO') },
     { label: 'Finalizar', icon: CheckSquare, path: '/prepara/finalizar', show: true },
