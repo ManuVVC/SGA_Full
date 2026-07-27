@@ -202,11 +202,13 @@ class PreparacionRepository:
             cursor = connection.cursor()
             cursor.execute("""
                 SELECT S.CODNUMEROLOTE,
+                       L.NUMEROLOTE,
                        S.FECHACADUCIDAD,
                        S.STOCK,
                        S.CODTIPODATOMAESTRO,
                        S.CODDATOMAESTRO
                 FROM VSYS_UBICACIONESARTICULO S
+                LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES L ON S.CODNUMEROLOTE = L.CODNUMEROLOTE
                 WHERE S.CODUBICACION  = :cod_ubic
                   AND S.CODARTICULO   = :cod_art
                   AND S.STOCK > 0
@@ -280,6 +282,28 @@ class PreparacionRepository:
         except Exception as e:
             logger.error(f"Error en get_lineas_pendientes: {e}", exc_info=True)
             raise Exception(f"Error al obtener líneas pendientes: {str(e)}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    @staticmethod
+    def get_num_lineas_pendientes(cod_documento: int) -> int:
+        """
+        Devuelve el número de líneas pendientes llamando a SPGET_NUMLINEASPENDIENTES.
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+            import oracledb
+            num_lineas = cursor.callfunc('GSM.SPGET_NUMLINEASPENDIENTES', int, [cod_documento])
+            return num_lineas if num_lineas is not None else 0
+        except Exception as e:
+            logger.error(f"Error en SPGET_NUMLINEASPENDIENTES: {e}", exc_info=True)
+            raise Exception(f"Error al obtener número de líneas pendientes: {str(e)}")
         finally:
             if cursor:
                 cursor.close()
@@ -391,11 +415,75 @@ class PreparacionRepository:
                 connection.close()
 
     @staticmethod
+    def get_unids_preparadas(cod_documento: int, num_linea: int, cod_ubicacion: int,
+                             cod_articulo: int, fecha_caducidad, numero_lote: str,
+                             cod_terminal: int) -> dict:
+        """
+        Llama a SPPRP_GET_UNIDSPREPDOCXUBIC para saber cuántas unidades ya hay
+        preparadas en el terminal para esta combinación doc/línea/artículo/ubicación.
+        Devuelve: unidades_preparadas, unidades_preparadas_misma_fecha,
+                  peso_preparado, peso_preparado_misma_fecha
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+
+            fecha_cad_val = None
+            if fecha_caducidad:
+                from datetime import datetime
+                if isinstance(fecha_caducidad, str):
+                    try:
+                        fecha_cad_val = datetime.strptime(fecha_caducidad, '%Y-%m-%d').date()
+                    except ValueError:
+                        fecha_cad_val = None
+                else:
+                    fecha_cad_val = fecha_caducidad
+
+            import oracledb
+            p_unidades_preparadas          = cursor.var(oracledb.NUMBER)
+            p_unidades_preparadas_misma    = cursor.var(oracledb.NUMBER)
+            p_peso_preparado               = cursor.var(oracledb.NUMBER)
+            p_peso_preparado_misma         = cursor.var(oracledb.NUMBER)
+
+            cursor.callproc('GSM.SPPRP_GET_UNIDSPREPDOCXUBIC', [
+                cod_documento,              # P_CODDOCUMENTO
+                num_linea,                  # P_NUMLINEA
+                cod_ubicacion,              # P_CODUBICACION
+                cod_articulo,               # P_CODARTICULO
+                fecha_cad_val,              # P_FECHACADUCIDAD
+                numero_lote,                # P_NUMEROLOTE
+                cod_terminal,               # P_CODTERMINAL
+                p_unidades_preparadas,      # P_UNIDADESPREPARADAS (OUT)
+                p_unidades_preparadas_misma,# P_UNIDADESPREPARADASMISMAFECHA (OUT)
+                p_peso_preparado,           # P_PESOPREPEPARADO (OUT)
+                p_peso_preparado_misma,     # P_PESOPREPARADOMISMAFECHA (OUT)
+            ])
+
+            return {
+                "unidades_preparadas":           float(p_unidades_preparadas.getvalue() or 0),
+                "unidades_preparadas_misma_fecha": float(p_unidades_preparadas_misma.getvalue() or 0),
+                "peso_preparado":                float(p_peso_preparado.getvalue() or 0),
+                "peso_preparado_misma_fecha":    float(p_peso_preparado_misma.getvalue() or 0),
+            }
+        except Exception as e:
+            logger.error(f"Error en SPPRP_GET_UNIDSPREPDOCXUBIC: {e}", exc_info=True)
+            raise Exception(f"Error al obtener unidades preparadas: {str(e)}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    @staticmethod
     def cargar_mercancia(cod_ubicacion_origen: int, cod_articulo: int,
                          fecha_caducidad, cod_terminal: int,
                          unidades: float, cod_documento: int, num_linea: int,
                          numero_lote: str = None, cod_tipo_dato_maestro: int = None,
-                         cod_dato_maestro: int = None) -> None:
+                         cod_dato_maestro: int = None,
+                         tipo_codigo_introducido: int = None,
+                         cod_facturacion: str = None) -> None:
         """
         Registra la mercancía preparada de una línea llamando a SPPRP_CARGARMERCANCIATERMINAL.
         """
@@ -432,6 +520,18 @@ class PreparacionRepository:
             except Exception as ex:
                 logger.warning(f"No se pudo obtener la ubicación del terminal: {ex}")
 
+            cod_fact_val = cod_facturacion
+            if not tipo_codigo_introducido or tipo_codigo_introducido == 0:
+                tipo_codigo_introducido = 0
+                if not cod_fact_val:
+                    try:
+                        cursor.execute("SELECT CODARTICULOAPLICACION FROM TMST_ARTICULOS WHERE CODARTICULO = :1", [cod_articulo])
+                        row_art = cursor.fetchone()
+                        if row_art and row_art[0]:
+                            cod_fact_val = str(row_art[0])
+                    except Exception as ex:
+                        logger.warning(f"No se pudo obtener CODARTICULOAPLICACION para el interno: {ex}")
+
             cursor.callproc('GSM.SPPRP_CARGARMERCANCIATERMINAL', [
                 cod_ubicacion_origen,       # P_CODUBICACIONORIGEN
                 cod_articulo,               # P_CODARTICULO
@@ -443,15 +543,76 @@ class PreparacionRepository:
                 None,                       # P_CODPALET
                 cod_documento,              # P_CODDOCUMENTO
                 num_linea,                  # P_NUMLINEA
-                None,                       # P_CODFACTURACION
+                cod_fact_val,               # P_CODFACTURACION
                 numero_lote,                # P_NUMEROLOTE
                 None,                       # P_CODORDENREUBICACION
                 '',                         # P_CADCODNUMEROSDESERIE
                 cod_tipo_dato_maestro,      # P_CODTIPODATOMAESTRO
                 cod_dato_maestro,           # P_CODDATOMAESTRO
-                None,                       # P_TIPOCODIGOINTRODUCIDO
+                tipo_codigo_introducido,    # P_TIPOCODIGOINTRODUCIDO
                 cod_ubic_terminal,          # P_CODUBICACIONTERMINAL
             ])
+
+            # Obtener CODHUECO para registrar el recorrido en la preparación
+            cod_hueco_origen = None
+            try:
+                cursor.execute("SELECT CODHUECO FROM TMST_UBICACIONES WHERE CODUBICACION = :1", [cod_ubicacion_origen])
+                row_hueco = cursor.fetchone()
+                if row_hueco:
+                    cod_hueco_origen = row_hueco[0]
+            except Exception as ex:
+                logger.warning(f"No se pudo obtener CODHUECO para SPPRP_SAVERECORRIDOPREPARACION: {ex}")
+
+            # Registrar recorrido en preparación de pedidos
+            cursor.callproc('GSM.SPPRP_SAVERECORRIDOPREPARACION', [
+                cod_documento,         # P_CODDOCUMENTO
+                num_linea,             # P_NUMLINEA
+                cod_terminal,          # P_CODTERMINAL
+                cod_hueco_origen,      # P_CODHUECO
+                cod_ubicacion_origen,  # P_CODUBICACION
+                cod_articulo,          # P_CODARTICULO
+                fecha_cad_val,         # P_FECHACADUCIDAD
+                numero_lote,           # P_NUMEROLOTE
+                unidades,              # P_CANTPREPARADA
+                0,                     # P_PESO
+                0,                     # P_CANTDEVUELTA
+                '',                    # P_CADCODNUMEROSDESERIE
+            ])
+
+            # Actualizar la línea del documento cliente con la cantidad preparada total y datos de identificación
+            if cod_documento and num_linea:
+                cant_preparada_total = 0
+                try:
+                    cursor.execute("""
+                        SELECT NVL(SUM(CantPreparada) - SUM(CantDevuelta), 0)
+                        FROM TPRP_RecorridoPreparacionDoc
+                        WHERE CodDocumento = :1 AND NumLinea = :2
+                    """, [cod_documento, num_linea])
+                    row_tot = cursor.fetchone()
+                    if row_tot and row_tot[0] is not None:
+                        cant_preparada_total = float(row_tot[0])
+                except Exception as ex_tot:
+                    logger.warning(f"No se pudo calcular la suma de CantPreparada en TPRP_RecorridoPreparacionDoc: {ex_tot}")
+
+                cursor.execute("""
+                    UPDATE TMST_LineasDocumentoCliente
+                    SET CantPreparada = :cant_prep,
+                        CantSegundaUnidadPreparada = NVL(CantSegundaUnidadPreparada, 0),
+                        CodTipoUnidad = NVL(CodTipoUnidad, 1),
+                        FactorConversionTipoUnidad = NVL(FactorConversionTipoUnidad, 1),
+                        TipoConvFactConvSegunUnidadAlm = NVL(TipoConvFactConvSegunUnidadAlm, 0),
+                        FactorConverSegunUnidadAlmacen = NVL(FactorConverSegunUnidadAlmacen, 0),
+                        TipoCodigoIntroducido = :tipo_cod,
+                        CodigoIntroducido = :cod_intro,
+                        DespreciarPendiente = NVL(DespreciarPendiente, 0)
+                    WHERE CodDocumento = :cod_doc AND NumLinea = :num_linea
+                """, {
+                    "cant_prep": cant_preparada_total,
+                    "tipo_cod": tipo_codigo_introducido if tipo_codigo_introducido is not None else 0,
+                    "cod_intro": cod_fact_val or '',
+                    "cod_doc": cod_documento,
+                    "num_linea": num_linea
+                })
 
             connection.commit()
         except Exception as e:

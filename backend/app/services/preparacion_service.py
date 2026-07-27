@@ -72,6 +72,27 @@ class PreparacionService:
         return {"lineas": lineas}
 
     @staticmethod
+    def get_num_lineas_pendientes(cod_documento: int) -> dict:
+        """Devuelve el conteo de líneas pendientes del documento."""
+        num = PreparacionRepository.get_num_lineas_pendientes(cod_documento)
+        return {"num_lineas": num}
+
+    @staticmethod
+    def get_unids_preparadas(cod_documento: int, num_linea: int, cod_ubicacion: int,
+                             cod_articulo: int, fecha_caducidad, numero_lote,
+                             cod_terminal: int) -> dict:
+        """Consulta cuántas unidades ya hay preparadas en el terminal para esta línea/artículo."""
+        return PreparacionRepository.get_unids_preparadas(
+            cod_documento=cod_documento,
+            num_linea=num_linea,
+            cod_ubicacion=cod_ubicacion,
+            cod_articulo=cod_articulo,
+            fecha_caducidad=fecha_caducidad,
+            numero_lote=numero_lote,
+            cod_terminal=cod_terminal,
+        )
+
+    @staticmethod
     def _enriquecer_linea(linea: dict) -> dict:
         """Añade info de trazabilidad/caducidad a la linea devuelta por ARTICULOSPARAPREPARAR."""
         if not linea:
@@ -123,7 +144,8 @@ class PreparacionService:
     def cargar_mercancia(operador_context: dict, cod_documento: int, cod_ubicacion: int,
                          cod_articulo: int, num_linea: int, unidades: float,
                          fecha_caducidad=None, numero_lote: str = None,
-                         cod_tipo_dato_maestro: int = None, cod_dato_maestro: int = None) -> dict:
+                         cod_tipo_dato_maestro: int = None, cod_dato_maestro: int = None,
+                         tipo_codigo_introducido: int = None, cod_facturacion: str = None) -> dict:
         """Registra las unidades preparadas de una línea."""
         cod_terminal = operador_context.get('terminal', 0)
         PreparacionRepository.cargar_mercancia(
@@ -137,5 +159,7 @@ class PreparacionService:
             numero_lote=numero_lote,
             cod_tipo_dato_maestro=cod_tipo_dato_maestro,
             cod_dato_maestro=cod_dato_maestro,
+            tipo_codigo_introducido=tipo_codigo_introducido,
+            cod_facturacion=cod_facturacion,
         )
         return {"success": True}

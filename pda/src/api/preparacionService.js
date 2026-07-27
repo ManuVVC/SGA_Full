@@ -43,6 +43,16 @@ export const getLineasPendientes = async (codDocumento) => {
   }
 };
 
+/** Devuelve el conteo de líneas pendientes. */
+export const getNumLineasPendientes = async (codDocumento) => {
+  try {
+    const response = await apiService.get(`/preparacion/num-lineas-pendientes/${codDocumento}`);
+    return response.data.num_lineas || 0;
+  } catch (error) {
+    throw error.response?.data?.error || 'Error al obtener número de líneas pendientes';
+  }
+};
+
 /**
  * Obtiene la primera línea a preparar.
  * SPPRP_ARTICULOSPARAPREPARAR ya llama internamente a SPPRP_INSTMP_ARTPARAPREPARAR.
@@ -81,6 +91,22 @@ export const cargarMercancia = async (params) => {
     return response.data;
   } catch (error) {
     throw error.response?.data?.error || 'Error al cargar mercancía';
+  }
+};
+
+/**
+ * Consulta las unidades ya preparadas en el terminal para esta línea/artículo/ubicación.
+ * Llama a SPPRP_GET_UNIDSPREPDOCXUBIC.
+ * @param {object} params - { cod_documento, num_linea, cod_ubicacion, cod_articulo, fecha_caducidad?, numero_lote? }
+ */
+export const getUnidsPreparadas = async (params) => {
+  try {
+    const response = await apiService.post('/preparacion/unids-preparadas', params);
+    return response.data;
+  } catch (error) {
+    // Si falla, devolvemos 0 para no bloquear el flujo
+    console.warn('Error al consultar unidades preparadas:', error);
+    return { unidades_preparadas: 0, unidades_preparadas_misma_fecha: 0, peso_preparado: 0, peso_preparado_misma_fecha: 0 };
   }
 };
 

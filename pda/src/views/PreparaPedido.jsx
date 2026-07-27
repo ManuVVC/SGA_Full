@@ -8,6 +8,7 @@ import {
 import {
   obtenerDocumento, getCabeceraPedido, getPrimeraLinea,
   siguienteLinea, cargarMercancia, getLineasPendientes,
+  getNumLineasPendientes, getUnidsPreparadas,
   getPermisosPreparacion, validarUbicacion, getStockLotes
 } from '../api/preparacionService';
 import TerminalHeader from '../components/TerminalHeader';
@@ -22,6 +23,7 @@ const FASE = {
   SELECCIONAR_LOTE: 'SELECCIONAR_LOTE',
   INTRODUCIR_CANTIDAD: 'INTRODUCIR_CANTIDAD',
   CONFIRMAR_EXCESO: 'CONFIRMAR_EXCESO',
+  CONFIRMAR_SUMA_SUSTITUCION: 'CONFIRMAR_SUMA_SUSTITUCION',
   VER_LINEAS: 'VER_LINEAS',
   SIN_LINEAS: 'SIN_LINEAS',
 };
@@ -52,6 +54,9 @@ const PreparaPedido = () => {
   const [loteSeleccionado, setLoteSeleccionado] = useState(null);
   const [cantidadPendiente, setCantidadPendiente] = useState(null);
   const [factorEanSeleccionado, setFactorEanSeleccionado] = useState(1);
+  const [unidadesYaPreparadas, setUnidadesYaPreparadas] = useState(0);
+  const [tipoCodigoIntroducido, setTipoCodigoIntroducido] = useState(0);
+  const [codFacturacion, setCodFacturacion] = useState(null);
 
   const getStepNumber = (f) => {
     switch (f) {
@@ -111,6 +116,8 @@ const PreparaPedido = () => {
     setLoteSeleccionado(null);
     setCantidadPendiente(null);
     setFactorEanSeleccionado(1);
+    setTipoCodigoIntroducido(0);
+    setCodFacturacion(linea.codarticuloaplicacion || null);
 
     // Actualizamos la cantidad de líneas pendientes
     await cargarLineasPendientes(cabecera.cod_documento);
@@ -131,10 +138,11 @@ const PreparaPedido = () => {
     try {
       const { linea } = await getPrimeraLinea(cabecera.cod_documento);
       if (!linea) {
-        const lineasRestantes = await getLineasPendientes(cabecera.cod_documento);
-        if (lineasRestantes.length === 0) {
+        const numLineas = await getNumLineasPendientes(cabecera.cod_documento);
+        if (numLineas === 0) {
           setFase(FASE.SIN_LINEAS);
         } else {
+          const lineasRestantes = await getLineasPendientes(cabecera.cod_documento);
           setLineasPendientes(lineasRestantes);
           setFase(FASE.VER_LINEAS);
           setError('No hay líneas preparables en ruta. Revisa la lista de pendientes.');
@@ -187,11 +195,12 @@ const PreparaPedido = () => {
       });
       if (!linea) {
         // Comprobar si realmente quedan líneas en el pedido
-        const lineasRestantes = await getLineasPendientes(cabecera.cod_documento);
+        const numLineas = await getNumLineasPendientes(cabecera.cod_documento);
 
-        if (lineasRestantes.length === 0) {
+        if (numLineas === 0) {
           setFase(FASE.SIN_LINEAS);
         } else {
+          const lineasRestantes = await getLineasPendientes(cabecera.cod_documento);
           setLineasPendientes(lineasRestantes);
           setError('No hay más líneas en esa dirección. Pulsa LÍNEAS para ver pendientes.');
         }
@@ -263,6 +272,13 @@ const PreparaPedido = () => {
     setError(null);
     const factor = article.UNIDADES ? parseFloat(article.UNIDADES) : 1;
     setFactorEanSeleccionado(factor);
+    if (article.searchType === 'codfacturacion') {
+      setTipoCodigoIntroducido(1);
+      setCodFacturacion(article.searchQuery || null);
+    } else {
+      setTipoCodigoIntroducido(0);
+      setCodFacturacion(article.CODARTICULOAPLICACION || lineaActual.codarticuloaplicacion || null);
+    }
     verificarStockYLotes(ubicacionConfirmada.codubicacion, lineaActual);
   };
 
@@ -346,24 +362,75 @@ const PreparaPedido = () => {
     try {
       const stockItem = loteSeleccionado || (lotesDisponibles.length > 0 ? lotesDisponibles[0] : null);
 
-      await cargarMercancia({
-        cod_documento: cabecera.cod_documento,
-        cod_ubicacion: ubicacionConfirmada.codubicacion,
-        cod_articulo: lineaActual.codarticulo,
-        num_linea: lineaActual.numlinea,
-        unidades: cantToLoad,
+      // ── Comprobar si ya hay unidades preparadas en el terminal para esta línea ──
+      const unidsPrev = await getUnidsPreparadas({
+        cod_documento:   cabecera.cod_documento,
+        num_linea:       lineaActual.numlinea,
+        cod_ubicacion:   ubicacionConfirmada.codubicacion,
+        cod_articulo:    lineaActual.codarticulo,
         fecha_caducidad: loteSeleccionado?.fechacaducidad || null,
-        numero_lote: loteSeleccionado?.codnumerolote || null,
-        cod_tipo_dato_maestro: stockItem?.codtipodatomaestro || lineaActual.codtipodatomaestro || null,
-        cod_dato_maestro: stockItem?.coddatomaestro || lineaActual.coddatomaestro || null,
+        numero_lote:     loteSeleccionado?.numerolote || loteSeleccionado?.codnumerolote || null,
       });
-      await navegarLinea(0);
+
+      const yaPreparadas = unidsPrev.unidades_preparadas || 0;
+
+      if (yaPreparadas > 0) {
+        // Hay unidades previas → preguntar al operario
+        setUnidadesYaPreparadas(yaPreparadas);
+        setCantidadPendiente(cantToLoad);
+        setFase(FASE.CONFIRMAR_SUMA_SUSTITUCION);
+        return;
+      }
+
+      await _realizarCarga(cantToLoad, stockItem);
     } catch (err) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
   };
+
+  // Ejecuta la carga real tras resolver SUMAR / SUSTITUIR
+  const _realizarCarga = async (cantToLoad, stockItem) => {
+    stockItem = stockItem || loteSeleccionado || (lotesDisponibles.length > 0 ? lotesDisponibles[0] : null);
+    await cargarMercancia({
+      cod_documento:        cabecera.cod_documento,
+      cod_ubicacion:        ubicacionConfirmada.codubicacion,
+      cod_articulo:         lineaActual.codarticulo,
+      num_linea:            lineaActual.numlinea,
+      unidades:             cantToLoad,
+      fecha_caducidad:      loteSeleccionado?.fechacaducidad || null,
+      numero_lote:          loteSeleccionado?.numerolote || loteSeleccionado?.codnumerolote || null,
+      cod_tipo_dato_maestro: stockItem?.codtipodatomaestro || lineaActual.codtipodatomaestro || null,
+      cod_dato_maestro:     stockItem?.coddatomaestro || lineaActual.coddatomaestro || null,
+      tipo_codigo_introducido: tipoCodigoIntroducido,
+      cod_facturacion:      codFacturacion,
+    });
+    await navegarLinea(0);
+  };
+
+  // Manejador de la decisión SUMAR / SUSTITUIR
+  const handleSumaSustitucion = async (accion) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const cantNueva = cantidadPendiente;
+      // SUMAR: enviar la cantidad indicada (se sumará a la ya existente)
+      // SUSTITUIR: enviar (cantNueva - yaPreparadas) para que el neto sea cantNueva
+      const cantFinal = accion === 'sustituir'
+        ? cantNueva - unidadesYaPreparadas
+        : cantNueva;
+
+      setFase(FASE.INTRODUCIR_CANTIDAD); // volver a pantalla intermedia mientras carga
+      await _realizarCarga(cantFinal, null);
+    } catch (err) {
+      setError(String(err));
+      setFase(FASE.CONFIRMAR_SUMA_SUSTITUCION);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // ─── INFO PANEL ───────────────────────────────────────────
   const PanelInfo = () => {
@@ -648,7 +715,7 @@ const PreparaPedido = () => {
                       <li key={idx} onClick={() => handleSeleccionarLote(lote)}
                         className="border border-gray-200 rounded p-3 flex justify-between items-center active:bg-orange-50 cursor-pointer shadow-sm">
                         <div>
-                          {lote.codnumerolote && <div className="font-bold text-gray-800">Lote: {lote.codnumerolote}</div>}
+                          {(lote.numerolote || lote.codnumerolote) && <div className="font-bold text-gray-800">Lote: {lote.numerolote || lote.codnumerolote}</div>}
                           {lote.fechacaducidad && <div className="text-sm text-orange-600">Cad: {lote.fechacaducidad}</div>}
                         </div>
                         <div className="text-right">
@@ -660,7 +727,7 @@ const PreparaPedido = () => {
                   </ul>
                 ) : (
                   <div className="text-lg font-bold text-sga-dark">
-                    {loteSeleccionado ? `${loteSeleccionado.codnumerolote || ''}` : ''}
+                    {loteSeleccionado ? `${loteSeleccionado.numerolote || loteSeleccionado.codnumerolote || ''}` : ''}
                   </div>
                 )}
               </div>
@@ -731,6 +798,30 @@ const PreparaPedido = () => {
             <div className="flex w-full gap-2">
               <button onClick={() => setFase(FASE.INTRODUCIR_CANTIDAD)} className="flex-1 bg-gray-500 text-white font-bold py-4 rounded">CANCELAR</button>
               <button onClick={() => ejecutarCarga(cantidadPendiente)} className="flex-1 bg-orange-500 text-white font-bold py-4 rounded">CONFIRMAR</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── CONFIRMAR SUMA O SUSTITUCION ── */}
+        {fase === FASE.CONFIRMAR_SUMA_SUSTITUCION && (
+          <div className="flex-1 flex flex-col items-center justify-center bg-white rounded border-2 border-blue-500 p-4 gap-4 shadow-lg">
+            <AlertCircle size={56} className="text-blue-500" />
+            <h3 className="text-xl font-black text-gray-800 text-center">Mercancía ya en carrito</h3>
+            <div className="text-center text-gray-600 mb-2">
+              Ya tienes preparadas <strong>{unidadesYaPreparadas}</strong> uds de este artículo en esta ubicación.
+              <br /><br />
+              ¿Quieres <strong>SUMAR</strong> las <strong>{cantidadPendiente}</strong> nuevas (Total: <strong>{unidadesYaPreparadas + parseFloat(cantidadPendiente || 0)}</strong> uds) o <strong>SUSTITUIR</strong> la cantidad anterior por <strong>{cantidadPendiente}</strong> uds?
+            </div>
+            <div className="flex flex-col w-full gap-2 mt-2">
+              <button onClick={() => handleSumaSustitucion('sumar')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded text-lg shadow">
+                SUMAR (+{cantidadPendiente})
+              </button>
+              <button onClick={() => handleSumaSustitucion('sustituir')} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black py-4 rounded text-lg shadow">
+                SUSTITUIR (= {cantidadPendiente})
+              </button>
+              <button onClick={() => setFase(FASE.INTRODUCIR_CANTIDAD)} className="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded mt-2">
+                CANCELAR
+              </button>
             </div>
           </div>
         )}

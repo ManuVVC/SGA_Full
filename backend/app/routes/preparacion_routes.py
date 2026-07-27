@@ -96,6 +96,44 @@ def get_lineas_pendientes(cod_documento):
         return jsonify({"error": str(e)}), 500
 
 
+@preparacion_bp.route('/num-lineas-pendientes/<int:cod_documento>', methods=['GET'])
+@token_required
+def get_num_lineas_pendientes(cod_documento):
+    """Devuelve el conteo de líneas pendientes del documento usando SPGET_NUMLINEASPENDIENTES."""
+    try:
+        result = PreparacionService.get_num_lineas_pendientes(cod_documento)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@preparacion_bp.route('/unids-preparadas', methods=['POST'])
+@token_required
+def get_unids_preparadas():
+    """
+    Consulta SPPRP_GET_UNIDSPREPDOCXUBIC para saber si ya hay unidades preparadas
+    en el terminal para esta línea. Previo a llamar a CARGARMERCANCIATERMINAL.
+    Body: { cod_documento, num_linea, cod_ubicacion, cod_articulo, fecha_caducidad, numero_lote }
+    """
+    try:
+        data = request.json or {}
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        cod_terminal = current_user.get('terminal', 0)
+        result = PreparacionService.get_unids_preparadas(
+            cod_documento   = int(data.get('cod_documento')),
+            num_linea       = int(data.get('num_linea')),
+            cod_ubicacion   = int(data.get('cod_ubicacion')),
+            cod_articulo    = int(data.get('cod_articulo')),
+            fecha_caducidad = data.get('fecha_caducidad'),
+            numero_lote     = data.get('numero_lote'),
+            cod_terminal    = int(cod_terminal),
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 @preparacion_bp.route('/primera-linea', methods=['POST'])
 @token_required
 def primera_linea():
@@ -177,6 +215,8 @@ def cargar_mercancia():
             numero_lote=data.get('numero_lote'),
             cod_tipo_dato_maestro=data.get('cod_tipo_dato_maestro'),
             cod_dato_maestro=data.get('cod_dato_maestro'),
+            tipo_codigo_introducido=int(data['tipo_codigo_introducido']) if data.get('tipo_codigo_introducido') is not None else None,
+            cod_facturacion=data.get('cod_facturacion'),
         )
         return jsonify(result), 200
     except Exception as e:
