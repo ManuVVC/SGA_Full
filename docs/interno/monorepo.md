@@ -15,10 +15,14 @@ SGA/
 │   │       └── apiService.js   → Cliente Axios con reintentos automáticos Wi-Fi
 │   ├── Dockerfile        → Build multi-stage (Node build → Nginx serve)
 │   └── nginx.conf        → Proxy inverso /api/* → backend
+├── frontend/             → Frontend Backoffice / Panel SGA React (Vite) para PC/Tablets
+│   ├── src/              → Dashboard, monitorización de sesiones, heatmap, buscador 1690
+│   ├── Dockerfile        → Build multi-stage (Desarrollo puerto 5174 / Nginx prod puerto 80)
+│   └── nginx.conf        → Proxy inverso /api/* y /admin/* → backend
 ├── docker-compose.yml    → Orquestador de PRODUCCIÓN
 ├── docker-compose.dev.yml → Sobreescritura para DESARROLLO
 ├── .env.example          → Plantilla de variables de entorno
-└── docs/interno/         → Esta documentación (monorepo.md, Análisis.md, multi-entorno.md, flujo-desarrollo.md)
+└── docs/interno/         → Esta documentación (monorepo.md, sga-frontend.md, Análisis.md, multi-entorno.md, flujo-desarrollo.md, arquitectura-centralizada.md)
 ```
 
 ---

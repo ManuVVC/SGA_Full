@@ -7,6 +7,7 @@ import { useKeyboard } from '../contexts/KeyboardContext';
 import { getClientes, getParametros, crearCabecera, grabarLineaDevolucion, getDevolucionEnCurso, getLineasDevolucion } from '../api/devolucionesService';
 import { validarUbicacion } from '../api/reubicacionesService';
 import { usePermissions } from '../hooks/usePermissions';
+import { formatFechaES } from '../utils/dateUtils';
 
 const parseShorthandDate = (input) => {
   if (!input) return '';
@@ -797,7 +798,7 @@ export default function DevolucionCliente() {
                               <p className="text-xs text-gray-600 leading-tight mb-1 truncate">{line.nombre}</p>
                               <p className="text-[11px] text-gray-500">
                                 {line.lote && <span className="mr-2">Lote: <strong className="text-gray-700">{line.lote}</strong></span>}
-                                {line.caducidad && <span>Cad: <strong className="text-gray-700">{line.caducidad}</strong></span>}
+                                {line.caducidad && <span>Cad: <strong className="text-gray-700">{formatFechaES(line.caducidad)}</strong></span>}
                               </p>
                             </div>
                             <div className="text-right shrink-0">

@@ -145,7 +145,8 @@ class PreparacionService:
                          cod_articulo: int, num_linea: int, unidades: float,
                          fecha_caducidad=None, numero_lote: str = None,
                          cod_tipo_dato_maestro: int = None, cod_dato_maestro: int = None,
-                         tipo_codigo_introducido: int = None, cod_facturacion: str = None) -> dict:
+                         tipo_codigo_introducido: int = None, cod_facturacion: str = None,
+                         cod_operacion_terminal: int = 1) -> dict:
         """Registra las unidades preparadas de una línea."""
         cod_terminal = operador_context.get('terminal', 0)
         PreparacionRepository.cargar_mercancia(
@@ -161,5 +162,33 @@ class PreparacionService:
             cod_dato_maestro=cod_dato_maestro,
             tipo_codigo_introducido=tipo_codigo_introducido,
             cod_facturacion=cod_facturacion,
+            cod_operacion_terminal=cod_operacion_terminal
         )
         return {"success": True}
+
+    @staticmethod
+    def get_pedido_directo_en_curso(operador_context: dict) -> dict:
+        cod_operador = operador_context.get('cod_operador', operador_context.get('operador', 0))
+        cod_terminal = operador_context.get('terminal', 0)
+        return PreparacionRepository.get_pedido_directo_en_curso(int(cod_operador), int(cod_terminal))
+
+    @staticmethod
+    def crear_cabecera_pedido_directo(payload: dict, operador_context: dict) -> dict:
+        if not payload.get('CODOPERADOR'):
+            payload['CODOPERADOR'] = operador_context.get('cod_operador', operador_context.get('operador', 0))
+        if not payload.get('CODTERMINAL'):
+            payload['CODTERMINAL'] = operador_context.get('terminal', 0)
+        return PreparacionRepository.crear_cabecera_pedido_directo(payload)
+
+    @staticmethod
+    def grabar_linea_pedido_directo(payload: dict, operador_context: dict) -> dict:
+        if not payload.get('CODOPERADOR'):
+            payload['CODOPERADOR'] = operador_context.get('cod_operador', operador_context.get('operador', 0))
+        if not payload.get('CODTERMINAL'):
+            payload['CODTERMINAL'] = operador_context.get('terminal', 0)
+        return PreparacionRepository.grabar_linea_pedido_directo(payload)
+
+    @staticmethod
+    def get_lineas_pedido_directo(cod_documento: int) -> list:
+        return PreparacionRepository.get_lineas_pedido_directo(int(cod_documento))
+

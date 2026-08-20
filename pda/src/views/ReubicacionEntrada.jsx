@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, AlertTriangle, Box, Package } from 'lucide-reac
 import { validarPalet, validarUbicacion, grabarReubicacionPalet } from '../api/reubicacionesService';
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
+import { formatFechaES } from '../utils/dateUtils';
 
 export default function ReubicacionEntrada() {
   const navigate = useNavigate();
@@ -214,7 +215,7 @@ export default function ReubicacionEntrada() {
                 </div>
                 {paletData?.FECHACADUCIDAD && (
                   <div className="text-xs text-red-600 font-bold mt-1">
-                    Caducidad: {paletData.FECHACADUCIDAD}
+                    Caducidad: {formatFechaES(paletData.FECHACADUCIDAD)}
                   </div>
                 )}
               </div>

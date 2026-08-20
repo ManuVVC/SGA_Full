@@ -7,6 +7,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import apiService from '../api/apiService';
 import { validarUbicacion, validarArticulo } from '../api/reubicacionesService';
 import ArticleSearchInput from '../components/ArticleSearchInput';
+import { formatFechaES } from '../utils/dateUtils';
 
 const parseShorthandDate = (input) => {
   if (!input) return '';
@@ -484,7 +485,7 @@ export default function AjustesStock() {
                               <span className="font-bold text-brand-dark">Lote: {l.NUMEROLOTE || 'N/A'}</span>
                               <span className="text-xs text-gray-500 font-semibold flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {l.FECHACADUCIDAD_STR ? l.FECHACADUCIDAD_STR : 'Sin caducidad'}
+                                {l.FECHACADUCIDAD_STR ? formatFechaES(l.FECHACADUCIDAD_STR) : 'Sin caducidad'}
                               </span>
                             </div>
                             <ArrowRight className="w-5 h-5 text-gray-400" />

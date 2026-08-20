@@ -18,7 +18,7 @@ export function SubMenuPrepara() {
   const items = [
     { label: 'Prepara Pedido', icon: PackageCheck, path: '/prepara/pedido', show: hasPermission('PRM_PREPARARPEDIDOCLIENTE') },
     { label: 'Repasar Pedido', icon: ListChecks, path: '', show: hasPermission('PRM_REPASOORDENESDECARGAAUTO') },
-    { label: 'Pedido Directo', icon: ArrowRightCircle, path: '', show: hasPermission('PRM_PREPARARPEDIDODIRECTO') },
+    { label: 'Pedido Directo', icon: ArrowRightCircle, path: '/prepara/directo', show: hasPermission('PRM_PREPARARPEDIDODIRECTO') },
     { label: 'Finalizar', icon: CheckSquare, path: '/prepara/finalizar', show: true },
     { label: 'Aparcar', icon: Archive, path: '/prepara/aparcar', show: hasPermission('PRM_APARCARDOCUMENTO') },
     { label: 'Recup.Aparcado', icon: ArchiveRestore, path: '/prepara/recuperar', show: hasPermission('PRM_RECUPERARDOCUMENTOAPARCADO') },

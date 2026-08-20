@@ -230,6 +230,43 @@ class ReubicacionesRepository:
                 conn.close()
 
     @staticmethod
+    def get_articulo_por_cod_fabricante(cod_fabricante: str):
+        """
+        Busca en TMST_ARTICULOS por código de fabricante (CODREALFABRICANTE).
+        """
+        try:
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            query = """
+                SELECT CODARTICULO, NOMBREARTICULO, NVL(PRM_TRAZABILIDAD, 0), NVL(GESTIONARCADUCIDAD, 0), CODARTICULOAPLICACION, CODREALFABRICANTE
+                FROM GSM.TMST_ARTICULOS 
+                WHERE UPPER(CODREALFABRICANTE) = UPPER(:1)
+            """
+            cursor.execute(query, [cod_fabricante.strip()])
+            rows = cursor.fetchall()
+            resultados = []
+            for row in rows:
+                resultados.append({
+                    "CODARTICULO": row[0],
+                    "DESCRIPCION": row[1],
+                    "NOMBREARTICULO": row[1],
+                    "UNIDADES": 1,
+                    "PRM_TRAZABILIDAD": row[2],
+                    "GESTIONARCADUCIDAD": row[3],
+                    "CODARTICULOAPLICACION": row[4],
+                    "CODREALFABRICANTE": row[5]
+                })
+            return resultados
+        except Exception as e:
+            logger.error(f"Error al buscar articulo por cod_fabricante {cod_fabricante}: {e}")
+            raise
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+
+    @staticmethod
     def get_articulo_por_descripcion(descripcion: str):
         """
         Busca en TMST_ARTICULOS por descripción (LIKE).

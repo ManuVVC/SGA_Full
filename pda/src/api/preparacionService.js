@@ -1,13 +1,8 @@
-import apiService from './apiService';
+import apiService, { fetchData, mutateData } from './apiService';
 
 /** Obtiene el documento asignado al terminal del operario. */
 export const obtenerDocumento = async () => {
-  try {
-    const response = await apiService.get('/preparacion/obtener-documento');
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener documento para preparar';
-  }
+  return fetchData('/preparacion/obtener-documento', {}, 'Error al obtener documento para preparar');
 };
 
 /**
@@ -15,42 +10,24 @@ export const obtenerDocumento = async () => {
  * solicitar_ubicacion / solicitar_articulo / solicitar_cantidad: -1=activo, 0=no
  */
 export const getPermisosPreparacion = async () => {
-  try {
-    const response = await apiService.get('/preparacion/permisos');
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener permisos de preparación';
-  }
+  return fetchData('/preparacion/permisos', {}, 'Error al obtener permisos de preparación');
 };
 
 /** Obtiene la cabecera completa del pedido. */
 export const getCabeceraPedido = async (codDocumento) => {
-  try {
-    const response = await apiService.get(`/preparacion/cabecera/${codDocumento}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener cabecera del pedido';
-  }
+  return fetchData(`/preparacion/cabecera/${codDocumento}`, {}, 'Error al obtener cabecera del pedido');
 };
 
 /** Devuelve todas las líneas pendientes (para el selector de líneas). */
 export const getLineasPendientes = async (codDocumento) => {
-  try {
-    const response = await apiService.get(`/preparacion/lineas-pendientes/${codDocumento}`);
-    return response.data.lineas || [];
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener líneas pendientes';
-  }
+  const data = await fetchData(`/preparacion/lineas-pendientes/${codDocumento}`, {}, 'Error al obtener líneas pendientes');
+  return data.lineas || [];
 };
 
 /** Devuelve el conteo de líneas pendientes. */
 export const getNumLineasPendientes = async (codDocumento) => {
-  try {
-    const response = await apiService.get(`/preparacion/num-lineas-pendientes/${codDocumento}`);
-    return response.data.num_lineas || 0;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener número de líneas pendientes';
-  }
+  const data = await fetchData(`/preparacion/num-lineas-pendientes/${codDocumento}`, {}, 'Error al obtener número de líneas pendientes');
+  return data.num_lineas || 0;
 };
 
 /**
@@ -58,12 +35,7 @@ export const getNumLineasPendientes = async (codDocumento) => {
  * SPPRP_ARTICULOSPARAPREPARAR ya llama internamente a SPPRP_INSTMP_ARTPARAPREPARAR.
  */
 export const getPrimeraLinea = async (codDocumento) => {
-  try {
-    const response = await apiService.post('/preparacion/primera-linea', { cod_documento: codDocumento });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener primera línea';
-  }
+  return mutateData('post', '/preparacion/primera-linea', { cod_documento: codDocumento }, {}, 'Error al obtener primera línea');
 };
 
 /**
@@ -72,12 +44,7 @@ export const getPrimeraLinea = async (codDocumento) => {
  *   tipo_avance (0=siguiente, 1=anterior), cod_ubicacion_actual, cod_articulo, cant_solicitada? }
  */
 export const siguienteLinea = async (params) => {
-  try {
-    const response = await apiService.post('/preparacion/siguiente-linea', params);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener siguiente línea';
-  }
+  return mutateData('post', '/preparacion/siguiente-linea', params, {}, 'Error al obtener siguiente línea');
 };
 
 /**
@@ -86,12 +53,7 @@ export const siguienteLinea = async (params) => {
  *   fecha_caducidad?, numero_lote?, cod_tipo_dato_maestro?, cod_dato_maestro? }
  */
 export const cargarMercancia = async (params) => {
-  try {
-    const response = await apiService.post('/preparacion/cargar-mercancia', params);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al cargar mercancía';
-  }
+  return mutateData('post', '/preparacion/cargar-mercancia', params, {}, 'Error al cargar mercancía');
 };
 
 /**
@@ -101,8 +63,7 @@ export const cargarMercancia = async (params) => {
  */
 export const getUnidsPreparadas = async (params) => {
   try {
-    const response = await apiService.post('/preparacion/unids-preparadas', params);
-    return response.data;
+    return await mutateData('post', '/preparacion/unids-preparadas', params);
   } catch (error) {
     // Si falla, devolvemos 0 para no bloquear el flujo
     console.warn('Error al consultar unidades preparadas:', error);
@@ -115,12 +76,7 @@ export const getUnidsPreparadas = async (params) => {
  * @param {string} cod_hueco 
  */
 export const validarUbicacion = async (cod_hueco, cod_ubicacion_esperada, posicion = null) => {
-  try {
-    const response = await apiService.post('/preparacion/validar-ubicacion', { cod_hueco, cod_ubicacion_esperada, posicion });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data?.error || 'Error al validar ubicación';
-  }
+  return mutateData('post', '/preparacion/validar-ubicacion', { cod_hueco, cod_ubicacion_esperada, posicion }, {}, 'Error al validar ubicación');
 };
 
 /**
@@ -129,10 +85,47 @@ export const validarUbicacion = async (cod_hueco, cod_ubicacion_esperada, posici
  * @param {number} cod_articulo 
  */
 export const getStockLotes = async (cod_ubicacion, cod_articulo) => {
+  const data = await mutateData('post', '/preparacion/stock-lotes', { cod_ubicacion, cod_articulo }, {}, 'Error al obtener stock por lotes');
+  return data.lotes || [];
+};
+
+/** Consulta el stock contenido en una ubicación por ID de ubicación */
+export const getContenidoUbicacion = async (codUbicacion) => {
   try {
-    const response = await apiService.post('/preparacion/stock-lotes', { cod_ubicacion, cod_articulo });
-    return response.data.lotes || [];
+    const response = await apiService.get(`/stock/ubicacion/${codUbicacion}`);
+    return response.data?.data || {};
   } catch (error) {
-    throw error.response?.data?.error || 'Error al obtener stock por lotes';
+    throw error.response?.data?.message || error.response?.data?.error || 'Error al obtener el contenido de la ubicación';
   }
 };
+
+/** Consulta las ubicaciones donde hay stock de un artículo por ID o código de artículo */
+export const getUbicacionesArticulo = async (codArticulo) => {
+  try {
+    const response = await apiService.get(`/stock/${codArticulo}`);
+    return response.data?.data || {};
+  } catch (error) {
+    throw error.response?.data?.message || error.response?.data?.error || 'Error al obtener las ubicaciones del artículo';
+  }
+};
+
+/** Consulta si existe un pedido directo en curso para el operario/terminal actual */
+export const getPedidoDirectoEnCurso = async () => {
+  return fetchData('/preparacion/directo/en-curso', {}, 'Error al consultar pedido directo en curso');
+};
+
+/** Crea una nueva cabecera para pedido directo */
+export const crearCabeceraPedidoDirecto = async (params) => {
+  return mutateData('post', '/preparacion/directo/cabecera', params, {}, 'Error al crear cabecera de pedido directo');
+};
+
+/** Graba una línea y carga mercancía en un pedido directo */
+export const grabarLineaPedidoDirecto = async (params) => {
+  return mutateData('post', '/preparacion/directo/linea', params, {}, 'Error al grabar línea de pedido directo');
+};
+
+/** Obtiene el listado de líneas preparadas de un pedido directo en curso */
+export const getLineasPedidoDirecto = async (codDocumento) => {
+  return fetchData(`/preparacion/directo/lineas/${codDocumento}`, {}, 'Error al obtener líneas del pedido directo');
+};
+

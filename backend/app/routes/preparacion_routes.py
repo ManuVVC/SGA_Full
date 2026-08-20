@@ -221,3 +221,57 @@ def cargar_mercancia():
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@preparacion_bp.route('/directo/en-curso', methods=['GET'])
+@token_required
+def get_pedido_directo_en_curso():
+    """Consulta si hay un pedido directo en curso para el operario y terminal actuales."""
+    try:
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        result = PreparacionService.get_pedido_directo_en_curso(current_user)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@preparacion_bp.route('/directo/cabecera', methods=['POST'])
+@token_required
+def crear_cabecera_pedido_directo():
+    """Crea la cabecera de un nuevo pedido de cliente al vuelo."""
+    try:
+        data = request.json or {}
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        result = PreparacionService.crear_cabecera_pedido_directo(data, current_user)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@preparacion_bp.route('/directo/linea', methods=['POST'])
+@token_required
+def grabar_linea_pedido_directo():
+    """Graba una línea de un pedido de cliente al vuelo y realiza la carga de mercancía."""
+    try:
+        data = request.json or {}
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        required = ['CODDOCUMENTO', 'CODARTICULO', 'UNIDADES', 'CODUBICACION']
+        for field in required:
+            if data.get(field) is None:
+                return jsonify({"error": f"{field} es requerido"}), 400
+        result = PreparacionService.grabar_linea_pedido_directo(data, current_user)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@preparacion_bp.route('/directo/lineas/<int:cod_documento>', methods=['GET'])
+@token_required
+def get_lineas_pedido_directo(cod_documento):
+    """Devuelve el historial de líneas preparadas de un pedido directo en curso."""
+    try:
+        result = PreparacionService.get_lineas_pedido_directo(cod_documento)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+

@@ -12,8 +12,23 @@ export default function StockQuery() {
   const [searchType, setSearchType] = useState('codfacturacion');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [param1690Active, setParam1690Active] = useState(false);
   const navigate = useNavigate();
   const { isKeyboardOpen } = useKeyboard();
+
+  useEffect(() => {
+    const fetchParam = async () => {
+      try {
+        const res = await apiService.get('/utilidades/parametro/1690');
+        if (res.data && res.data.activo) {
+          setParam1690Active(true);
+        }
+      } catch (err) {
+        console.error('Error al consultar parámetro 1690:', err);
+      }
+    };
+    fetchParam();
+  }, []);
 
   // Custom hook para forzar que el input reciba los datos del escáner
   const inputRef = useScannerFocus();
@@ -85,11 +100,11 @@ export default function StockQuery() {
           </h2>
 
           <form onSubmit={handleScan} className="flex flex-col gap-3">
-            <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} />
+            <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} param1690Active={param1690Active} />
             <input
               ref={inputRef}
               type="text"
-              inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' ? 'text' : 'numeric') : 'none'}
+              inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
               value={ean}
               onChange={(e) => setEan(e.target.value)}
               className="w-full p-4 border-2 border-sga-primary rounded text-center text-xl font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all uppercase"

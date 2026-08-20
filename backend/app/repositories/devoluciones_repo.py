@@ -65,8 +65,9 @@ class DevolucionesRepository:
             # 1768 = Serie de facturación/devolución
             # 1636 = Tipo ubicación devoluciones (0=ubicación por defecto, resto=pedir ubicación)
             # 1637 = Código ubicación fija de devolución
+            # 1690 = Búsqueda por Código de Fabricante
             cursor.execute(
-                "SELECT CODPARAMETRO, VALOR FROM GSM.TSYS_PARAMETROSXAMBITO WHERE CODPARAMETRO IN (1768, 1636, 1637)"
+                "SELECT CODPARAMETRO, VALOR FROM GSM.TSYS_PARAMETROSXAMBITO WHERE CODPARAMETRO IN (1768, 1636, 1637, 1690)"
             )
             params = {str(row[0]): row[1] for row in cursor.fetchall()}
             return params

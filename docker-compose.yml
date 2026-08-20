@@ -59,3 +59,18 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  # ── Frontend Backoffice (React → Nginx) ─────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: sga_frontend
+    ports:
+      - "${FRONTEND_PORT:-5175}:${FRONTEND_CONTAINER_PORT:-80}"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+

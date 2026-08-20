@@ -128,4 +128,40 @@ apiService.interceptors.response.use(
   }
 );
 
+// ── Helpers centralizados para peticiones y manejo de errores ─────────────────
+
+/**
+ * Realiza una petición GET al backend centralizando la extracción de response.data y el manejo de errores.
+ * @param {string} url - Ruta del endpoint
+ * @param {object} config - Opciones adicionales de axios
+ * @param {string} defaultErrorMsg - Mensaje de error por defecto en caso de que el backend no devuelva uno explícito
+ * @returns {Promise<any>}
+ */
+export const fetchData = async (url, config = {}, defaultErrorMsg = 'Error en la petición') => {
+  try {
+    const response = await apiService.get(url, config);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data?.error || defaultErrorMsg;
+  }
+};
+
+/**
+ * Realiza una petición POST/PUT/DELETE/PATCH al backend centralizando la extracción de response.data y el manejo de errores.
+ * @param {string} method - 'post' | 'put' | 'delete' | 'patch'
+ * @param {string} url - Ruta del endpoint
+ * @param {object} data - Payload a enviar en la petición
+ * @param {object} config - Opciones adicionales de axios
+ * @param {string} defaultErrorMsg - Mensaje de error por defecto
+ * @returns {Promise<any>}
+ */
+export const mutateData = async (method, url, data = null, config = {}, defaultErrorMsg = 'Error en la operación') => {
+  try {
+    const response = await apiService[method.toLowerCase()](url, data, config);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data?.error || defaultErrorMsg;
+  }
+};
+
 export default apiService;

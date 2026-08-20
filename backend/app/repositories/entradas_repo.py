@@ -38,7 +38,7 @@ class EntradasRepository:
                 SELECT p.codparametro, pa.valor
                 FROM GSM.tsys_parametros p 
                 INNER JOIN GSM.tsys_parametrosxambito pa ON pa.codparametro = p.codparametro 
-                WHERE p.codparametro IN (1687, 1693, 1702, 1745, 1750, 1753, 1707)
+                WHERE p.codparametro IN (1687, 1693, 1702, 1745, 1750, 1753, 1707, 1690)
             """
             cursor.execute(query)
             rows = cursor.fetchall()
@@ -724,6 +724,13 @@ class EntradasRepository:
                 cursor.execute("SELECT DISTINCT CODARTICULO FROM GSM.TMST_CODFACTURACION WHERE CODFACTURACION LIKE '%' || :1", [ean_recortado])
                 candidates = [r[0] for r in cursor.fetchall()]
                 used_ean_pattern = ean_recortado
+
+            if not candidates:
+                from ..utils.parametros import is_parametro_activo
+                if is_parametro_activo(1690):
+                    logger.info(f"EAN '{ean}' no encontrado en TMST_CODFACTURACION en entradas. Probando por CODREALFABRICANTE (parámetro 1690 activo).")
+                    cursor.execute("SELECT DISTINCT CODARTICULO FROM GSM.TMST_ARTICULOS WHERE UPPER(CODREALFABRICANTE) = UPPER(:1)", [ean])
+                    candidates = [r[0] for r in cursor.fetchall()]
                 
             if not candidates:
                 return None

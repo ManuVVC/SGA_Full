@@ -39,3 +39,17 @@ services:
       - /app/node_modules  # Volumen anónimo para aislar node_modules del host
     environment:
       - NODE_ENV=development
+
+  # ── Frontend Backoffice con Vite dev server ─────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: sga_frontend_dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Volumen anónimo para aislar node_modules del host
+    environment:
+      - NODE_ENV=development
+

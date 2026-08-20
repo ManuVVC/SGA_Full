@@ -11,35 +11,24 @@ class PedidosRepository:
         Devuelve información sobre el estado del documento, 
         operador que lo preparaba, y su terminal, si aplica.
         """
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
-            # Buscar el estado y operador/terminal
             query = """
                 SELECT DC.CODOPERADOR, DC.CODTERMINAL, CD.CODESTADODOCUMENTO 
                 FROM TMST_CODDOCUMENTOS CD
                 LEFT JOIN TMST_DOCUMENTOSCLIENTES DC ON CD.CODDOCUMENTO = DC.CODDOCUMENTO
                 WHERE CD.CODDOCUMENTO = :1
             """
-            cursor.execute(query, [cod_documento])
-            row = cursor.fetchone()
-            
+            row = OracleDatabase.execute_query(query, [cod_documento], fetch_all=False)
             if row:
                 return {
-                    "CODOPERADOR": row[0],
-                    "CODTERMINAL": row[1],
-                    "CODESTADO": row[2]
+                    "CODOPERADOR": row.get("CODOPERADOR"),
+                    "CODTERMINAL": row.get("CODTERMINAL"),
+                    "CODESTADO": row.get("CODESTADODOCUMENTO")
                 }
             return None
         except Exception as e:
             logger.error(f"Error consultando documento {cod_documento}: {e}", exc_info=True)
             raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def get_documentos_aparcados(cod_operador: int, cod_terminal: int, permisos: dict) -> list:
@@ -47,21 +36,13 @@ class PedidosRepository:
         Devuelve la lista de documentos en estado aparcado (CODESTADODOCUMENTO = 7),
         controlando los permisos para ver documentos de otros operadores o terminales.
         """
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
-            # CODESTADODOCUMENTO 7 = Aparcado
             query = """
                 SELECT CODDOCUMENTO, NUMDOCUMENTO, RAZONSOCIAL, NOMBRECOMERCIAL, NUMLINEAS
                 FROM VMST_DOCCLIENTESVISIBLES
                 WHERE CODESTADODOCUMENTO = 7
             """
-            
             params = {}
-            
             if not permisos.get("PRM_RECUPERARDOCOTROOPERARIO"):
                 query += " AND CODOPERADOR = :cod_operador"
                 params["cod_operador"] = cod_operador
@@ -70,25 +51,17 @@ class PedidosRepository:
                 query += " AND CODTERMINAL = :cod_terminal"
                 params["cod_terminal"] = cod_terminal
                 
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-            
-            aparcados = []
-            for row in rows:
-                aparcados.append({
-                    "cod_documento": row[0],
-                    "num_documento": row[1],
-                    "razon_social": row[2] or '',
-                    "nombre_comercial": row[3] or '',
-                    "num_lineas": row[4] or 0
-                })
-            return aparcados
+            rows = OracleDatabase.execute_query(query, params, as_dict=False)
+            return [{
+                "cod_documento": r[0],
+                "num_documento": r[1],
+                "razon_social": r[2] or '',
+                "nombre_comercial": r[3] or '',
+                "num_lineas": r[4] or 0
+            } for r in rows]
         except Exception as e:
             logger.error(f"Error consultando aparcados: {e}", exc_info=True)
             raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def get_documentos_en_preparacion(cod_operador: int, cod_terminal: int) -> list:
@@ -96,12 +69,7 @@ class PedidosRepository:
         Devuelve la lista de documentos en preparación (CODESTADODOCUMENTO = 3)
         para un operador y terminal específicos.
         """
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
             query = """
                 SELECT v.CODDOCUMENTO, v.NUMDOCUMENTO, v.RAZONSOCIAL, v.NOMBRECOMERCIAL, v.NUMLINEAS,
                     CASE 
@@ -116,31 +84,21 @@ class PedidosRepository:
                   AND v.CODOPERADOR = :cod_operador
                   AND v.CODTERMINAL = :cod_terminal
             """
-            
-            cursor.execute(query, {
+            rows = OracleDatabase.execute_query(query, {
                 "cod_operador": cod_operador,
                 "cod_terminal": cod_terminal
-            })
-            
-            rows = cursor.fetchall()
-            
-            preparacion = []
-            for row in rows:
-                preparacion.append({
-                    "cod_documento": row[0],
-                    "num_documento": row[1],
-                    "razon_social": row[2] or '',
-                    "nombre_comercial": row[3] or '',
-                    "num_lineas": row[4] or 0,
-                    "gestiona_bultos": row[5] or 0
-                })
-            return preparacion
+            }, as_dict=False)
+            return [{
+                "cod_documento": r[0],
+                "num_documento": r[1],
+                "razon_social": r[2] or '',
+                "nombre_comercial": r[3] or '',
+                "num_lineas": r[4] or 0,
+                "gestiona_bultos": r[5] or 0
+            } for r in rows]
         except Exception as e:
             logger.error(f"Error consultando en preparacion: {e}", exc_info=True)
             raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def finalizar_documento(cod_documento: int, despreciar_restos: int, num_bultos: int = None) -> int:
@@ -148,103 +106,55 @@ class PedidosRepository:
         Finaliza la preparación de un documento cliente (estado 3 -> siguiente estado).
         Actualiza el NUMBULTOS si se indica.
         Llama a GSM.SPPRP_ENDPREPARACIONDOC.
-        Retorna NUMBER
         """
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
-            if num_bultos is not None and num_bultos >= 0:
-                update_query = "UPDATE TMST_DOCUMENTOSCLIENTES SET NUMBULTOS = :num_bultos WHERE CODDOCUMENTO = :cod_documento"
-                cursor.execute(update_query, {"num_bultos": num_bultos, "cod_documento": cod_documento})
-                
-            # SPPRP_ENDPREPARACIONDOC: P_CODDOCUMENTO (NUMBER), P_UBICACIONESDESTINO (VARCHAR2), P_DESPRECIARRESTOS (NUMBER)
-            result = cursor.callfunc('GSM.SPPRP_ENDPREPARACIONDOC', int, [cod_documento, None, despreciar_restos])
-            
-            connection.commit()
-            return result
+            with OracleDatabase.get_cursor(commit=True) as cursor:
+                if num_bultos is not None and num_bultos >= 0:
+                    update_query = "UPDATE TMST_DOCUMENTOSCLIENTES SET NUMBULTOS = :num_bultos WHERE CODDOCUMENTO = :cod_documento"
+                    cursor.execute(update_query, {"num_bultos": num_bultos, "cod_documento": cod_documento})
+                    
+                return cursor.callfunc('GSM.SPPRP_ENDPREPARACIONDOC', int, [cod_documento, None, despreciar_restos])
         except Exception as e:
             logger.error(f"Error al finalizar preparacion: {e}", exc_info=True)
-            if connection: connection.rollback()
             raise Exception(f"No se pudo finalizar el documento: {str(e)}")
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def get_lineas_documento(cod_documento: int) -> list:
         """
         Devuelve las líneas de un documento cliente.
         """
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
             query = """
                 SELECT CODARTICULO, NOMBREARTICULO, CANTSOLICITADA, CANTPREPARADA
                 FROM TMST_LINEASDOCUMENTOCLIENTE
                 WHERE CODDOCUMENTO = :1
                 ORDER BY NUMLINEA ASC
             """
-            cursor.execute(query, [cod_documento])
-            rows = cursor.fetchall()
-            
-            lineas = []
-            for row in rows:
-                lineas.append({
-                    "cod_articulo": row[0],
-                    "nombre": row[1] or '',
-                    "cant_solicitada": row[2] or 0,
-                    "cant_preparada": row[3] or 0
-                })
-            return lineas
+            rows = OracleDatabase.execute_query(query, [cod_documento], as_dict=False)
+            return [{
+                "cod_articulo": r[0],
+                "nombre": r[1] or '',
+                "cant_solicitada": r[2] or 0,
+                "cant_preparada": r[3] or 0
+            } for r in rows]
         except Exception as e:
             logger.error(f"Error consultando lineas del documento {cod_documento}: {e}", exc_info=True)
             raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def aparcar_documento(cod_documento: int, cod_operador: int) -> int:
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
-            # SPPRP_APARCARPREPARACIONDOC: IN P_CODDOCUMENTO, IN P_CODOPERADOR. Retorna NUMBER.
-            result = cursor.callfunc('GSM.GSM_DOCUMENTOS.SPPRP_APARCARPREPARACIONDOC', int, [cod_documento, cod_operador])
-            connection.commit()
-            return result
+            with OracleDatabase.get_cursor(commit=True) as cursor:
+                return cursor.callfunc('GSM.GSM_DOCUMENTOS.SPPRP_APARCARPREPARACIONDOC', int, [cod_documento, cod_operador])
         except Exception as e:
             logger.error(f"Error al aparcar documento {cod_documento}: {e}", exc_info=True)
-            if connection: connection.rollback()
             raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def recuperar_documento(cod_documento: int, cod_terminal: int) -> int:
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
-            # SPPRP_RECUPERARADOCAPARCADO: IN P_CODDOCUMENTO, IN P_CODTERMINAL. Retorna NUMBER.
-            result = cursor.callfunc('GSM.GSM_DOCUMENTOS.SPPRP_RECUPERARADOCAPARCADO', int, [cod_documento, cod_terminal])
-            connection.commit()
-            return result
+            with OracleDatabase.get_cursor(commit=True) as cursor:
+                return cursor.callfunc('GSM.GSM_DOCUMENTOS.SPPRP_RECUPERARADOCAPARCADO', int, [cod_documento, cod_terminal])
         except Exception as e:
             logger.error(f"Error al recuperar documento {cod_documento}: {e}", exc_info=True)
-            if connection: connection.rollback()
             raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()

@@ -5,6 +5,8 @@ import { getParametros, getMuelles, getAlbaranesEnCurso, getProveedoresPendiente
 import TerminalHeader from '../components/TerminalHeader';
 import { useKeyboard } from '../contexts/KeyboardContext';
 import ArticleSearchInput from '../components/ArticleSearchInput';
+import Modal from '../components/Modal';
+import { formatFechaES } from '../utils/dateUtils';
 
 const parseShorthandDate = (input) => {
   if (!input) return '';
@@ -929,95 +931,85 @@ export default function EntradaMercancia() {
         )}
 
         {/* MODAL LÍNEAS GRABADAS */}
-        {showLineasGrabadas && (
-          <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex flex-col p-4">
-            <div className="bg-white flex-1 rounded-lg shadow-xl flex flex-col overflow-hidden">
-              <div className="p-4 bg-blue-800 text-white flex justify-between items-center">
-                <h3 className="font-bold text-lg">Líneas Grabadas</h3>
-                <button onClick={() => setShowLineasGrabadas(false)} className="p-1 hover:bg-blue-700 rounded"><XCircle size={24}/></button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-100">
-                {lineasGrabadas.length === 0 ? (
-                  <p className="text-center text-gray-500 mt-4">No hay líneas grabadas.</p>
-                ) : (
-                  lineasGrabadas.map((l, i) => (
-                    <button 
-                      key={i} 
-                      onClick={() => handleVerDetalleLinea(l.CODLINEADOCUMENTOPROVEEDOR)}
-                      className="w-full bg-white p-3 rounded shadow border border-gray-200 text-left active:bg-gray-50"
-                    >
-                      <div className="font-bold text-gray-800">{l.NOMBREARTICULO}</div>
-                      <div className="flex justify-between text-sm mt-1">
-                        <span className="text-gray-600">Cód: {l.CODARTICULOAPLICACION}</span>
-                        <span className="font-semibold text-sga-primary">Ped: {l.CANTSOLICITADA} | Rec: {l.CANTSERVIDA}</span>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={showLineasGrabadas}
+          onClose={() => setShowLineasGrabadas(false)}
+          title="Líneas Grabadas"
+          headerClassName="bg-blue-800 text-white"
+          fullHeight={true}
+          contentClassName="p-2 space-y-2 bg-gray-100"
+        >
+          {lineasGrabadas.length === 0 ? (
+            <p className="text-center text-gray-500 mt-4">No hay líneas grabadas.</p>
+          ) : (
+            lineasGrabadas.map((l, i) => (
+              <button 
+                key={i} 
+                onClick={() => handleVerDetalleLinea(l.CODLINEADOCUMENTOPROVEEDOR)}
+                className="w-full bg-white p-3 rounded shadow border border-gray-200 text-left active:bg-gray-50"
+              >
+                <div className="font-bold text-gray-800">{l.NOMBREARTICULO}</div>
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-gray-600">Cód: {l.CODARTICULOAPLICACION}</span>
+                  <span className="font-semibold text-sga-primary">Ped: {l.CANTSOLICITADA} | Rec: {l.CANTSERVIDA}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </Modal>
 
         {/* MODAL DETALLE LÍNEA */}
-        {showDetalleLinea && (
-          <div className="fixed inset-0 z-50 bg-black bg-opacity-60 flex flex-col justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl flex flex-col max-h-[80%] overflow-hidden">
-              <div className="p-4 bg-indigo-800 text-white flex justify-between items-center">
-                <h3 className="font-bold text-lg">Detalle de Línea</h3>
-                <button onClick={() => setShowDetalleLinea(false)} className="p-1 hover:bg-indigo-700 rounded"><XCircle size={24}/></button>
+        <Modal
+          isOpen={showDetalleLinea}
+          onClose={() => setShowDetalleLinea(false)}
+          title="Detalle de Línea"
+          headerClassName="bg-indigo-800 text-white"
+          contentClassName="p-4 space-y-3 bg-gray-50"
+        >
+          {detalleLinea.length === 0 ? (
+            <p className="text-center text-gray-500">No hay detalle para esta línea.</p>
+          ) : (
+            detalleLinea.map((d, i) => (
+              <div key={i} className="bg-white p-3 rounded shadow border border-indigo-100">
+                <div className="font-bold text-sm text-gray-700 mb-1">SSCC: {d.SSCC || 'N/A'}</div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-gray-500">Uds:</span> <span className="font-semibold">{d.CANTSERVIDA}</span></div>
+                  <div><span className="text-gray-500">Lote:</span> <span className="font-semibold">{d.LOTE || '-'}</span></div>
+                  <div><span className="text-gray-500">Cad:</span> <span className="font-semibold">{d.FECHACADUCIDAD ? formatFechaES(d.FECHACADUCIDAD) : '-'}</span></div>
+                  <div><span className="text-gray-500">Muelle:</span> <span className="font-semibold">{d.CODMUELLE}</span></div>
+                </div>
               </div>
-              <div className="overflow-y-auto p-4 space-y-3 bg-gray-50">
-                {detalleLinea.length === 0 ? (
-                  <p className="text-center text-gray-500">No hay detalle para esta línea.</p>
-                ) : (
-                  detalleLinea.map((d, i) => (
-                    <div key={i} className="bg-white p-3 rounded shadow border border-indigo-100">
-                      <div className="font-bold text-sm text-gray-700 mb-1">SSCC: {d.SSCC || 'N/A'}</div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div><span className="text-gray-500">Uds:</span> <span className="font-semibold">{d.CANTSERVIDA}</span></div>
-                        <div><span className="text-gray-500">Lote:</span> <span className="font-semibold">{d.LOTE || '-'}</span></div>
-                        <div><span className="text-gray-500">Cad:</span> <span className="font-semibold">{d.FECHACADUCIDAD || '-'}</span></div>
-                        <div><span className="text-gray-500">Muelle:</span> <span className="font-semibold">{d.CODMUELLE}</span></div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+            ))
+          )}
+        </Modal>
 
         {/* MODAL LÍNEAS PENDIENTES */}
-        {showLineasPendientes && (
-          <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex flex-col p-4">
-            <div className="bg-white flex-1 rounded-lg shadow-xl flex flex-col overflow-hidden">
-              <div className="p-4 bg-purple-800 text-white flex justify-between items-center">
-                <h3 className="font-bold text-lg">Pendiente de Pedido</h3>
-                <button onClick={() => setShowLineasPendientes(false)} className="p-1 hover:bg-purple-700 rounded"><XCircle size={24}/></button>
+        <Modal
+          isOpen={showLineasPendientes}
+          onClose={() => setShowLineasPendientes(false)}
+          title="Pendiente de Pedido"
+          headerClassName="bg-purple-800 text-white"
+          fullHeight={true}
+          contentClassName="p-2 space-y-2 bg-gray-100"
+        >
+          {lineasPendientes.length === 0 ? (
+            <p className="text-center text-gray-500 mt-4">No hay líneas pendientes de recibir.</p>
+          ) : (
+            lineasPendientes.map((l, i) => (
+              <div key={i} className="bg-white p-3 rounded shadow border border-purple-200">
+                <div className="font-bold text-gray-800 leading-tight">{l.NOMBREARTICULO}</div>
+                <div className="flex justify-between text-sm mt-2 items-end">
+                  <span className="text-gray-500">Cód: {l.CODARTICULOAPLICACION}</span>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500">Pedidas: {l.CANTSOLICITADA}</div>
+                    <div className="text-xs text-blue-600 font-semibold">Recibidas: {l.CANTSERVIDA ?? 0}</div>
+                    <div className="font-bold text-purple-700">Faltan: {l.CANTPDTESERVIR}</div>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-100">
-                {lineasPendientes.length === 0 ? (
-                  <p className="text-center text-gray-500 mt-4">No hay líneas pendientes de recibir.</p>
-                ) : (
-                  lineasPendientes.map((l, i) => (
-                    <div key={i} className="bg-white p-3 rounded shadow border border-purple-200">
-                      <div className="font-bold text-gray-800 leading-tight">{l.NOMBREARTICULO}</div>
-                      <div className="flex justify-between text-sm mt-2 items-end">
-                        <span className="text-gray-500">Cód: {l.CODARTICULOAPLICACION}</span>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-500">Pedidas: {l.CANTSOLICITADA}</div>
-                          <div className="text-xs text-blue-600 font-semibold">Recibidas: {l.CANTSERVIDA ?? 0}</div>
-                          <div className="font-bold text-purple-700">Faltan: {l.CANTPDTESERVIR}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+            ))
+          )}
+        </Modal>
 
       </div>
     </div>

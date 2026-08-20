@@ -122,3 +122,25 @@ class SessionManager:
 
 # Exportar instancia singleton
 session_manager = SessionManager()
+
+
+def get_current_operador(default_cod=0):
+    """Obtiene el código del operador de la sesión actual (g.operador) de forma segura."""
+    from flask import g
+    if hasattr(g, 'operador') and isinstance(g.operador, dict):
+        return g.operador.get("cod_operador", default_cod)
+    return default_cod
+
+
+def get_current_terminal(default_terminal=0):
+    """Obtiene el código del terminal de la sesión actual (g.operador) de forma segura."""
+    from flask import g
+    if hasattr(g, 'operador') and isinstance(g.operador, dict):
+        return g.operador.get("terminal", default_terminal)
+    return default_terminal
+
+
+def get_current_user_dict():
+    """Obtiene el diccionario completo del operador de la sesión actual (g.operador) de forma segura."""
+    from flask import g
+    return g.operador if hasattr(g, 'operador') and g.operador else {}

@@ -1,12 +1,16 @@
 import React from 'react';
-import { ScanBarcode, AlignLeft, FileText } from 'lucide-react';
+import { ScanBarcode, AlignLeft, FileText, Factory } from 'lucide-react';
 
-export default function SearchTypeToggle({ value, onChange, inputRef }) {
+export default function SearchTypeToggle({ value, onChange, inputRef, param1690Active }) {
   const options = [
     { id: 'codfacturacion', label: 'EAN', icon: ScanBarcode },
     { id: 'codarticuloaplicacion', label: 'Interno', icon: FileText },
     { id: 'nombrearticulo', label: 'Descrip.', icon: AlignLeft },
   ];
+
+  if (param1690Active) {
+    options.splice(2, 0, { id: 'codrealfabricante', label: 'Fabr.', icon: Factory });
+  }
 
   return (
     <div className="flex bg-gray-200 p-1 rounded-lg w-full mb-4">

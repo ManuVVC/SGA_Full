@@ -1,13 +1,15 @@
 import os
-from app.database import db
+from app import create_app
+from app.database import OracleDatabase
+
+app = create_app()
 
 def run():
-    db.init_pool()
-    conn = db.get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT column_name, data_type FROM all_tab_columns WHERE table_name = 'TMST_CODFACTURACION'")
-    print([row for row in cur.fetchall()])
-    db.close_pool()
+    with app.app_context():
+        rows = OracleDatabase.execute_query("SELECT column_name, data_type FROM all_tab_columns WHERE table_name = 'TMST_CODFACTURACION'")
+        print("Filas obtenidas usando OracleDatabase.execute_query:")
+        for row in rows:
+            print(" -", row)
 
 if __name__ == "__main__":
     run()

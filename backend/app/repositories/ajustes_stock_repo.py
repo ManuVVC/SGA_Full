@@ -10,40 +10,21 @@ class StockAjustesRepository:
     @staticmethod
     def get_conceptos():
         """Obtiene la lista de conceptos de ajuste de stock."""
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
             query = """
                 SELECT CODCONCEPTO, NOMBRE, NOMBRECORTO, PRM_DESCONTARSTOCK, PRM_GENERARVARIACION
                 FROM GSM.TMST_CONCEPTOSAJUSTESTOCK
                 ORDER BY NOMBRE
             """
-            cursor.execute(query)
-            
-            columns = [col[0].upper() for col in cursor.description]
-            conceptos = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            
-            return conceptos
-            
+            return OracleDatabase.execute_query(query)
         except Exception as e:
             logger.error(f"Error en get_conceptos: {e}", exc_info=True)
             return []
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def get_lotes_articulo_ubicacion(cod_ubicacion, cod_articulo):
         """Obtiene lotes y fechas de un artículo en una ubicación específica."""
-        connection = None
-        cursor = None
         try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-            
             query = """
                 SELECT DISTINCT 
                     L.NUMEROLOTE, 
@@ -53,29 +34,15 @@ class StockAjustesRepository:
                 WHERE UA.CodUbicacion = :cod_ubicacion 
                   AND UA.CodArticulo = :cod_articulo
             """
-            cursor.execute(query, cod_ubicacion=cod_ubicacion, cod_articulo=cod_articulo)
-            
-            columns = [col[0].upper() for col in cursor.description]
-            lotes = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            
-            return lotes
-            
+            return OracleDatabase.execute_query(query, cod_ubicacion=cod_ubicacion, cod_articulo=cod_articulo)
         except Exception as e:
             logger.error(f"Error en get_lotes_articulo_ubicacion: {e}", exc_info=True)
             return []
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()
 
     @staticmethod
     def ejecutar_ajuste(datos: dict):
         """Llama al procedimiento almacenado SPEST_AJUSTESDESTOCK."""
-        connection = None
-        cursor = None
-        try:
-            connection = OracleDatabase.get_connection()
-            cursor = connection.cursor()
-
+        with OracleDatabase.get_cursor(commit=True) as cursor:
             fecha_obj = datos.get('fecha_caducidad')
 
             # Buscar maestro data
@@ -130,14 +97,4 @@ class StockAjustesRepository:
                 logger.error(error_msg)
                 raise Exception(error_msg)
                 
-            connection.commit()
             return result_code
-
-        except Exception as e:
-            logger.error(f"Error en ejecutar_ajuste: {e}", exc_info=True)
-            if connection:
-                connection.rollback()
-            raise e
-        finally:
-            if cursor: cursor.close()
-            if connection: connection.close()

@@ -5,6 +5,7 @@ import { validarUbicacion, validarCantidad, grabarReubicacion, obtenerLotesDispo
 import TerminalHeader from '../components/TerminalHeader';
 import ArticleSearchInput from '../components/ArticleSearchInput';
 import { useKeyboard } from '../contexts/KeyboardContext';
+import { formatFechaES } from '../utils/dateUtils';
 
 export default function ReubicacionLibre() {
   const navigate = useNavigate();
@@ -314,7 +315,7 @@ export default function ReubicacionLibre() {
                       <Box size={16} />
                       <span>Lote: {loteData.NUMEROLOTE}</span>
                     </div>
-                    {loteData.FECHACADUCIDAD && <div className="text-xs text-blue-800">Caducidad: {loteData.FECHACADUCIDAD}</div>}
+                    {loteData.FECHACADUCIDAD && <div className="text-xs text-blue-800">Caducidad: {formatFechaES(loteData.FECHACADUCIDAD)}</div>}
                   </div>
                 )}
               </div>
@@ -460,7 +461,7 @@ export default function ReubicacionLibre() {
                   >
                     <span className="font-bold text-lg">{op.NUMEROLOTE}</span>
                     <div className="flex justify-between text-sm mt-1 opacity-80">
-                      <span>{op.FECHACADUCIDAD ? `Cad: ${op.FECHACADUCIDAD}` : ''}</span>
+                      <span>{op.FECHACADUCIDAD ? `Cad: ${formatFechaES(op.FECHACADUCIDAD)}` : ''}</span>
                       <span>Disp: {op.STOCK}</span>
                     </div>
                   </button>

@@ -86,6 +86,11 @@ database.py
 Gestión del Pool: Se inicializa un pool único y compartido mediante oracledb.create_pool con parámetros de límites mínimos/máximos (ORACLE_MIN y ORACLE_MAX).
 Modo Thick: Habilitado mediante oracledb.init_oracle_client(lib_dir=client_path) apuntando a la ruta del Oracle Instant Client configurado.
 Seguridad: Todas las consultas SQL en los repositorios son parametrizadas (ej. WHERE IP = :ip_address) para prevenir inyecciones SQL.
+5. Motor y Protocolo de Búsqueda de Artículos (Parámetro 1690)
+El sistema soporta la resolución de artículos por **EAN**, **Código Interno** y **Descripción**. Además, mediante la activación dinámica del parámetro **1690** en `GSM.TSYS_PARAMETROSXAMBITO`, se habilita la búsqueda subordinada por **Código de Fabricante** (`CODREALFABRICANTE` en `GSM.TMST_ARTICULOS`).
+- Lógica insensible a mayúsculas/minúsculas (`UPPER()`).
+- Si varios artículos comparten el mismo código de fabricante, el motor presenta una lista de candidatos en un modal para selección manual del operario.
+- Ver detalles completos de arquitectura y uso en [busqueda_articulos_parametro_1690.md](file:///g:/Proyectos/SGA/docs/interno/busqueda_articulos_parametro_1690.md).
 ⚙️ Compromiso con las Reglas del Agente
 Para garantizar el cumplimiento riguroso de tus requerimientos y las directrices globales de desarrollo establecidas:
 

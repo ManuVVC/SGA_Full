@@ -1,7 +1,9 @@
+import logging
 import oracledb
+from contextlib import contextmanager
 from flask import current_app
 
-
+logger = logging.getLogger(__name__)
 db = None
 
 
@@ -55,6 +57,79 @@ class OracleDatabase:
             return AuditConnection(connection)
             
         return connection
+
+    @classmethod
+    @contextmanager
+    def get_cursor(cls, commit=False):
+        """Gestor de contexto que abre conexión y cursor, y los cierra automáticamente al finalizar."""
+        connection = None
+        cursor = None
+        try:
+            connection = cls.get_connection()
+            cursor = connection.cursor()
+            yield cursor
+            if commit:
+                connection.commit()
+        except Exception as e:
+            if connection and commit:
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+            raise e
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if connection:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    @classmethod
+    def execute_query(cls, sql, params=None, as_dict=True, fetch_all=True, **kwargs):
+        """Ejecuta una consulta SELECT y formatea automáticamente los resultados, liberando los recursos."""
+        with cls.get_cursor() as cursor:
+            if params is not None:
+                cursor.execute(sql, params)
+            elif kwargs:
+                cursor.execute(sql, **kwargs)
+            else:
+                cursor.execute(sql)
+
+            if not as_dict:
+                return cursor.fetchall() if fetch_all else cursor.fetchone()
+
+            columns = [col[0].upper() for col in cursor.description] if cursor.description else []
+            if fetch_all:
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            else:
+                row = cursor.fetchone()
+                return dict(zip(columns, row)) if row else None
+
+    @classmethod
+    def execute_non_query(cls, sql, params=None, commit=True, **kwargs):
+        """Ejecuta una consulta INSERT, UPDATE o DELETE con gestión automática de transacciones."""
+        with cls.get_cursor(commit=commit) as cursor:
+            if params is not None:
+                cursor.execute(sql, params)
+            elif kwargs:
+                cursor.execute(sql, **kwargs)
+            else:
+                cursor.execute(sql)
+            return cursor.rowcount
+
+    @classmethod
+    def call_procedure(cls, proc_name, parameters=None, commit=True):
+        """Ejecuta un procedimiento almacenado con gestión automática de conexión y transacción."""
+        with cls.get_cursor(commit=commit) as cursor:
+            if parameters is None:
+                return cursor.callproc(proc_name)
+            else:
+                return cursor.callproc(proc_name, parameters)
 
 
 db = OracleDatabase()

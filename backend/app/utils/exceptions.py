@@ -10,18 +10,14 @@ class InvalidPasswordError(Exception):
         self.message = message
         super().__init__(self.message)
 
-class ArticuloNotFoundError(Exception):
-    """Excepción cuando un artículo no existe en la base de datos."""
-    def __init__(self, message="El artículo no existe"):
-        self.message = message
-        super().__init__(self.message)
-
-
 class ArticuloNoEncontrado(Exception):
     """Excepción cuando un artículo no se encuentra en el maestro o no tiene stock."""
     def __init__(self, message="El artículo no existe o no tiene stock registrado"):
         self.message = message
         super().__init__(self.message)
+
+
+ArticuloNotFoundError = ArticuloNoEncontrado  # Alias unificado para evitar duplicidad de clases
 
 class EanNoEncontrado(Exception):
     """Excepción cuando un código de barras (EAN) no se encuentra en el sistema."""

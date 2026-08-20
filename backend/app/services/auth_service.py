@@ -100,3 +100,79 @@ class AuthService:
         except Exception:
             return False
 
+    @staticmethod
+    def login_web(username: str, password: str) -> dict:
+        """
+        Valida credenciales para el Backoffice Web usando el NOMBRE del operador en Oracle.
+        Soporta acceso desde PC aunque el terminal no esté en TMST_TERMINALES.
+        """
+        if not username:
+            raise UserNotFoundError("El nombre de usuario no puede estar vacío.")
+
+        # Obtener terminal por IP, o usar un terminal web genérico si se accede por navegador en PC
+        try:
+            terminal_info = TerminalService.validar_y_obtener_terminal(request)
+        except Exception:
+            terminal_info = {
+                "CODTERMINAL": "WEB-CONSOLE",
+                "DESCRIPCION": "Consola Backoffice Web SGA",
+                "BLOQUEADO": False,
+                "PRM_ES_PDA": 0
+            }
+
+        operador = AuthRepository.get_operador_por_nombre(username)
+        if not operador:
+            raise UserNotFoundError(f"El operador '{username}' no existe en la base de datos Oracle.")
+
+        stored_password = operador.get("PASSWORD")
+        if stored_password is not None:
+            if stored_password != password:
+                raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
+        else:
+            pass
+
+        try:
+            cod_terminal = terminal_info.get("CODTERMINAL")
+            cod_operador = str(operador["CODOPERADOR"])
+            if cod_terminal != "WEB-CONSOLE":
+                TerminalRepository.actualizar_ultimo_operario(cod_terminal, cod_operador)
+        except Exception as e:
+            logger.error(f"Aviso actualizando terminal web: {e}")
+
+        ahora = datetime.datetime.now(datetime.timezone.utc)
+        payload = {
+            "sub": str(operador["CODOPERADOR"]),
+            "nombre": operador["NOMBRE"],
+            "terminal": terminal_info.get("CODTERMINAL"),
+            "iat": ahora,
+            "exp": ahora + datetime.timedelta(hours=8)
+        }
+
+        secret_key = current_app.config.get("SECRET_KEY", "change-me")
+        token = jwt.encode(payload, secret_key, algorithm="HS256")
+
+        ip_address = (
+            request.headers.get('X-Terminal-IP', '').strip()
+            or request.headers.get('X-Real-IP', '').strip()
+            or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+            or request.remote_addr
+            or ""
+        )
+        if ip_address:
+            ip_address = ip_address.replace('::ffff:', '').strip()
+
+        from ..utils.session_manager import session_manager
+        cod_terminal = terminal_info.get("CODTERMINAL")
+        cod_operador = str(operador["CODOPERADOR"])
+        session_manager.register_session(token, cod_terminal, cod_operador, ip_address)
+
+        return {
+            "token": token,
+            "permisos": operador["permisos"],
+            "terminal": terminal_info,
+            "operador_nombre": operador["NOMBRE"],
+            "operador_codigo": cod_operador,
+            "session_timeout_minutes": current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+        }
+
+

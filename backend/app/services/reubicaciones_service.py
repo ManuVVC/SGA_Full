@@ -53,9 +53,12 @@ class ReubicacionesService:
     @staticmethod
     def validar_articulo(input_value: str, tipo_busqueda: str = "auto"):
         """
-        Resuelve el artículo basado en EAN, código interno o descripción.
-        tipo_busqueda: 'auto', 'ean', 'codigo', 'descripcion'
+        Resuelve el artículo basado en EAN, código interno, fabricante o descripción.
+        tipo_busqueda: 'auto', 'ean', 'codigo', 'fabricante', 'codrealfabricante', 'descripcion'
         """
+        from ..utils.parametros import is_parametro_activo
+        param_1690_activo = is_parametro_activo(1690)
+
         if tipo_busqueda in ("auto", "ean"):
             articulo = ReubicacionesRepository.get_articulo_por_ean(input_value)
             if articulo:
@@ -66,6 +69,18 @@ class ReubicacionesService:
             if articulo:
                 return {"status": "success", "articulo": articulo, "tipo": "codigo"}
                 
+        if param_1690_activo and tipo_busqueda in ("auto", "fabricante", "codrealfabricante"):
+            articulos = ReubicacionesRepository.get_articulo_por_cod_fabricante(input_value)
+            if articulos:
+                if len(articulos) == 1:
+                    return {"status": "success", "articulo": articulos[0], "tipo": "fabricante"}
+                else:
+                    return {
+                        "status": "multiples_resultados", 
+                        "message": "Se encontraron múltiples artículos con ese código de fabricante.",
+                        "articulos": articulos
+                    }
+
         if tipo_busqueda in ("auto", "descripcion"):
             articulos = ReubicacionesRepository.get_articulo_por_descripcion(input_value)
             if articulos:

@@ -98,3 +98,51 @@ def logout():
 
     return jsonify({"message": "Logout exitoso"}), 200
 
+
+@auth_bp.route("/login-web", methods=["POST"])
+def login_web():
+    """
+    Endpoint específico para autenticación desde el Backoffice Web SGA.
+    Autentica contra Oracle DB usando el NOMBRE de operario en vez del código numérico.
+    """
+    try:
+        data = request.get_json() or {}
+        username = data.get("nombre") or data.get("username")
+        password = data.get("password")
+
+        result = AuthService.login_web(username, password)
+
+        return jsonify({
+            "status": "success",
+            "message": "Autenticación web exitosa en Oracle DB",
+            "token": result["token"],
+            "permisos": result["permisos"],
+            "terminal": result["terminal"],
+            "operador_nombre": result["operador_nombre"],
+            "operador_codigo": result.get("operador_codigo"),
+            "session_timeout_minutes": result["session_timeout_minutes"]
+        }), 200
+
+    except UserNotFoundError as e:
+        return jsonify({
+            "status": "error",
+            "error": "Not Found",
+            "message": str(e)
+        }), 404
+
+    except InvalidPasswordError as e:
+        return jsonify({
+            "status": "error",
+            "error": "Unauthorized",
+            "message": str(e)
+        }), 401
+
+    except Exception as e:
+        logger.error(f"Error inesperado en endpoint de login-web: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "error": "Internal Server Error",
+            "message": "Error interno al autenticar en la base de datos."
+        }), 500
+
+

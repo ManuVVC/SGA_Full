@@ -34,7 +34,8 @@ class StockService:
             "articulo": {
                 "cod_articulo": articulo["CODARTICULO"],
                 "cod_articulo_aplicacion": articulo["CODARTICULOAPLICACION"],
-                "nombre": articulo["NOMBREARTICULO"]
+                "nombre": articulo["NOMBREARTICULO"],
+                "cod_real_fabricante": articulo.get("CODREALFABRICANTE")
             },
             "tiene_stock": tiene_stock,
             "stock_total": stock_total,
@@ -99,6 +100,7 @@ class StockService:
         resultado = {
             "articulo_comercial": articulo["CODARTICULOAPLICACION"],
             "nombre": articulo["NOMBREARTICULO"],
+            "cod_real_fabricante": articulo.get("CODREALFABRICANTE"),
             "ubicaciones": ubicaciones
         }
 
@@ -118,6 +120,7 @@ class StockService:
                 "cod_articulo": a["CODARTICULO"],
                 "cod_articulo_aplicacion": a["CODARTICULOAPLICACION"],
                 "nombre": a["NOMBREARTICULO"],
+                "cod_real_fabricante": a.get("CODREALFABRICANTE"),
                 "factor_conversion": a["FACTORCONVERSION"] if "FACTORCONVERSION" in a else a.get("FACTOR_EAN"),
                 "PRM_TRAZABILIDAD": a.get("PRM_TRAZABILIDAD", 0),
                 "GESTIONARCADUCIDAD": a.get("GESTIONARCADUCIDAD", 0),

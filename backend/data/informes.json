@@ -1,0 +1,8 @@
+[
+    {
+        "coddeffiltro": "110",
+        "id": "1786964121244",
+        "nombre": "Stock",
+        "sql": "SELECT CodArticuloAplicacion,\n       NombreArticulo,\n       SUM(Stock) Stock,\n       Sum(Cajas) Cajas,\n       FechaCaducidad\n  FROM VMST_UbicacionesArticulo\n WHERE  STOCKTOTAL >= 0\n  GROUP BY CodArticuloAplicacion, NombreArticulo, FechaCaducidad"
+    }
+]

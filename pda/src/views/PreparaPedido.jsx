@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   PackageCheck, AlertCircle, RefreshCw, ChevronRight, ChevronLeft,
   CheckCircle, Box, MapPin, Hash, AlertTriangle, X, List, ArrowRight,
-  ScanLine, Scale
+  ScanLine, Scale, Info
 } from 'lucide-react';
 import {
   obtenerDocumento, getCabeceraPedido, getPrimeraLinea,
@@ -13,6 +13,12 @@ import {
 } from '../api/preparacionService';
 import TerminalHeader from '../components/TerminalHeader';
 import ArticleSearchInput from '../components/ArticleSearchInput';
+import { formatFechaES } from '../utils/dateUtils';
+import Modal from '../components/Modal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import WizardBottomBar from '../components/WizardBottomBar';
+import { useLongPress } from '../hooks/useLongPress';
+import LineaUtilidadesModal from '../components/LineaUtilidadesModal';
 
 const FASE = {
   CARGANDO: 'CARGANDO',
@@ -57,6 +63,16 @@ const PreparaPedido = () => {
   const [unidadesYaPreparadas, setUnidadesYaPreparadas] = useState(0);
   const [tipoCodigoIntroducido, setTipoCodigoIntroducido] = useState(0);
   const [codFacturacion, setCodFacturacion] = useState(null);
+
+  // Estado modal utilidades (longpress en línea)
+  const [lineaParaUtilidades, setLineaParaUtilidades] = useState(null);
+  const [showUtilidadesModal, setShowUtilidadesModal] = useState(false);
+
+  const handleLongPressLinea = useCallback((linea) => {
+    if (!linea) return;
+    setLineaParaUtilidades(linea);
+    setShowUtilidadesModal(true);
+  }, []);
 
   const getStepNumber = (f) => {
     switch (f) {
@@ -432,94 +448,6 @@ const PreparaPedido = () => {
   };
 
 
-  // ─── INFO PANEL ───────────────────────────────────────────
-  const PanelInfo = () => {
-    if (!lineaActual) return null;
-
-    const pte = lineaActual.cantsolicitada - (lineaActual.cantpreparada || 0);
-    const pr = lineaActual.cantpreparada || 0;
-
-    // Cálculo de cajas
-    let cajasTxt = "";
-    const factor = lineaActual.factorconversiontipounidad;
-    if (factor && factor > 1) {
-      const numCajas = Math.floor(pte / factor);
-      cajasTxt = numCajas > 0 ? `${numCajas} CAJ(${factor})` : "";
-    }
-
-    return (
-      <div className="bg-white border-2 border-sga-primary border-opacity-20 rounded-lg p-3 shadow-sm flex flex-col gap-2 shrink-0 relative overflow-hidden">
-        {/* Borde izquierdo decorativo */}
-        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-sga-primary opacity-80"></div>
-
-        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-sga-primary opacity-80 rounded-l-lg"></div>
-
-        {/* ── Cabecera: Ubicación y Líneas Ptes ── */}
-        <div className="flex items-center justify-between mb-1 pl-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <MapPin size={16} className="text-sga-primary shrink-0" />
-            <span className="font-black text-sga-primary text-base truncate">
-              {lineaActual.nombreubicacion || lineaActual.codhueco || lineaActual.descripcion || lineaActual.codubicacion}
-            </span>
-            {ubicacionConfirmada && (
-              <CheckCircle size={14} className="text-sga-success shrink-0 ml-1" />
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-200 shadow-sm">
-              <List size={12} />
-              <span>{lineasPendientes.length} lineas pdtes.</span>
-            </div>
-
-          </div>
-        </div>
-
-        {/* ── Artículo ── */}
-        <div className="flex items-start gap-2 pl-2">
-          <Box size={18} className="text-gray-400 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-gray-800 text-sm leading-tight">
-              {lineaActual.nombrearticulo}
-            </div>
-            <div className="text-xs text-gray-500 mt-0.5 font-mono">
-              Ref: {lineaActual.codarticuloaplicacion || lineaActual.codarticulo}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Observaciones ── */}
-        {lineaActual.observaciones && (
-          <div className="ml-2 mt-1 bg-orange-50 text-orange-800 text-xs px-2 py-1.5 rounded border border-orange-200 flex gap-1.5 items-start">
-            <AlertTriangle size={14} className="shrink-0 mt-0.5 text-orange-500" />
-            <span className="font-medium leading-tight">{lineaActual.observaciones}</span>
-          </div>
-        )}
-
-        {/* ── Cantidades ── */}
-        <div className="mt-1 flex items-center justify-between bg-gray-50 rounded-md p-2 border border-gray-200 pl-3 ml-1 mr-1">
-          <div className="flex gap-5">
-            <div className="flex flex-col">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">SOLICITADO:</span>
-              <span className="text-xl font-black text-sga-primary leading-none">{pte}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">PREPARADO: </span>
-              <span className="text-xl font-black text-gray-400 leading-none">{pr}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-end justify-center">
-            {cajasTxt && (
-              <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded border border-green-200 shadow-sm">
-                {cajasTxt}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col h-full bg-sga-light">
       <TerminalHeader title="PREPARA PEDIDO" />
@@ -562,10 +490,14 @@ const PreparaPedido = () => {
       {/* ── PANEL DE INFO GLOBAL ── */}
       {getStepNumber(fase) >= 1 && (
         <div className="px-2 pt-2 shrink-0">
-          <PanelInfo />
+          <PanelInfoCard
+            lineaActual={lineaActual}
+            ubicacionConfirmada={ubicacionConfirmada}
+            lineasPendientes={lineasPendientes}
+            onLongPress={handleLongPressLinea}
+          />
         </div>
       )}
-
       <div className="p-2 flex-1 flex flex-col overflow-y-auto overflow-x-hidden gap-3">
         {error && (
           <div className="shrink-0 bg-red-100 border border-red-400 text-red-700 p-2 rounded flex items-start gap-2 text-sm shadow-sm">
@@ -716,7 +648,7 @@ const PreparaPedido = () => {
                         className="border border-gray-200 rounded p-3 flex justify-between items-center active:bg-orange-50 cursor-pointer shadow-sm">
                         <div>
                           {(lote.numerolote || lote.codnumerolote) && <div className="font-bold text-gray-800">Lote: {lote.numerolote || lote.codnumerolote}</div>}
-                          {lote.fechacaducidad && <div className="text-sm text-orange-600">Cad: {lote.fechacaducidad}</div>}
+                          {lote.fechacaducidad && <div className="text-sm text-orange-600">Cad: {formatFechaES(lote.fechacaducidad)}</div>}
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-gray-500">Stock</div>
@@ -727,7 +659,7 @@ const PreparaPedido = () => {
                   </ul>
                 ) : (
                   <div className="text-lg font-bold text-sga-dark">
-                    {loteSeleccionado ? `${loteSeleccionado.numerolote || loteSeleccionado.codnumerolote || ''}` : ''}
+                    {loteSeleccionado ? `${loteSeleccionado.numerolote || loteSeleccionado.codnumerolote || ''}${loteSeleccionado.fechacaducidad ? ' (Cad: ' + formatFechaES(loteSeleccionado.fechacaducidad) + ')' : ''}` : ''}
                   </div>
                 )}
               </div>
@@ -838,16 +770,13 @@ const PreparaPedido = () => {
                 const stock = lin.stocktotal || 0;
                 const outOfStock = stock <= 0;
                 return (
-                  <li key={lin.numlinea} onClick={() => { if (!outOfStock) seleccionarLinea(lin); }} className={`border rounded p-2 text-sm shadow-sm transition-colors ${outOfStock ? 'bg-red-50 border-red-200' : 'active:bg-gray-50 cursor-pointer'}`}>
-                    <div className="font-bold truncate">{lin.nombrearticulo}</div>
-                    <div className="flex justify-between text-gray-500 text-xs mt-1">
-                      <span>Ref: {lin.codarticuloaplicacion}</span>
-                      <div className="flex gap-3">
-                        <span className={`font-bold ${outOfStock ? 'text-red-500' : 'text-blue-500'}`}>Stock Total: {stock}</span>
-                        <span className="font-bold text-sga-success">Pte: {lin.cantsolicitada - (lin.cantpreparada || 0)}</span>
-                      </div>
-                    </div>
-                  </li>
+                  <LineaPendienteRow
+                    key={lin.numlinea}
+                    lin={lin}
+                    outOfStock={outOfStock}
+                    onSelect={seleccionarLinea}
+                    onLongPress={handleLongPressLinea}
+                  />
                 );
               })}
             </ul>
@@ -871,103 +800,237 @@ const PreparaPedido = () => {
         fase === FASE.CONFIRMAR_ARTICULO ||
         fase === FASE.SELECCIONAR_LOTE ||
         fase === FASE.INTRODUCIR_CANTIDAD) && (
-          <div className="bg-white border-t p-2 grid grid-cols-3 gap-2 shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-            <button onClick={() => navegarLinea(1)} disabled={loading} className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded shadow-sm flex flex-col items-center justify-center transition-colors">
-              <ChevronLeft size={24} className="text-sga-primary mb-1" />
-              <span className="text-xs uppercase tracking-wide">ANT</span>
-            </button>
-            <button onClick={() => setFase(FASE.VER_LINEAS)} disabled={loading} className="bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold py-3 rounded shadow-sm flex flex-col items-center justify-center transition-colors">
-              <List size={24} className="text-blue-600 mb-1" />
-              <span className="text-xs uppercase tracking-wide">Líneas</span>
-            </button>
-            <button onClick={() => navegarLinea(0)} disabled={loading} className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded shadow-sm flex flex-col items-center justify-center transition-colors">
-              <ChevronRight size={24} className="text-sga-primary mb-1" />
-              <span className="text-xs uppercase tracking-wide">SIG</span>
-            </button>
-          </div>
+          <WizardBottomBar
+            items={[
+              {
+                label: 'ANT',
+                icon: <ChevronLeft size={24} />,
+                onClick: () => navegarLinea(1),
+                disabled: loading,
+                variant: 'default',
+              },
+              {
+                label: 'Líneas',
+                icon: <List size={24} />,
+                onClick: () => setFase(FASE.VER_LINEAS),
+                disabled: loading,
+                variant: 'info',
+              },
+              {
+                label: 'SIG',
+                icon: <ChevronRight size={24} />,
+                onClick: () => navegarLinea(0),
+                disabled: loading,
+                variant: 'default',
+              },
+            ]}
+          />
         )}
 
       {/* Modal Múltiples Posiciones (Para Confirmar Ubicación) */}
-      {showPosicionModal && (
-        <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="bg-sga-primary text-white p-4 font-bold text-lg flex items-center gap-2">
-              <MapPin />
-              Selecciona Posición
-            </div>
-            <div className="p-4 overflow-y-auto flex flex-col gap-2">
-              <p className="text-sm text-gray-600 mb-2 text-center">
-                Múltiples posiciones para esta etiqueta.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {posicionesDisponibles.map((posObj, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleConfirmarUbicacion(posObj.POSICION)}
-                    className="w-full py-4 px-4 bg-gray-50 border-2 border-gray-300 rounded text-center font-bold text-xl text-sga-dark hover:bg-sga-primary hover:text-white hover:border-sga-primary transition-colors"
-                  >
-                    Pos {posObj.POSICION}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="p-4 border-t bg-gray-50">
-              <button
-                onClick={() => setShowPosicionModal(false)}
-                className="w-full py-3 bg-gray-400 text-white rounded font-bold shadow hover:bg-gray-500 transition-colors"
-              >
-                CANCELAR
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showPosicionModal}
+        onClose={() => setShowPosicionModal(false)}
+        title="Selecciona Posición"
+        icon={<MapPin />}
+        headerClassName="bg-sga-primary text-white"
+        showCloseButton={false}
+        footer={(
+          <button
+            onClick={() => setShowPosicionModal(false)}
+            className="w-full py-3 bg-gray-400 text-white rounded font-bold shadow hover:bg-gray-500 transition-colors"
+          >
+            CANCELAR
+          </button>
+        )}
+      >
+        <p className="text-sm text-gray-600 mb-2 text-center">
+          Múltiples posiciones para esta etiqueta.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {posicionesDisponibles.map((posObj, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleConfirmarUbicacion(posObj.POSICION)}
+              className="w-full py-4 px-4 bg-gray-50 border-2 border-gray-300 rounded text-center font-bold text-xl text-sga-dark hover:bg-sga-primary hover:text-white hover:border-sga-primary transition-colors"
+            >
+              Pos {posObj.POSICION}
+            </button>
+          ))}
         </div>
-      )}
+      </Modal>
 
       {/* Modal de Salida (Exit) */}
-      {showExitModal && (
-        <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
-            <div className="bg-brand-red text-white p-4 font-bold text-lg flex items-center gap-2">
-              <AlertTriangle />
-              Atención
-            </div>
-            <div className="p-5 flex flex-col gap-3 text-center">
-              <p className="text-gray-800 text-lg font-bold">
-                ¿Seguro que quieres salir?
-              </p>
-              {lineasPendientes.length > 0 && (
-                <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-md">
-                  <p className="font-bold mb-1 flex items-center justify-center gap-1">
-                    <List size={16} /> Faltan líneas
-                  </p>
-                  <p className="text-sm">
-                    Aún quedan <strong>{lineasPendientes.length}</strong> líneas pendientes de preparar en este pedido.
-                  </p>
-                </div>
-              )}
-              <p className="text-sm text-gray-500 mt-1">
-                Podrás retomar la preparación de este pedido más adelante.
-              </p>
-            </div>
-            <div className="p-4 border-t bg-gray-50 flex gap-2">
-              <button
-                onClick={() => setShowExitModal(false)}
-                className="flex-1 py-3 bg-gray-400 text-white rounded font-bold shadow hover:bg-gray-500 transition-colors"
-              >
-                CONTINUAR
-              </button>
-              <button
-                onClick={() => navigate('/prepara')}
-                className="flex-1 py-3 bg-brand-red text-white rounded font-bold shadow hover:bg-red-700 transition-colors flex items-center justify-center gap-1"
-              >
-                <X size={18} /> SALIR
-              </button>
-            </div>
+      <ConfirmDialog
+        isOpen={showExitModal}
+        onCancel={() => setShowExitModal(false)}
+        onConfirm={() => navigate('/prepara')}
+        title="Atención"
+        icon={<AlertTriangle />}
+        message="¿Seguro que quieres salir?"
+        cancelText="CONTINUAR"
+        confirmText="SALIR"
+      >
+        {lineasPendientes.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-md">
+            <p className="font-bold mb-1 flex items-center justify-center gap-1">
+              <List size={16} /> Faltan líneas
+            </p>
+            <p className="text-sm">
+              Aún quedan <strong>{lineasPendientes.length}</strong> líneas pendientes de preparar en este pedido.
+            </p>
           </div>
-        </div>
-      )}
+        )}
+        <p className="text-sm text-gray-500 mt-1">
+          Podrás retomar la preparación de este pedido más adelante.
+        </p>
+      </ConfirmDialog>
+
+      {/* Modal de Utilidades de Línea (Longpress) */}
+      <LineaUtilidadesModal
+        isOpen={showUtilidadesModal}
+        onClose={() => setShowUtilidadesModal(false)}
+        linea={lineaParaUtilidades}
+      />
     </div>
   );
 };
+
+// ─── COMPONENTES AUXILIARES CON SOPORTE LONGPRESS ───────────────────────────
+
+function PanelInfoCard({ lineaActual, ubicacionConfirmada, lineasPendientes, onLongPress }) {
+  const longPressProps = useLongPress(() => onLongPress(lineaActual), null, { delay: 500 });
+  if (!lineaActual) return null;
+
+  const pte = lineaActual.cantsolicitada - (lineaActual.cantpreparada || 0);
+  const pr = lineaActual.cantpreparada || 0;
+
+  // Cálculo de cajas
+  let cajasTxt = "";
+  const factor = lineaActual.factorconversiontipounidad;
+  if (factor && factor > 1) {
+    const numCajas = Math.floor(pte / factor);
+    cajasTxt = numCajas > 0 ? `${numCajas} CAJ(${factor})` : "";
+  }
+
+  return (
+    <div
+      {...longPressProps}
+      className="bg-white border-2 border-sga-primary border-opacity-20 rounded-lg p-3 shadow-sm flex flex-col gap-2 shrink-0 relative overflow-hidden select-none active:bg-blue-50/40 transition-colors cursor-pointer"
+      title="💡 Mantén pulsada esta tarjeta para consultar utilidades de stock y ubicación"
+    >
+      {/* Borde izquierdo decorativo */}
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-sga-primary opacity-80 rounded-l-lg"></div>
+
+      {/* ── Cabecera: Ubicación y Líneas Ptes ── */}
+      <div className="flex items-center justify-between mb-1 pl-2">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <MapPin size={16} className="text-sga-primary shrink-0" />
+          <span className="font-black text-sga-primary text-base truncate">
+            {lineaActual.nombreubicacion || lineaActual.codhueco || lineaActual.descripcion || lineaActual.codubicacion}
+          </span>
+          {ubicacionConfirmada && (
+            <CheckCircle size={14} className="text-sga-success shrink-0 ml-1" />
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-200 shadow-sm">
+            <List size={12} />
+            <span>{lineasPendientes.length} lineas pdtes.</span>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onLongPress(lineaActual);
+            }}
+            className="bg-gray-100 hover:bg-sga-primary text-gray-500 hover:text-white p-1 rounded-full transition-colors shadow-sm"
+            title="Utilidades de la línea"
+          >
+            <Info size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Artículo ── */}
+      <div className="flex items-start gap-2 pl-2">
+        <Box size={18} className="text-gray-400 mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-gray-800 text-sm leading-tight">
+            {lineaActual.nombrearticulo}
+          </div>
+          <div className="text-xs text-gray-500 mt-0.5 font-mono">
+            Ref: {lineaActual.codarticuloaplicacion || lineaActual.codarticulo}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Observaciones ── */}
+      {lineaActual.observaciones && (
+        <div className="ml-2 mt-1 bg-orange-50 text-orange-800 text-xs px-2 py-1.5 rounded border border-orange-200 flex gap-1.5 items-start">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5 text-orange-500" />
+          <span className="font-medium leading-tight">{lineaActual.observaciones}</span>
+        </div>
+      )}
+
+      {/* ── Cantidades ── */}
+      <div className="mt-1 flex items-center justify-between bg-gray-50 rounded-md p-2 border border-gray-200 pl-3 ml-1 mr-1">
+        <div className="flex gap-5">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">SOLICITADO:</span>
+            <span className="text-xl font-black text-sga-primary leading-none">{pte}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">PREPARADO: </span>
+            <span className="text-xl font-black text-gray-400 leading-none">{pr}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end justify-center">
+          {cajasTxt && (
+            <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded border border-green-200 shadow-sm">
+              {cajasTxt}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LineaPendienteRow({ lin, outOfStock, onSelect, onLongPress }) {
+  const longPressProps = useLongPress(() => onLongPress(lin), outOfStock ? null : () => onSelect(lin), { delay: 500 });
+  const stock = lin.stocktotal || 0;
+  return (
+    <li
+      {...longPressProps}
+      className={`border rounded p-2.5 text-sm shadow-sm transition-colors select-none ${
+        outOfStock ? 'bg-red-50 border-red-200' : 'active:bg-blue-50/60 hover:border-blue-300 cursor-pointer'
+      }`}
+    >
+      <div className="flex justify-between items-start gap-2">
+        <div className="font-bold truncate text-gray-800 flex-1">{lin.nombrearticulo}</div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onLongPress(lin);
+          }}
+          className="text-gray-400 hover:text-sga-primary p-0.5 rounded transition-colors shrink-0"
+          title="Ver utilidades"
+        >
+          <Info size={16} />
+        </button>
+      </div>
+      <div className="flex justify-between items-center text-gray-500 text-xs mt-1 font-mono">
+        <span>Ref: <strong className="text-gray-700">{lin.codarticuloaplicacion}</strong></span>
+        <div className="flex gap-3">
+          <span className={`font-bold ${outOfStock ? 'text-red-500' : 'text-blue-600'}`}>Stock Total: {stock}</span>
+          <span className="font-bold text-sga-success">Pte: {lin.cantsolicitada - (lin.cantpreparada || 0)}</span>
+        </div>
+      </div>
+    </li>
+  );
+}
 
 export default PreparaPedido;

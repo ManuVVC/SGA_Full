@@ -24,6 +24,7 @@ import AparcarPedido from './views/AparcarPedido';
 import RecuperarAparcado from './views/RecuperarAparcado';
 import FinalizarPedido from './views/FinalizarPedido';
 import PreparaPedido from './views/PreparaPedido';
+import PedidoDirecto from './views/PedidoDirecto';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function PrivateRoute({ children }) {
@@ -119,6 +120,7 @@ function App() {
                 {/* Submenús */}
                 <Route path="/prepara" element={<PrivateRoute><SubMenuPrepara /></PrivateRoute>} />
                 <Route path="/prepara/pedido" element={<PrivateRoute><PreparaPedido /></PrivateRoute>} />
+                <Route path="/prepara/directo" element={<PrivateRoute><PedidoDirecto /></PrivateRoute>} />
                 <Route path="/prepara/aparcar" element={<PrivateRoute><AparcarPedido /></PrivateRoute>} />
                 <Route path="/prepara/recuperar" element={<PrivateRoute><RecuperarAparcado /></PrivateRoute>} />
                 <Route path="/prepara/finalizar" element={<PrivateRoute><FinalizarPedido /></PrivateRoute>} />

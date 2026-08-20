@@ -76,3 +76,20 @@ def update_ean(ean):
     except Exception as e:
         logger.error(f"Error en PUT /api/utilidades/ean/{ean}: {e}", exc_info=True)
         return jsonify({"status": "error", "message": "Error al actualizar el EAN"}), 500
+
+@utilidades_bp.route("/parametro/<int:cod_parametro>", methods=["GET"])
+@token_required
+def get_parametro_route(cod_parametro):
+    try:
+        from ..utils.parametros import is_parametro_activo, get_parametro
+        val = get_parametro(cod_parametro)
+        activo = is_parametro_activo(cod_parametro)
+        return jsonify({
+            "status": "success",
+            "cod_parametro": cod_parametro,
+            "valor": val,
+            "activo": activo
+        }), 200
+    except Exception as e:
+        logger.error(f"Error en GET /api/utilidades/parametro/{cod_parametro}: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "Error al obtener el parámetro"}), 500

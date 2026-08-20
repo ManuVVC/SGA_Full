@@ -8,6 +8,7 @@ import { useLongPress } from '../hooks/useLongPress';
 import { usePermissions } from '../hooks/usePermissions';
 import { validarUbicacion } from '../api/reubicacionesService';
 import apiService from '../api/apiService';
+import { formatFechaES } from '../utils/dateUtils';
 
 export default function InfoUbicacion() {
   const navigate = useNavigate();
@@ -460,7 +461,7 @@ function StockRow({ item, onLongPress }) {
         {item.fecha_caducidad && (
           <div className="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded text-gray-700 border border-gray-200">
             <span className="text-gray-400">Caducidad:</span>
-            <span className="text-brand-dark">{item.fecha_caducidad}</span>
+            <span className="text-brand-dark">{formatFechaES(item.fecha_caducidad)}</span>
           </div>
         )}
       </div>

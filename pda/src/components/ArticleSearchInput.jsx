@@ -11,9 +11,24 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [results, setResults] = useState([]);
+  const [param1690Active, setParam1690Active] = useState(false);
   
   const { isKeyboardOpen } = useKeyboard();
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    const fetchParam = async () => {
+      try {
+        const res = await apiService.get('/utilidades/parametro/1690');
+        if (res.data && res.data.activo) {
+          setParam1690Active(true);
+        }
+      } catch (err) {
+        console.error('Error al consultar parámetro 1690:', err);
+      }
+    };
+    fetchParam();
+  }, []);
 
   useEffect(() => {
     if (autoFocus && inputRef.current && !disabled) {
@@ -73,6 +88,7 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
       CODARTICULO: item.cod_articulo,
       CODARTICULOAPLICACION: item.cod_articulo_aplicacion,
       NOMBREARTICULO: item.nombre,
+      CODREALFABRICANTE: item.cod_real_fabricante,
       UNIDADES: item.factor_conversion || 1,
       PRM_TRAZABILIDAD: item.PRM_TRAZABILIDAD,
       GESTIONARCADUCIDAD: item.GESTIONARCADUCIDAD,
@@ -87,11 +103,11 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
   return (
     <div className="w-full">
       <form onSubmit={handleSearch} className="flex flex-col gap-3">
-        <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} />
+        <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} param1690Active={param1690Active} />
         <input
           ref={inputRef}
           type="text"
-          inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' ? 'text' : 'numeric') : 'none'}
+          inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
           className="w-full p-4 border-2 border-sga-primary rounded text-center text-xl font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all uppercase"
           placeholder="Escanear artículo..."
           value={query}
@@ -128,6 +144,7 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
                   >
                     <span className="font-bold text-lg">{item.cod_articulo_aplicacion}</span>
                     <span className="text-sm truncate">{item.nombre}</span>
+                    {item.cod_real_fabricante && <span className="text-xs text-gray-500 font-normal">Fabr: {item.cod_real_fabricante}</span>}
                   </button>
                 ))}
               </div>

@@ -70,3 +70,62 @@ class AuthRepository:
                     connection.close()  # Devuelve la conexión al pool
                 except Exception:
                     pass
+
+    @staticmethod
+    def get_operador_por_nombre(nombre: str) -> dict or None:
+        """
+        Consulta un operador en la tabla GSM.TMST_OPERADORES por su NOMBRE (para login web alfanumérico).
+        """
+        if not nombre:
+            return None
+
+        connection = None
+        cursor = None
+        try:
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
+
+            query = "SELECT * FROM GSM.TMST_OPERADORES WHERE UPPER(TRIM(NOMBRE)) = UPPER(TRIM(:nombre))"
+            cursor.execute(query, nombre=nombre)
+            
+            row = cursor.fetchone()
+            if not row:
+                logger.info(f"Operador web con nombre '{nombre}' no encontrado en Oracle.")
+                return None
+
+            columns = [col[0].upper() for col in cursor.description]
+            row_dict = dict(zip(columns, row))
+
+            permisos = {}
+            for col_name, value in row_dict.items():
+                if col_name.startswith("PRM_"):
+                    permisos[col_name] = bool(value) if value is not None else False
+
+            operador = {
+                "CODOPERADOR": row_dict.get("CODOPERADOR"),
+                "NOMBRE": row_dict.get("NOMBRE"),
+                "PASSWORD": row_dict.get("PASSWORD"),
+                "CODGRUPOOPERADOR": row_dict.get("CODGRUPOOPERADOR"),
+                "CODUSUARIOPERFIL": row_dict.get("CODUSUARIOPERFIL"),
+                "permisos": permisos
+            }
+
+            logger.info(f"Operador web '{nombre}' cargado con éxito con {len(permisos)} permisos.")
+            return operador
+
+        except Exception as e:
+            logger.error(f"Error al obtener operador web '{nombre}': {e}", exc_info=True)
+            raise e
+
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if connection:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+

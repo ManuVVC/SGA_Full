@@ -1,67 +1,54 @@
-import apiClient from './apiService';
+import { fetchData, mutateData } from './apiService';
 
 export const getParametros = async () => {
-  const response = await apiClient.get('/entradas/parametros');
-  return response.data;
+  return fetchData('/entradas/parametros', {}, 'Error al obtener parámetros de entrada');
 };
 
 export const getMuelles = async () => {
-  const response = await apiClient.get('/entradas/muelles');
-  return response.data;
+  return fetchData('/entradas/muelles', {}, 'Error al obtener lista de muelles');
 };
 
 export const getAlbaranesEnCurso = async (codmuelle) => {
-  const response = await apiClient.get(`/entradas/albaranes-en-curso?codmuelle=${codmuelle}`);
-  return response.data;
+  return fetchData(`/entradas/albaranes-en-curso?codmuelle=${codmuelle}`, {}, 'Error al obtener albaranes en curso');
 };
 
 export const getProveedoresPendientes = async () => {
-  const response = await apiClient.get('/entradas/proveedores-pendientes');
-  return response.data;
+  return fetchData('/entradas/proveedores-pendientes', {}, 'Error al obtener proveedores pendientes');
 };
 
 export const getTodosProveedores = async () => {
-  const response = await apiClient.get('/entradas/proveedores');
-  return response.data;
+  return fetchData('/entradas/proveedores', {}, 'Error al obtener lista de proveedores');
 };
 
 export const getPedidosPendientes = async (codproveedor) => {
-  const response = await apiClient.get(`/entradas/pedidos-pendientes?codproveedor=${codproveedor}`);
-  return response.data;
+  return fetchData(`/entradas/pedidos-pendientes?codproveedor=${codproveedor}`, {}, 'Error al obtener pedidos pendientes');
 };
 
 export const crearAlbaran = async (payload) => {
-  const response = await apiClient.post('/entradas/crear-albaran', payload);
-  return response.data;
+  return mutateData('post', '/entradas/crear-albaran', payload, {}, 'Error al crear albarán');
 };
 
 export const grabarLineaEntrada = async (payload) => {
-  const response = await apiClient.post('/entradas/grabar-linea', payload);
-  return response.data;
+  return mutateData('post', '/entradas/grabar-linea', payload, {}, 'Error al grabar línea de entrada');
 };
 
 export const finalizarEntrada = async (coddocumento) => {
-  const response = await apiClient.post('/entradas/finalizar', { CODDOCUMENTO: coddocumento });
-  return response.data;
+  return mutateData('post', '/entradas/finalizar', { CODDOCUMENTO: coddocumento }, {}, 'Error al finalizar entrada');
 };
 
 export const getLineasGrabadas = async (coddocumento) => {
-  const response = await apiClient.get(`/entradas/lineas-grabadas/${coddocumento}`);
-  return response.data;
+  return fetchData(`/entradas/lineas-grabadas/${coddocumento}`, {}, 'Error al obtener líneas grabadas');
 };
 
 export const getDetalleLinea = async (codlineadocumentoproveedor) => {
-  const response = await apiClient.get(`/entradas/detalle-linea/${codlineadocumentoproveedor}`);
-  return response.data;
+  return fetchData(`/entradas/detalle-linea/${codlineadocumentoproveedor}`, {}, 'Error al obtener detalle de línea');
 };
 
 export const getLineasPendientes = async (coddocumento_albaran) => {
   const t = new Date().getTime();
-  const response = await apiClient.get(`/entradas/lineas-pendientes/${coddocumento_albaran}?t=${t}`);
-  return response.data;
+  return fetchData(`/entradas/lineas-pendientes/${coddocumento_albaran}?t=${t}`, {}, 'Error al obtener líneas pendientes');
 };
 
 export const getArticuloInfoEan = async (ean) => {
-  const response = await apiClient.get(`/entradas/articulo-info/${ean}`);
-  return response.data;
+  return fetchData(`/entradas/articulo-info/${ean}`, {}, 'Error al obtener información de artículo por EAN');
 };

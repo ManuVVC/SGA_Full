@@ -1,36 +1,29 @@
-import apiClient from './apiService';
+import { fetchData, mutateData } from './apiService';
 
 export const getClientes = async (filtro) => {
-  const response = await apiClient.get(`/devoluciones/clientes?filtro=${encodeURIComponent(filtro)}`);
-  return response.data;
+  return fetchData(`/devoluciones/clientes?filtro=${encodeURIComponent(filtro)}`, {}, 'Error al obtener clientes para devolución');
 };
 
 export const getParametros = async () => {
-  const response = await apiClient.get('/devoluciones/parametros');
-  return response.data;
+  return fetchData('/devoluciones/parametros', {}, 'Error al obtener parámetros de devolución');
 };
 
 export const crearCabecera = async (payload) => {
-  const response = await apiClient.post('/devoluciones/cabecera', payload);
-  return response.data;
+  return mutateData('post', '/devoluciones/cabecera', payload, {}, 'Error al crear cabecera de devolución');
 };
 
 export const grabarLineaDevolucion = async (payload) => {
-  const response = await apiClient.post('/devoluciones/linea', payload);
-  return response.data;
+  return mutateData('post', '/devoluciones/linea', payload, {}, 'Error al grabar línea de devolución');
 };
 
 export const getDevolucionEnCurso = async () => {
-  const response = await apiClient.get('/devoluciones/en-curso');
-  return response.data;
+  return fetchData('/devoluciones/en-curso', {}, 'Error al obtener devolución en curso');
 };
 
 export const getLineasDevolucion = async (codDocumento) => {
-  const response = await apiClient.get(`/devoluciones/lineas/${codDocumento}`);
-  return response.data;
+  return fetchData(`/devoluciones/lineas/${codDocumento}`, {}, 'Error al obtener líneas de la devolución');
 };
 
 export const finalizarDevolucion = async (codDocumento) => {
-  const response = await apiClient.post('/devoluciones/finalizar', { CODDOCUMENTO: codDocumento });
-  return response.data;
+  return mutateData('post', '/devoluciones/finalizar', { CODDOCUMENTO: codDocumento }, {}, 'Error al finalizar devolución');
 };

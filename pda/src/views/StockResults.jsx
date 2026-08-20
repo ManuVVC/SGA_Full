@@ -5,6 +5,7 @@ import TerminalHeader from '../components/TerminalHeader';
 import ActionMenu from '../components/ActionMenu';
 import { useLongPress } from '../hooks/useLongPress';
 import apiService from '../api/apiService';
+import { formatFechaES } from '../utils/dateUtils';
 
 export default function StockResults() {
   const location = useLocation();
@@ -92,6 +93,7 @@ export default function StockResults() {
             <span className="text-xl font-black text-sga-dark mt-1">
               {article.nombre}
             </span>
+            {article.cod_real_fabricante && <span className="text-xs text-gray-500 mt-1 font-normal">Fabr: {article.cod_real_fabricante}</span>}
           </button>
         ))
       )}
@@ -198,12 +200,17 @@ export default function StockResults() {
           <div className="flex flex-col gap-4">
             {/* Cabecera del Artículo */}
             <div className="bg-white p-4 rounded-lg shadow border-b-4 border-sga-primary shrink-0">
-              <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide">
+              <h2 className="text-xl text-center  font-bold text-sga-dark uppercase tracking-wide">
                 {selectedArticle.cod_articulo_aplicacion || selectedArticle.articulo_comercial}
               </h2>
-              <h3 className="text-xl font-black text-sga-dark leading-tight mt-1">
+              <h3 className="text-xl text-center  font-black text-sga-dark leading-tight mt-1">
                 {selectedArticle.nombre}
               </h3>
+              {selectedArticle.cod_real_fabricante && (
+                <span className="block text-center text-sm text-gray-500 mt-1">
+                  Fabr: {selectedArticle.cod_real_fabricante}
+                </span>
+              )}
             </div>
 
             {/* Dos opciones de consulta */}
@@ -264,8 +271,8 @@ function UbicacionRow({ ubi, onLongPress }) {
       <div>
         <span className="block text-3xl font-black text-sga-dark">{ubi.etiqueta}</span>
         <span className="block text-sm text-gray-500 font-semibold mt-1">
-          Lote: {ubi.lote || '-'} | {ubi.cod_ubicacion}
-          {ubi.fecha_caducidad && <span> | Cad: {ubi.fecha_caducidad}</span>}
+          {ubi.cod_ubicacion} | Lote: {ubi.lote || '-'}
+          {ubi.fecha_caducidad && <span> | Cad: {formatFechaES(ubi.fecha_caducidad)}</span>}
         </span>
       </div>
       <div className="text-right flex flex-col items-end">
