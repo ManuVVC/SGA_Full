@@ -752,6 +752,7 @@ export default function EntradaMercancia() {
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">EAN / Artículo</label>
                   <ArticleSearchInput 
+                    mode="full"
                     onArticleSelected={(article) => {
                       if (article.FECHADESCATALOGACION) {
                         const param1753 = parametros['1753'] || '0';
@@ -767,6 +768,12 @@ export default function EntradaMercancia() {
                       setArticuloInfo(article);
                       setEan(article.CODARTICULOAPLICACION);
                       setTimeout(() => unidadesRef.current?.focus(), 100);
+                    }}
+                    onGs1Parsed={({ lote, caducidad }) => {
+                      // Autorrellenar lote y caducidad desde GS1-128
+                      // Solo si el campo está vacío (respeta lo que el operario haya tecleado)
+                      if (lote) setLote(prev => prev || lote);
+                      if (caducidad) setCaducidad(prev => prev || caducidad);
                     }}
                     autoFocus
                     disabled={loading}

@@ -188,37 +188,67 @@ class PreparacionRepository:
             raise Exception(f"Error al obtener stock por lotes: {str(e)}")
 
     @staticmethod
-    def get_lineas_pendientes(cod_documento: int) -> list:
+    def get_lineas_pendientes(cod_documento: int, cod_terminal: str = None) -> list:
         """
         Devuelve todas las líneas pendientes del documento (cantsolicitada > cantpreparada + cantanulada)
-        con info de trazabilidad/caducidad del artículo, para mostrar la lista de selección.
+        con info de trazabilidad/caducidad e INFORMACIÓN DE UBICACIÓN del artículo.
+        La ubicación se obtiene de VMST_UBICACIONESARTICULO unida a TMST_ORDENRECORRIDO 
+        con el recorrido del terminal, priorizando la fecha de caducidad.
         """
         try:
             with OracleDatabase.get_cursor() as cursor:
-                cursor.execute("""
+                query = """
                     SELECT L.NUMLINEA,
                            L.CODARTICULO,
                            A.CODARTICULOAPLICACION,
                            L.NOMBREARTICULO,
                            A.DESCRIPCIONSECUNDARIA,
                            L.CANTSOLICITADA,
-                           NVL(L.CANTPREPARADA, 0)   AS CANTPREPARADA,
-                           NVL(L.CANTANULADA, 0)      AS CANTANULADA,
+                           NVL(L.CANTPREPARADA, 0)    AS CANTPREPARADA,
+                           NVL(L.CANTANULADA, 0)       AS CANTANULADA,
                            L.OBSERVACIONES,
                            A.PRM_TRAZABILIDAD,
                            A.GESTIONARCADUCIDAD,
                            A.MARGENCADUCIDAD,
+                           A.DIASLIMITEFECHACADUCIDAD,
                            L.CODDATOMAESTROORIGEN,
                            L.CODTIPODATOMAESTROORIGEN,
-                           NVL(V.STOCKTOTAL, 0)      AS STOCKTOTAL
+                           NVL(V.STOCKTOTAL, 0)       AS STOCKTOTAL,
+                           REC.CODUBICACION           AS CODUBICACION,
+                           UREC.CODHUECO              AS CODHUECO,
+                           UREC.NOMBRECORTO           AS NOMBREUBICACION,
+                           NVL(TUA.FACTORCONVERSION, 1) AS FACTORCONVERSIONTIPOUNIDAD,
+                           L.CODTIPOUNIDAD,
+                           CASE WHEN L.CANTSOLICITADA <= (NVL(L.CANTPREPARADA, 0) + NVL(L.CANTANULADA, 0)) THEN 1 ELSE 0 END AS COMPLETADA
                     FROM TMST_LINEASDOCUMENTOCLIENTE L
                     INNER JOIN VMST_LINEASDOCUMENTOCLIENTE V ON L.CODLINEADOCUMENTOCLIENTE = V.CODLINEADOCUMENTOCLIENTE
                     INNER JOIN TMST_ARTICULOS A ON A.CODARTICULO = L.CODARTICULO
+                    LEFT JOIN (
+                        SELECT NUMLINEA, CODUBICACION
+                        FROM (
+                            SELECT L2.NUMLINEA, VU.CODUBICACION,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY L2.NUMLINEA 
+                                       ORDER BY 
+                                           CASE WHEN TT.CODTERMINAL IS NOT NULL THEN 0 ELSE 1 END ASC,
+                                           VU.FECHACADUCIDAD ASC NULLS LAST,
+                                           VU.STOCK DESC
+                                   ) AS RN
+                            FROM TMST_LINEASDOCUMENTOCLIENTE L2
+                            JOIN GSM.VSYS_UBICACIONESARTICULO VU ON VU.CODARTICULO = L2.CODARTICULO
+                            LEFT JOIN GSM.TMST_DETALLEORDENUBICACIONES TOR ON TOR.CODUBICACION = VU.CODUBICACION
+                            LEFT JOIN GSM.TMST_TERMINALES TT ON TT.CODORDEN = TOR.CODORDEN AND TT.CODTERMINAL = :cod_term
+                            WHERE L2.CODDOCUMENTO = :cod_doc
+                              AND VU.STOCK > 0
+                        ) WHERE RN = 1
+                    ) REC ON REC.NUMLINEA = L.NUMLINEA
+                    LEFT JOIN TMST_UBICACIONES UREC ON UREC.CODUBICACION = REC.CODUBICACION
+                    LEFT JOIN GSM.TMST_TIPOSUNIDADARTICULO TUA ON TUA.CODARTICULO = L.CODARTICULO AND TUA.CODTIPOUNIDAD = 3
                     WHERE L.CODDOCUMENTO = :cod_doc
                       AND L.DESPRECIARPENDIENTE = 0
-                      AND L.CANTSOLICITADA > (NVL(L.CANTPREPARADA, 0) + NVL(L.CANTANULADA, 0))
-                    ORDER BY L.NUMLINEA
-                """, {"cod_doc": cod_documento})
+                    ORDER BY COMPLETADA ASC, L.NUMLINEA
+                """
+                cursor.execute(query, {"cod_doc": cod_documento, "cod_term": cod_terminal or ''})
                 cols = [d[0].lower() for d in cursor.description]
                 rows = cursor.fetchall()
                 result = []
@@ -227,6 +257,12 @@ class PreparacionRepository:
                     for k, v in d.items():
                         if hasattr(v, 'strftime'):
                             d[k] = v.strftime('%Y-%m-%d')
+                    # Normalizar nombres de campo para que sean compatibles con aplicarLinea
+                    d['gestionar_caducidad']   = int(d.get('gestionarcaducidad') or 0)
+                    d['margen_caducidad']      = int(d.get('margencaducidad') or 0)
+                    d['dias_limite_caducidad'] = int(d.get('diaslimitefechacaducidad') or 0)
+                    d['coddatomaestro']        = d.get('coddatomaestroorigen')
+                    d['codtipodatomaestro']    = d.get('codtipodatomaestroorigen')
                     result.append(d)
                 return result
         except Exception as e:
@@ -775,3 +811,159 @@ class PreparacionRepository:
             logger.error(f"Error al obtener líneas de pedido directo {cod_documento}: {e}", exc_info=True)
             raise e
 
+    @staticmethod
+    def get_recorrido_linea(cod_documento: int, num_linea: int) -> list:
+        """
+        Devuelve el detalle del recorrido de preparación de una línea:
+        ubicación, lote, caducidad y cantidades cargadas/devueltas.
+        """
+        try:
+            with OracleDatabase.get_cursor() as cursor:
+                cursor.execute("""
+                    SELECT R.CODUBICACION,
+                           U.NOMBRECORTO           AS NOMBREUBICACION,
+                           LOT.NUMEROLOTE,
+                           TO_CHAR(R.FECHACADUCIDAD, 'YYYY-MM-DD') AS FECHACADUCIDAD,
+                           NVL(R.CANTPREPARADA, 0) AS CANTPREPARADA,
+                           NVL(R.CANTDEVUELTA, 0)  AS CANTDEVUELTA,
+                           R.CODARTICULO,
+                           R.FECHA
+                    FROM GSM.TPRP_RECORRIDOPREPARACIONDOC R
+                    LEFT JOIN GSM.TMST_UBICACIONES U ON U.CODUBICACION = R.CODUBICACION
+                    LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES LOT ON LOT.CODNUMEROLOTE = R.CODNUMEROLOTE
+                    WHERE R.CODDOCUMENTO = :cod_doc
+                      AND R.NUMLINEA    = :num_linea
+                    ORDER BY R.FECHA DESC
+                """, {"cod_doc": cod_documento, "num_linea": num_linea})
+                rows = cursor.fetchall()
+                result = []
+                for row in rows:
+                    result.append({
+                        "codubicacion":    row[0],
+                        "nombreubicacion": row[1] or "",
+                        "numerolote":      row[2] or "",
+                        "fechacaducidad":  row[3] or "",
+                        "cantpreparada":   float(row[4]),
+                        "cantdevuelta":    float(row[5]),
+                        "codarticulo":     row[6],
+                        "fecha":           row[7].strftime('%Y-%m-%d %H:%M') if row[7] else "",
+                    })
+                return result
+        except Exception as e:
+            logger.error(f"Error en get_recorrido_linea: {e}", exc_info=True)
+            raise Exception(f"Error al obtener recorrido de la línea: {str(e)}")
+
+    @staticmethod
+    def descargar_mercancia(cod_documento: int, num_linea: int, cod_articulo: int, cod_terminal: int, registros_seleccionados: list = None) -> None:
+        """
+        Anula (descarga) la mercancía preparada de una línea.
+        Si se pasa registros_seleccionados, se anulan cantidades parciales específicas.
+        Si no, se anula toda la mercancía pendiente de la línea.
+        Usa la lógica estándar de SGA: cargar cantidad negativa y registrar devolución.
+        """
+        try:
+            with OracleDatabase.get_cursor(commit=True) as cursor:
+                def _parse_fecha(f):
+                    if not f: return None
+                    from datetime import datetime
+                    if isinstance(f, str):
+                        try:
+                            return datetime.strptime(f, '%Y-%m-%d').date()
+                        except:
+                            return None
+                    return f
+
+                regs_to_process = []
+                if registros_seleccionados:
+                    regs_to_process = registros_seleccionados
+                else:
+                    # Descarga total: obtener todos los registros pendientes
+                    cursor.execute("""
+                        SELECT R.CODUBICACION, R.FECHACADUCIDAD, LOT.NUMEROLOTE, (NVL(R.CANTPREPARADA, 0) - NVL(R.CANTDEVUELTA, 0)) AS CANT
+                        FROM GSM.TPRP_RECORRIDOPREPARACIONDOC R
+                        LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES LOT ON LOT.CODNUMEROLOTE = R.CODNUMEROLOTE
+                        WHERE R.CODDOCUMENTO = :cod_doc AND R.NUMLINEA = :num_linea
+                          AND (NVL(R.CANTPREPARADA, 0) - NVL(R.CANTDEVUELTA, 0)) > 0
+                    """, {"cod_doc": cod_documento, "num_linea": num_linea})
+                    for row in cursor.fetchall():
+                        regs_to_process.append({
+                            'codubicacion': row[0],
+                            'fechacaducidad': row[1],
+                            'numerolote': row[2] or '',
+                            'cantidad': float(row[3])
+                        })
+
+                if not regs_to_process:
+                    logger.warning(f"No hay stock pendiente para descargar doc={cod_documento} linea={num_linea}")
+                    return
+
+                total_anulado = 0.0
+
+                for reg in regs_to_process:
+                    cantidad = float(reg.get('cantidad', 0))
+                    if cantidad <= 0:
+                        continue
+
+                    fecha_caducidad = _parse_fecha(reg.get('fechacaducidad'))
+                    cod_ubicacion = reg['codubicacion']
+                    num_lote = reg.get('numerolote') or ''
+
+                    # 1. Mover stock físicamente (cantidades en negativo)
+                    cursor.callproc('GSM.SPPRP_CARGARMERCANCIATERMINAL', [
+                        cod_ubicacion,
+                        cod_articulo,
+                        fecha_caducidad,
+                        cod_terminal,
+                        1,                     # OperacionTerminal (1)
+                        cantidad * -1.0,       # Unidades negativas para revertir
+                        0,                     # Peso
+                        None,                  # CodPalet
+                        cod_documento,
+                        num_linea,
+                        None,                  # CodFacturacion
+                        num_lote,
+                        None,                  # CodOrdenReubicacion
+                        None,                  # CadCodNumerosDeSerie
+                        None,                  # CodTipoDatoMaestro
+                        None,                  # CodDatoMaestro
+                        None,                  # TipoCodigoIntroducido
+                        None                   # CodUbicacionTerminal
+                    ])
+
+                    # Obtener CodHueco para el recorrido
+                    cod_hueco = None
+                    try:
+                        cursor.execute("SELECT CODHUECO FROM TMST_UBICACIONES WHERE CODUBICACION = :1", [cod_ubicacion])
+                        row_hueco = cursor.fetchone()
+                        if row_hueco: cod_hueco = row_hueco[0]
+                    except: pass
+
+                    # 2. Dejar constancia en el recorrido
+                    cursor.callproc('GSM.SPPRP_SAVERECORRIDOPREPARACION', [
+                        cod_documento,
+                        num_linea,
+                        cod_terminal,
+                        cod_hueco,
+                        cod_ubicacion,
+                        cod_articulo,
+                        fecha_caducidad,
+                        num_lote,
+                        cantidad * -1.0,       # CantPreparada
+                        0,                     # Peso
+                        cantidad,              # CantDevuelta
+                        None                   # CadCodNumerosDeSerie
+                    ])
+
+                    total_anulado += cantidad
+
+                # 3. Recalcular CANTPREPARADA para asegurar integridad perfecta
+                cursor.execute("""
+                    UPDATE GSM.TMST_LINEASDOCUMENTOCLIENTE
+                    SET CANTPREPARADA = GREATEST(0, NVL(CANTPREPARADA, 0) - :cant)
+                    WHERE CODDOCUMENTO = :cod_doc AND NUMLINEA = :num_linea
+                """, {"cant": total_anulado, "cod_doc": cod_documento, "num_linea": num_linea})
+
+                logger.info(f"Descarga: doc={cod_documento} linea={num_linea} terminal={cod_terminal} cant_anulada={total_anulado}")
+        except Exception as e:
+            logger.error(f"Error en descargar_mercancia: {e}", exc_info=True)
+            raise Exception(f"Error al descargar mercancía: {str(e)}")

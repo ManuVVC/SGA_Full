@@ -3,8 +3,22 @@ import { Search } from 'lucide-react';
 import apiService from '../api/apiService';
 import SearchTypeToggle from './SearchTypeToggle';
 import { useKeyboard } from '../contexts/KeyboardContext';
+import { parseGs1 } from '../utils/gs1Parser';
 
-export default function ArticleSearchInput({ onArticleSelected, disabled, autoFocus }) {
+/**
+ * ArticleSearchInput
+ *
+ * Props:
+ *  - onArticleSelected(article)   → siempre se llama al confirmar el artículo
+ *  - onGs1Parsed({ lote, caducidad, cantidad, fechaProduccion })
+ *                                 → solo se llama cuando el código es GS1-128
+ *                                   Y se han encontrado campos extra. Solo útil
+ *                                   en modo "full" (EntradaMercancia).
+ *  - mode: "ean-only" (default) | "full"
+ *          En "full" el callback onGs1Parsed se propaga al padre.
+ *  - disabled, autoFocus
+ */
+export default function ArticleSearchInput({ onArticleSelected, onGs1Parsed, mode = 'ean-only', disabled, autoFocus }) {
   const [query, setQuery] = useState('');
   const [searchType, setSearchType] = useState('codfacturacion');
   const [loading, setLoading] = useState(false);
@@ -12,6 +26,8 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
   const [showModal, setShowModal] = useState(false);
   const [results, setResults] = useState([]);
   const [param1690Active, setParam1690Active] = useState(false);
+  // Guardamos los datos GS1 parseados para propagarlos tras seleccionar artículo
+  const pendingGs1Ref = useRef(null);
   
   const { isKeyboardOpen } = useKeyboard();
   const inputRef = useRef(null);
@@ -53,9 +69,32 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
     setLoading(true);
     setError(null);
 
+    // --- Intentar parsear como GS1-128 ---
+    const gs1 = parseGs1(query.trim());
+    let searchQuery = query.trim();
+    let effectiveSearchType = searchType;
+
+    if (gs1.isGs1 && gs1.ean) {
+      // Hay EAN extraído: buscar por EAN independientemente del tipo seleccionado
+      searchQuery = gs1.ean;
+      effectiveSearchType = 'codfacturacion';
+
+      // Guardar datos GS1 extra para propagarlos después (solo si modo full)
+      if (mode === 'full') {
+        pendingGs1Ref.current = {
+          lote: gs1.lote,
+          caducidad: gs1.caducidad,
+          cantidad: gs1.cantidad,
+          fechaProduccion: gs1.fechaProduccion,
+        };
+      }
+    } else {
+      pendingGs1Ref.current = null;
+    }
+
     try {
       const response = await apiService.get('/stock/search', {
-        params: { type: searchType, q: query.trim() }
+        params: { type: effectiveSearchType, q: searchQuery }
       });
 
       if (response.status === 200 && response.data.data) {
@@ -63,6 +102,7 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
         if (data.length === 0) {
           setError('Artículo no encontrado');
           setQuery('');
+          pendingGs1Ref.current = null;
           setTimeout(() => inputRef.current?.focus(), 100);
         } else if (data.length === 1) {
           selectArticle(data[0]);
@@ -74,6 +114,7 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
     } catch (err) {
       setError('Error en la búsqueda');
       setQuery('');
+      pendingGs1Ref.current = null;
       setTimeout(() => inputRef.current?.focus(), 100);
     } finally {
       setLoading(false);
@@ -98,7 +139,18 @@ export default function ArticleSearchInput({ onArticleSelected, disabled, autoFo
       searchQuery: query
     };
     onArticleSelected(normalizedArticle);
+
+    // Propagar datos GS1 extra al padre si estamos en modo full
+    if (mode === 'full' && pendingGs1Ref.current && onGs1Parsed) {
+      const gs1Data = pendingGs1Ref.current;
+      pendingGs1Ref.current = null;
+      // Pequeño retardo para que el padre procese primero el artículo
+      setTimeout(() => onGs1Parsed(gs1Data), 50);
+    } else {
+      pendingGs1Ref.current = null;
+    }
   };
+
 
   return (
     <div className="w-full">

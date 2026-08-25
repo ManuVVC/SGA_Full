@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   PackageCheck, AlertCircle, RefreshCw, ChevronRight, ChevronLeft,
   CheckCircle, Box, MapPin, Hash, AlertTriangle, X, List, ArrowRight,
-  ScanLine, Scale, Info
+  ScanLine, Scale, Info, Trash2
 } from 'lucide-react';
 import {
   obtenerDocumento, getCabeceraPedido, getPrimeraLinea,
   siguienteLinea, cargarMercancia, getLineasPendientes,
   getNumLineasPendientes, getUnidsPreparadas,
-  getPermisosPreparacion, validarUbicacion, getStockLotes
+  getPermisosPreparacion, validarUbicacion, getStockLotes,
+  getRecorridoLinea, descargarLinea
 } from '../api/preparacionService';
 import TerminalHeader from '../components/TerminalHeader';
 import ArticleSearchInput from '../components/ArticleSearchInput';
@@ -39,6 +40,7 @@ const PreparaPedido = () => {
   const inputRef = useRef(null);
 
   const [fase, setFase] = useState(FASE.CARGANDO);
+  const [faseAnterior, setFaseAnterior] = useState(null);
   const [showPosicionModal, setShowPosicionModal] = useState(false);
   const [posicionesDisponibles, setPosicionesDisponibles] = useState([]);
   const [ubicacionPendienteModal, setUbicacionPendienteModal] = useState('');
@@ -68,11 +70,83 @@ const PreparaPedido = () => {
   const [lineaParaUtilidades, setLineaParaUtilidades] = useState(null);
   const [showUtilidadesModal, setShowUtilidadesModal] = useState(false);
 
+  // Estado modal descarga de línea preparada
+  const [lineaParaDescargar, setLineaParaDescargar] = useState(null);
+  const [recorridoDescarga, setRecorridoDescarga] = useState([]);
+  const [loadingDescarga, setLoadingDescarga] = useState(false);
+  const [registrosAAnular, setRegistrosAAnular] = useState([]); // array de { ...rec, cantidadAAnular: number, selected: boolean }
+
+
   const handleLongPressLinea = useCallback((linea) => {
     if (!linea) return;
     setLineaParaUtilidades(linea);
     setShowUtilidadesModal(true);
   }, []);
+
+  const handleAbrirDescarga = useCallback(async (linea) => {
+    setLineaParaDescargar(linea);
+    setRecorridoDescarga([]);
+    setRegistrosAAnular([]);
+    setLoadingDescarga(true);
+    try {
+      const recorrido = await getRecorridoLinea(cabecera.cod_documento, linea.numlinea);
+      setRecorridoDescarga(recorrido);
+      // Inicializar los registros a anular (por defecto todos seleccionados con su cantidad máxima pendiente)
+      setRegistrosAAnular(recorrido.map(rec => ({
+        ...rec,
+        cantidadAAnular: rec.cantpreparada - (rec.cantdevuelta || 0),
+        selected: true
+      })));
+    } catch (e) {
+      setError('Error al cargar el detalle de la línea preparada.');
+    } finally {
+      setLoadingDescarga(false);
+    }
+  }, [cabecera]);
+
+  const handleConfirmarDescarga = useCallback(async () => {
+    if (!lineaParaDescargar || !cabecera) return;
+    setLoadingDescarga(true);
+    try {
+      // Filtrar solo los seleccionados y mapear al formato esperado por el backend
+      const registros = registrosAAnular
+        .map(r => ({
+          ...r,
+          parsedCant: parseFloat(String(r.cantidadAAnular).replace(',', '.')) || 0
+        }))
+        .filter(r => r.selected && r.parsedCant > 0)
+        .map(r => ({
+          codubicacion: r.codubicacion,
+          fechacaducidad: r.fechacaducidad,
+          numerolote: r.numerolote,
+          cantidad: r.parsedCant
+        }));
+
+      // Si no hay ninguno seleccionado o todas las cantidades son 0, no hacer nada
+      if (registros.length === 0) {
+        setLoadingDescarga(false);
+        return;
+      }
+
+      await descargarLinea({
+        cod_documento: cabecera.cod_documento,
+        num_linea:     lineaParaDescargar.numlinea,
+        cod_articulo:  lineaParaDescargar.codarticulo,
+        registros:     registros
+      });
+      setLineaParaDescargar(null);
+      setRecorridoDescarga([]);
+      setRegistrosAAnular([]);
+      // Recargar el listado completo de líneas
+      const lineas = await getLineasPendientes(cabecera.cod_documento);
+      setLineasPendientes(lineas);
+    } catch (e) {
+      setError(`Error al anular la preparación: ${e}`);
+    } finally {
+      setLoadingDescarga(false);
+    }
+  }, [lineaParaDescargar, cabecera, registrosAAnular]);
+
 
   const getStepNumber = (f) => {
     switch (f) {
@@ -160,6 +234,7 @@ const PreparaPedido = () => {
         } else {
           const lineasRestantes = await getLineasPendientes(cabecera.cod_documento);
           setLineasPendientes(lineasRestantes);
+          setFaseAnterior(FASE.CABECERA);
           setFase(FASE.VER_LINEAS);
           setError('No hay líneas preparables en ruta. Revisa la lista de pendientes.');
         }
@@ -177,17 +252,15 @@ const PreparaPedido = () => {
     setLoading(true);
     setError(null);
     try {
-      const { linea } = await siguienteLinea({
-        cod_documento: cabecera.cod_documento,
-        cod_ubicacion: 0,
-        numero_orden: 0,
-        tipo_avance: 0,
-        cod_ubicacion_actual: 0,
-        cod_articulo: lineaPendiente.codarticulo,
-        cant_solicitada: lineaPendiente.cantsolicitada,
-      });
-      if (!linea) { setError('No se encontró ubicación disponible para esta línea'); return; }
-      await aplicarLinea(linea);
+      if (!lineaPendiente.codubicacion) {
+        setError('Esta línea no tiene ubicación de origen asignada. Usa la navegación guiada.');
+        return;
+      }
+      // Usamos directamente los datos del listado de pendientes (que ya incluyen
+      // CODUBICACION, CODHUECO, NOMBREUBICACION y campos normalizados de caducidad).
+      // Así evitamos SPPRP_ARTICULOSPARAPREPARAR que usa cod_articulo como contexto
+      // de navegación, no como filtro de selección directa.
+      await aplicarLinea(lineaPendiente);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -334,10 +407,12 @@ const PreparaPedido = () => {
   };
 
   const handleConfirmarCantidad = () => {
-    let cant = parseFloat(cantidad);
+    let cant = parseFloat(String(cantidad).replace(',', '.'));
+
+    const cantidadFaltante = lineaActual.cantsolicitada - (lineaActual.cantpreparada || 0);
 
     if (permisos.solicitar_cantidad !== -1) {
-      cant = lineaActual.cantsolicitada;
+      cant = cantidadFaltante > 0 ? cantidadFaltante : 0;
     } else {
       if (isNaN(cant) || cant <= 0) {
         setError('Introduce una cantidad válida');
@@ -358,13 +433,14 @@ const PreparaPedido = () => {
       return;
     }
 
-    if (cant > lineaActual.cantsolicitada) {
+    const totalPreparadoFinal = (lineaActual.cantpreparada || 0) + cant;
+    if (totalPreparadoFinal > lineaActual.cantsolicitada) {
       if (permisos.puede_servir_mas === -1) {
         setCantidadPendiente(cant);
         setFase(FASE.CONFIRMAR_EXCESO);
         return;
       } else {
-        setError(`No puedes preparar más de lo solicitado (${lineaActual.cantsolicitada}).`);
+        setError(`No puedes preparar más de lo solicitado. Solicitado: ${lineaActual.cantsolicitada}, Ya preparado: ${lineaActual.cantpreparada || 0}, Intentando añadir: ${cant}.`);
         return;
       }
     }
@@ -636,10 +712,10 @@ const PreparaPedido = () => {
             )}
 
             {/* STEP 3: LOTE */}
-            {getStepNumber(fase) >= 3 && (lineaActual.prm_trazabilidad || lineaActual.gestionar_caducidad) && lotesDisponibles.length > 1 && (
+            {getStepNumber(fase) >= 3 && (lineaActual.prm_trazabilidad || lineaActual.gestionar_caducidad) && (
               <div className={`p-4 rounded shadow bg-white border-l-4 ${fase === FASE.SELECCIONAR_LOTE ? 'border-sga-blue' : 'border-gray-300 opacity-60'}`}>
                 <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                  <Hash size={16} /> 3. Lote
+                  <Hash size={16} /> 3. Lote / Caducidad
                 </label>
                 {fase === FASE.SELECCIONAR_LOTE ? (
                   <ul className="flex-1 overflow-y-auto flex flex-col gap-2 max-h-48">
@@ -659,7 +735,7 @@ const PreparaPedido = () => {
                   </ul>
                 ) : (
                   <div className="text-lg font-bold text-sga-dark">
-                    {loteSeleccionado ? `${loteSeleccionado.numerolote || loteSeleccionado.codnumerolote || ''}${loteSeleccionado.fechacaducidad ? ' (Cad: ' + formatFechaES(loteSeleccionado.fechacaducidad) + ')' : ''}` : ''}
+                    {loteSeleccionado ? `${loteSeleccionado.numerolote || loteSeleccionado.codnumerolote ? 'Lote: ' + (loteSeleccionado.numerolote || loteSeleccionado.codnumerolote) : ''}${loteSeleccionado.fechacaducidad ? ' (Cad: ' + formatFechaES(loteSeleccionado.fechacaducidad) + ')' : ''}` : 'No hay lote/caducidad'}
                   </div>
                 )}
               </div>
@@ -669,7 +745,7 @@ const PreparaPedido = () => {
             {getStepNumber(fase) >= 4 && (
               <div className={`p-4 rounded shadow bg-white border-l-4 ${fase === FASE.INTRODUCIR_CANTIDAD ? 'border-sga-blue' : 'border-gray-300 opacity-60'}`}>
                 <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                  <Scale size={16} /> {lotesDisponibles.length > 1 ? '4' : '3'}. Cantidad a preparar
+                  <Scale size={16} /> {(lineaActual.prm_trazabilidad || lineaActual.gestionar_caducidad) ? '4' : '3'}. Cantidad a preparar
                 </label>
                 {permisos.solicitar_cantidad === -1 ? (
                   <div>
@@ -684,15 +760,23 @@ const PreparaPedido = () => {
                     </label>
                     <input
                       ref={fase === FASE.INTRODUCIR_CANTIDAD ? inputRef : null}
-                      id="inputCantidad" name="cantidad" type="number" min="0" step="1" autoComplete="off"
-                      value={cantidad} onChange={(e) => setCantidad(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmarCantidad(); }}
+                      id="inputCantidad" name="cantidad" type="text" inputMode="decimal" autoComplete="off"
+                      value={cantidad} 
+                      onChange={(e) => setCantidad(e.target.value.replace(/[^0-9.,]/g, ''))} 
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmarCantidad(); }}
+                      onFocus={(e) => {
+                        const target = e.target;
+                        setTimeout(() => {
+                          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 300);
+                      }}
                       className="w-full border-2 border-sga-primary rounded px-3 py-3 text-center text-4xl font-black text-sga-primary focus:outline-none"
                       placeholder="0"
                       disabled={fase !== FASE.INTRODUCIR_CANTIDAD}
                     />
-                    {factorEanSeleccionado > 1 && cantidad && !isNaN(cantidad) && (
+                    {factorEanSeleccionado > 1 && cantidad && !isNaN(parseFloat(String(cantidad).replace(',', '.'))) && (
                       <div className="text-center mt-2 text-xl text-sga-primary font-black bg-blue-50 py-2 rounded border border-blue-100">
-                        Total = {parseFloat(cantidad) * factorEanSeleccionado} uds.
+                        Total = {parseFloat(String(cantidad).replace(',', '.')) * factorEanSeleccionado} uds.
                       </div>
                     )}
                     {fase === FASE.INTRODUCIR_CANTIDAD && (
@@ -763,23 +847,67 @@ const PreparaPedido = () => {
           <div className="flex-1 flex flex-col overflow-hidden bg-white rounded p-2">
             <div className="flex justify-between mb-2">
               <h3 className="font-bold flex items-center gap-1"><List size={18} /> Pendientes</h3>
-              <button onClick={() => setFase(lineaActual ? FASE.INTRODUCIR_CANTIDAD : FASE.CABECERA)} className="text-sga-primary underline text-sm">Volver</button>
+              <button onClick={() => setFase(faseAnterior || (lineaActual ? FASE.INTRODUCIR_CANTIDAD : FASE.CABECERA))} className="text-sga-primary underline text-sm">Volver</button>
             </div>
-            <ul className="flex-1 overflow-y-auto flex flex-col gap-2">
-              {lineasPendientes.map(lin => {
-                const stock = lin.stocktotal || 0;
-                const outOfStock = stock <= 0;
+            <div className="flex-1 overflow-y-auto">
+              {(() => {
+                const pendientes = lineasPendientes.filter(l => l.completada === 0);
+                const preparadas = lineasPendientes.filter(l => l.completada === 1);
+                
                 return (
-                  <LineaPendienteRow
-                    key={lin.numlinea}
-                    lin={lin}
-                    outOfStock={outOfStock}
-                    onSelect={seleccionarLinea}
-                    onLongPress={handleLongPressLinea}
-                  />
+                  <div className="flex flex-col gap-4">
+                    {pendientes.length > 0 && (
+                      <div>
+                        <h4 className="font-bold text-gray-700 bg-gray-100 p-1 px-2 rounded mb-2 shadow-sm text-sm">Pendientes ({pendientes.length})</h4>
+                        <div className="flex flex-col gap-2">
+                          {pendientes.map(lin => {
+                            const stock = lin.stocktotal || 0;
+                            const outOfStock = stock <= 0;
+                            return (
+                              <LineaPendienteRow
+                                key={lin.numlinea}
+                                lin={lin}
+                                outOfStock={outOfStock}
+                                onSelect={seleccionarLinea}
+                                onLongPress={handleLongPressLinea}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {preparadas.length > 0 && (
+                      <div>
+                        <h4 className="font-bold text-sga-success bg-green-50 border border-green-200 p-1 px-2 rounded mb-2 shadow-sm text-sm">Preparadas ({preparadas.length})</h4>
+                        <div className="flex flex-col gap-2 opacity-80">
+                          {preparadas.map(lin => (
+                            <div key={lin.numlinea} className="border border-green-200 rounded p-2.5 text-sm shadow-sm bg-green-50 flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <LineaPendienteRow
+                                  lin={lin}
+                                  outOfStock={false}
+                                  onSelect={() => {}}
+                                  onLongPress={handleLongPressLinea}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirDescarga(lin)}
+                                className="shrink-0 bg-red-100 hover:bg-red-200 text-red-600 rounded p-2 transition-colors"
+                                title="Anular preparación"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
-              })}
-            </ul>
+              })()}
+            </div>
           </div>
         )}
 
@@ -812,7 +940,7 @@ const PreparaPedido = () => {
               {
                 label: 'Líneas',
                 icon: <List size={24} />,
-                onClick: () => setFase(FASE.VER_LINEAS),
+                onClick: () => { setFaseAnterior(fase); setFase(FASE.VER_LINEAS); },
                 disabled: loading,
                 variant: 'info',
               },
@@ -892,6 +1020,101 @@ const PreparaPedido = () => {
         onClose={() => setShowUtilidadesModal(false)}
         linea={lineaParaUtilidades}
       />
+
+      {/* Modal de confirmación de descarga (anular línea preparada) */}
+      {lineaParaDescargar && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl flex flex-col gap-4 p-5">
+            <div className="flex items-center gap-2">
+              <Trash2 size={20} className="text-red-500 shrink-0" />
+              <h3 className="font-bold text-gray-800 text-base">Anular preparación</h3>
+            </div>
+            <div className="text-sm text-gray-700">
+              <div className="font-semibold">{lineaParaDescargar.nombrearticulo}</div>
+              <div className="text-xs text-gray-500 mt-0.5">Ref: {lineaParaDescargar.codarticuloaplicacion}</div>
+            </div>
+
+            {loadingDescarga ? (
+              <div className="flex items-center justify-center gap-2 py-4 text-gray-400">
+                <RefreshCw size={18} className="animate-spin" />
+                <span className="text-sm">Cargando detalle...</span>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 flex flex-col gap-2 max-h-60 overflow-y-auto">
+                {registrosAAnular.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center">No hay registros de preparación.</p>
+                ) : registrosAAnular.map((rec, i) => {
+                  const maxPendiente = rec.cantpreparada - (rec.cantdevuelta || 0);
+                  if (maxPendiente <= 0) return null; // No mostrar si ya está devuelto todo
+                  
+                  return (
+                    <div key={i} className={`flex items-start gap-3 border-b border-gray-100 pb-2 last:border-0 last:pb-0 ${!rec.selected ? 'opacity-50' : ''}`}>
+                      <input 
+                        type="checkbox"
+                        checked={rec.selected}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setRegistrosAAnular(prev => prev.map((r, idx) => idx === i ? { ...r, selected: val } : r));
+                        }}
+                        className="mt-1 shrink-0 w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      />
+                      <div className="flex-1 min-w-0 text-xs flex flex-col gap-0.5">
+                        <span className="font-semibold text-gray-700">📦 {rec.nombreubicacion || rec.codubicacion}</span>
+                        {rec.numerolote  && <span className="text-gray-500">Lote: {rec.numerolote}</span>}
+                        {rec.fechacaducidad && <span className="text-orange-600">Cad: {rec.fechacaducidad}</span>}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-gray-600">Disp: <strong>{maxPendiente}</strong></span>
+                          <span className="text-gray-400">|</span>
+                          <span className="text-gray-700">Anular:</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={rec.cantidadAAnular}
+                            disabled={!rec.selected}
+                            onChange={(e) => {
+                              const rawVal = e.target.value.replace(/[^0-9.,]/g, '');
+                              setRegistrosAAnular(prev => prev.map((r, idx) => idx === i ? { ...r, cantidadAAnular: rawVal } : r));
+                            }}
+                            onBlur={(e) => {
+                              let parsed = parseFloat(e.target.value.replace(',', '.'));
+                              if (isNaN(parsed) || parsed < 0) parsed = 0;
+                              if (parsed > maxPendiente) parsed = maxPendiente;
+                              setRegistrosAAnular(prev => prev.map((r, idx) => idx === i ? { ...r, cantidadAAnular: parsed } : r));
+                            }}
+                            className="w-16 px-1.5 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="text-sm text-red-600 font-medium">
+              ⚠️ Se anularán las unidades seleccionadas y el stock volverá a su ubicación de origen.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setLineaParaDescargar(null); setRecorridoDescarga([]); }}
+                className="flex-1 border border-gray-300 rounded-lg py-3 font-semibold text-gray-600 hover:bg-gray-50"
+                disabled={loadingDescarga}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarDescarga}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-lg py-3 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                disabled={loadingDescarga || recorridoDescarga.length === 0}
+              >
+                {loadingDescarga ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                Anular preparación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -936,7 +1159,7 @@ function PanelInfoCard({ lineaActual, ubicacionConfirmada, lineasPendientes, onL
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold border border-blue-200 shadow-sm">
             <List size={12} />
-            <span>{lineasPendientes.length} lineas pdtes.</span>
+            <span>{lineasPendientes.filter(l => l.completada === 0).length} lineas pdtes.</span>
           </div>
           <button
             type="button"
@@ -999,11 +1222,34 @@ function PanelInfoCard({ lineaActual, ubicacionConfirmada, lineasPendientes, onL
 }
 
 function LineaPendienteRow({ lin, outOfStock, onSelect, onLongPress }) {
-  const longPressProps = useLongPress(() => onLongPress(lin), outOfStock ? null : () => onSelect(lin), { delay: 500 });
+  // Ref para saber si el longpress ya se disparó y así no ejecutar también el click nativo
+  const longPressOccurred = useRef(false);
+
+  const handleLongPress = useCallback(() => {
+    longPressOccurred.current = true;
+    onLongPress(lin);
+  }, [lin, onLongPress]);
+
+  // useLongPress solo para detectar el hold — sin onClick interno
+  const longPressProps = useLongPress(handleLongPress, null, { delay: 500, shouldPreventDefault: false });
+
+  const handleClick = useCallback(() => {
+    // Si venimos de un longpress, ignoramos el click sintético que lo sigue
+    if (longPressOccurred.current) {
+      longPressOccurred.current = false;
+      return;
+    }
+    if (outOfStock) {
+      return;
+    }
+    onSelect(lin);
+  }, [lin, outOfStock, onSelect]);
+
   const stock = lin.stocktotal || 0;
   return (
-    <li
+    <div
       {...longPressProps}
+      onClick={handleClick}
       className={`border rounded p-2.5 text-sm shadow-sm transition-colors select-none ${
         outOfStock ? 'bg-red-50 border-red-200' : 'active:bg-blue-50/60 hover:border-blue-300 cursor-pointer'
       }`}
@@ -1023,13 +1269,15 @@ function LineaPendienteRow({ lin, outOfStock, onSelect, onLongPress }) {
         </button>
       </div>
       <div className="flex justify-between items-center text-gray-500 text-xs mt-1 font-mono">
-        <span>Ref: <strong className="text-gray-700">{lin.codarticuloaplicacion}</strong></span>
-        <div className="flex gap-3">
-          <span className={`font-bold ${outOfStock ? 'text-red-500' : 'text-blue-600'}`}>Stock Total: {stock}</span>
-          <span className="font-bold text-sga-success">Pte: {lin.cantsolicitada - (lin.cantpreparada || 0)}</span>
+        <span className="truncate mr-1">Ref: <strong className="text-gray-700">{lin.codarticuloaplicacion}</strong></span>
+        <div className="flex gap-2 text-[11px]">
+          <span className={`font-bold ${outOfStock ? 'text-red-500' : 'text-blue-600'}`}>Stk:{stock}</span>
+          <span className="font-bold text-gray-600">Sol:{lin.cantsolicitada}</span>
+          <span className="font-bold text-gray-600">Prp:{lin.cantpreparada || 0}</span>
+          <span className="font-bold text-sga-success">Pte:{lin.cantsolicitada - (lin.cantpreparada || 0)}</span>
         </div>
       </div>
-    </li>
+    </div>
   );
 }
 

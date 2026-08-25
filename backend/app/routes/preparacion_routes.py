@@ -90,7 +90,8 @@ def get_stock_lotes():
 def get_lineas_pendientes(cod_documento):
     """Devuelve todas las líneas pendientes del documento para mostrar el selector."""
     try:
-        result = PreparacionService.get_lineas_pendientes(cod_documento)
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        result = PreparacionService.get_lineas_pendientes(cod_documento, current_user)
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -165,11 +166,18 @@ def siguiente_linea():
       cant_solicitada? (para identificar la línea actual)
     }
     """
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         data = request.json or {}
         cod_documento = data.get('cod_documento')
         if not cod_documento:
             return jsonify({"error": "cod_documento es requerido"}), 400
+
+        logger.info(f"[siguiente_linea] Parámetros recibidos: cod_documento={cod_documento}, "
+                    f"cod_articulo={data.get('cod_articulo')}, cant_solicitada={data.get('cant_solicitada')}, "
+                    f"tipo_avance={data.get('tipo_avance')}, cod_ubicacion={data.get('cod_ubicacion')}, "
+                    f"cod_ubicacion_actual={data.get('cod_ubicacion_actual')}, numero_orden={data.get('numero_orden')}")
 
         result = PreparacionService.siguiente_linea(
             cod_documento=int(cod_documento),
@@ -180,8 +188,11 @@ def siguiente_linea():
             cod_articulo=data.get('cod_articulo', 0),
             cant_solicitada=data.get('cant_solicitada'),
         )
+        linea = result.get('linea')
+        logger.info(f"[siguiente_linea] Resultado del procedimiento: linea={linea}")
         return jsonify(result), 200
     except Exception as e:
+        logger.error(f"[siguiente_linea] ERROR: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -275,3 +286,43 @@ def get_lineas_pedido_directo(cod_documento):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@preparacion_bp.route('/recorrido/<int:cod_documento>/<int:num_linea>', methods=['GET'])
+@token_required
+def get_recorrido_linea(cod_documento, num_linea):
+    """
+    Devuelve el detalle del recorrido de preparación de una línea:
+    ubicación, lote, caducidad y cantidades (cargadas/devueltas).
+    """
+    try:
+        result = PreparacionService.get_recorrido_linea(cod_documento, num_linea)
+        return jsonify({"recorrido": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@preparacion_bp.route('/descargar-linea', methods=['POST'])
+@token_required
+def descargar_linea():
+    """
+    Revierte la preparación de una línea llamando a SPPRP_DESCARGARMERCANCIATERM.
+    Body requerido: { cod_documento, num_linea, cod_articulo }
+    """
+    try:
+        current_user = g.operador if hasattr(g, 'operador') else {}
+        data = request.get_json() or {}
+        required = ['cod_documento', 'num_linea', 'cod_articulo']
+        for field in required:
+            if data.get(field) is None:
+                return jsonify({"error": f"{field} es requerido"}), 400
+
+        PreparacionService.descargar_mercancia(
+            cod_documento=data['cod_documento'],
+            num_linea=data['num_linea'],
+            cod_articulo=data['cod_articulo'],
+            operador_context=current_user,
+            registros_seleccionados=data.get('registros'),  # None = anular todo
+        )
+        return jsonify({"status": "ok", "mensaje": "Línea descargada correctamente"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

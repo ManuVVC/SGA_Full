@@ -129,3 +129,20 @@ export const getLineasPedidoDirecto = async (codDocumento) => {
   return fetchData(`/preparacion/directo/lineas/${codDocumento}`, {}, 'Error al obtener líneas del pedido directo');
 };
 
+/**
+ * Obtiene el detalle del recorrido de preparación de una línea concreta:
+ * ubicación, lote, caducidad, cantidades cargadas/devueltas.
+ */
+export const getRecorridoLinea = async (codDocumento, numLinea) => {
+  const data = await fetchData(`/preparacion/recorrido/${codDocumento}/${numLinea}`, {}, 'Error al obtener recorrido de la línea');
+  return data.recorrido || [];
+};
+
+/**
+ * Revierte la preparación de una línea ya preparada.
+ * Llama a SPPRP_DESCARGARMERCANCIATERM por cada registro del recorrido.
+ * @param {{ cod_documento: number, num_linea: number, cod_articulo: number }} params
+ */
+export const descargarLinea = async (params) => {
+  return mutateData('post', '/preparacion/descargar-linea', params, {}, 'Error al descargar la línea');
+};

@@ -66,9 +66,12 @@ class PreparacionService:
         return {"lotes": lotes}
 
     @staticmethod
-    def get_lineas_pendientes(cod_documento: int) -> dict:
+    def get_lineas_pendientes(cod_documento: int, operador_context: dict = None) -> dict:
         """Devuelve la lista de líneas pendientes para mostrar en el selector."""
-        lineas = PreparacionRepository.get_lineas_pendientes(cod_documento)
+        cod_terminal = None
+        if operador_context:
+            cod_terminal = operador_context.get('terminal')
+        lineas = PreparacionRepository.get_lineas_pendientes(cod_documento, cod_terminal)
         return {"lineas": lineas}
 
     @staticmethod
@@ -191,4 +194,25 @@ class PreparacionService:
     @staticmethod
     def get_lineas_pedido_directo(cod_documento: int) -> list:
         return PreparacionRepository.get_lineas_pedido_directo(int(cod_documento))
+
+    @staticmethod
+    def get_recorrido_linea(cod_documento: int, num_linea: int) -> list:
+        """Devuelve el detalle del recorrido de preparación de una línea."""
+        return PreparacionRepository.get_recorrido_linea(int(cod_documento), int(num_linea))
+
+    @staticmethod
+    def descargar_mercancia(cod_documento: int, num_linea: int,
+                            cod_articulo: int, operador_context: dict,
+                            registros_seleccionados: list = None) -> None:
+        """Revierte la preparación de una línea usando SPPRP_DESCARGARMERCANCIATERM."""
+        cod_terminal = int(operador_context.get('terminal', 0))
+        if not cod_terminal:
+            raise Exception("No se pudo determinar el terminal del operario")
+        PreparacionRepository.descargar_mercancia(
+            cod_terminal=cod_terminal,
+            cod_articulo=int(cod_articulo),
+            cod_documento=int(cod_documento),
+            num_linea=int(num_linea),
+            registros_seleccionados=registros_seleccionados,
+        )
 
