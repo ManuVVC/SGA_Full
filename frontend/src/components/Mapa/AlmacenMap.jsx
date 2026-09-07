@@ -461,20 +461,15 @@ function AlzadoView({ pasillo, onClose }) {
       </div>
 
       {tooltip && <Tooltip hueco={tooltip} />}
+      </div>
 
-      {/* Overlay + Panel de detalle de mercancía */}
+      {/* Panel inferior de detalle de mercancía integrado en el layout */}
       {detalle && (
-        <>
-          <div
-            onClick={() => setDetalle(null)}
-            style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.4)' }}
-          />
-          <DetalleUbicacion
-            codubicacion={detalle.codubicacion}
-            titulo={detalle.titulo}
-            onClose={() => setDetalle(null)}
-          />
-        </>
+        <DetalleUbicacion
+          codubicacion={detalle.codubicacion}
+          titulo={detalle.titulo}
+          onClose={() => setDetalle(null)}
+        />
       )}
     </div>
   );
