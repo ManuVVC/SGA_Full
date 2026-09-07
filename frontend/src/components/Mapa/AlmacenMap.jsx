@@ -461,7 +461,6 @@ function AlzadoView({ pasillo, onClose }) {
       </div>
 
       {tooltip && <Tooltip hueco={tooltip} />}
-      </div>
 
       {/* Panel inferior de detalle de mercancía integrado en el layout */}
       {detalle && (
