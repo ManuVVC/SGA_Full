@@ -1,10 +1,11 @@
 import jwt
 import datetime
 import logging
-from flask import current_app, request
+
 from ..repositories.auth_repo import AuthRepository
 from ..repositories.terminal_repo import TerminalRepository
 from ..utils.exceptions import UserNotFoundError, InvalidPasswordError
+from werkzeug.security import check_password_hash, generate_password_hash
 from .terminal_service import TerminalService
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class AuthService:
     @staticmethod
-    def login(username: str, password: str) -> dict:
+    def login(username: str, password: str, ip_address: str, secret_key: str, session_timeout_minutes: int) -> dict:
         """
         Valida las credenciales de un operador contra el repositorio.
         Genera un token JWT si las credenciales son válidas y expira en 8 horas.
@@ -22,7 +23,7 @@ class AuthService:
             raise UserNotFoundError("El nombre de usuario no puede estar vacío.")
 
         # Validar y obtener el terminal asociado a la IP
-        terminal_info = TerminalService.validar_y_obtener_terminal(request)
+        terminal_info = TerminalService.validar_y_obtener_terminal(ip_address)
 
         # Obtener el operador desde la base de datos
         operador = AuthRepository.get_operador_por_codigo(username)
@@ -32,11 +33,15 @@ class AuthService:
         # Obtener contraseña almacenada
         stored_password = operador.get("PASSWORD")
 
-        # Validar contraseña (directamente contra texto plano, según SPTOL_VALIDARUSUARIO)
+        # Validar contraseña (soporte a hash para mayor seguridad, con retrocompatibilidad para claves planas)
         # Soporta que la contraseña sea NULL en base de datos (según OR PassWord IS NULL)
         if stored_password is not None:
-            if stored_password != password:
-                raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
+            if stored_password.startswith('pbkdf2:'):
+                if not check_password_hash(stored_password, password):
+                    raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
+            else:
+                if stored_password != password:
+                    raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
         else:
             # Si el password en BD es NULL y el usuario envía algo no vacío, o viceversa,
             # en Oracle (PassWord = p_Contraseña OR PassWord IS NULL) permite cualquier contraseña.
@@ -61,19 +66,7 @@ class AuthService:
             "exp": ahora + datetime.timedelta(hours=8)
         }
 
-        secret_key = current_app.config.get("SECRET_KEY", "change-me")
         token = jwt.encode(payload, secret_key, algorithm="HS256")
-
-        # Extraer la IP del cliente (misma lógica de prioridad que TerminalService)
-        ip_address = (
-            request.headers.get('X-Terminal-IP', '').strip()
-            or request.headers.get('X-Real-IP', '').strip()
-            or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-            or request.remote_addr
-            or ""
-        )
-        if ip_address:
-            ip_address = ip_address.replace('::ffff:', '').strip()
 
         # Registrar la sesión en el gestor de sesiones
         from ..utils.session_manager import session_manager
@@ -86,22 +79,22 @@ class AuthService:
             "permisos": operador["permisos"],
             "terminal": terminal_info,
             "operador_nombre": operador["NOMBRE"],
-            "session_timeout_minutes": current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+            "session_timeout_minutes": session_timeout_minutes
         }
 
     @staticmethod
-    def validate_credentials(username: str, password: str) -> bool:
+    def validate_credentials(username: str, password: str, ip_address: str = "", secret_key: str = "change-me", session_timeout_minutes: int = 30) -> bool:
         """
         Método legado para compatibilidad con la interfaz anterior.
         """
         try:
-            AuthService.login(username, password)
+            AuthService.login(username, password, ip_address, secret_key, session_timeout_minutes)
             return True
         except Exception:
             return False
 
     @staticmethod
-    def login_web(username: str, password: str) -> dict:
+    def login_web(username: str, password: str, ip_address: str, secret_key: str, session_timeout_minutes: int) -> dict:
         """
         Valida credenciales para el Backoffice Web usando el NOMBRE del operador en Oracle.
         Soporta acceso desde PC aunque el terminal no esté en TMST_TERMINALES.
@@ -111,7 +104,7 @@ class AuthService:
 
         # Obtener terminal por IP, o usar un terminal web genérico si se accede por navegador en PC
         try:
-            terminal_info = TerminalService.validar_y_obtener_terminal(request)
+            terminal_info = TerminalService.validar_y_obtener_terminal(ip_address)
         except Exception:
             terminal_info = {
                 "CODTERMINAL": "WEB-CONSOLE",
@@ -126,8 +119,12 @@ class AuthService:
 
         stored_password = operador.get("PASSWORD")
         if stored_password is not None:
-            if stored_password != password:
-                raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
+            if stored_password.startswith('pbkdf2:'):
+                if not check_password_hash(stored_password, password):
+                    raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
+            else:
+                if stored_password != password:
+                    raise InvalidPasswordError("La contraseña proporcionada es incorrecta.")
         else:
             pass
 
@@ -148,18 +145,7 @@ class AuthService:
             "exp": ahora + datetime.timedelta(hours=8)
         }
 
-        secret_key = current_app.config.get("SECRET_KEY", "change-me")
         token = jwt.encode(payload, secret_key, algorithm="HS256")
-
-        ip_address = (
-            request.headers.get('X-Terminal-IP', '').strip()
-            or request.headers.get('X-Real-IP', '').strip()
-            or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-            or request.remote_addr
-            or ""
-        )
-        if ip_address:
-            ip_address = ip_address.replace('::ffff:', '').strip()
 
         from ..utils.session_manager import session_manager
         cod_terminal = terminal_info.get("CODTERMINAL")
@@ -172,7 +158,6 @@ class AuthService:
             "terminal": terminal_info,
             "operador_nombre": operador["NOMBRE"],
             "operador_codigo": cod_operador,
-            "session_timeout_minutes": current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+            "session_timeout_minutes": session_timeout_minutes
         }
-
 

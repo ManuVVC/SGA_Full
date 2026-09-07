@@ -35,9 +35,18 @@ export default function ArticleSearchInput({ onArticleSelected, onGs1Parsed, mod
   useEffect(() => {
     const fetchParam = async () => {
       try {
+        const cached = sessionStorage.getItem('param1690');
+        if (cached !== null) {
+          if (cached === 'true') setParam1690Active(true);
+          return;
+        }
+
         const res = await apiService.get('/utilidades/parametro/1690');
         if (res.data && res.data.activo) {
           setParam1690Active(true);
+          sessionStorage.setItem('param1690', 'true');
+        } else {
+          sessionStorage.setItem('param1690', 'false');
         }
       } catch (err) {
         console.error('Error al consultar parámetro 1690:', err);

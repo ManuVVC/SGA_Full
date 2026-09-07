@@ -20,8 +20,18 @@ export function usePermissions() {
     // 2. Cargar permisos del terminal desde la API (o cache)
     const fetchTerminal = async () => {
       try {
+        const cachedTerminalData = sessionStorage.getItem('sga_terminal_data');
+        if (cachedTerminalData) {
+          const parsedData = JSON.parse(cachedTerminalData);
+          if (parsedData.terminal && parsedData.terminal.permisos) {
+            setTerminalPerms(parsedData.terminal.permisos);
+            return;
+          }
+        }
+
         const response = await apiService.get('/auth/terminal');
         if (response.status === 200 && response.data.terminal && response.data.terminal.permisos) {
+          sessionStorage.setItem('sga_terminal_data', JSON.stringify(response.data));
           setTerminalPerms(response.data.terminal.permisos);
         }
       } catch (err) {

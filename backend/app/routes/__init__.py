@@ -8,6 +8,7 @@ from .devoluciones_routes import devoluciones_bp
 from .admin_routes import admin_bp
 from .pedidos_routes import pedidos_bp
 from .preparacion_routes import preparacion_bp
+from .map_routes import map_bp
 
 def register_routes(app):
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
@@ -20,3 +21,4 @@ def register_routes(app):
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(pedidos_bp, url_prefix="/api/pedidos")
     app.register_blueprint(preparacion_bp, url_prefix="/api/preparacion")
+    app.register_blueprint(map_bp, url_prefix="/api/mapa")

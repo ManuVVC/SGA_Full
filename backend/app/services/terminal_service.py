@@ -41,32 +41,10 @@ def _es_ip_docker_o_local(ip: str) -> bool:
 
 class TerminalService:
     @staticmethod
-    def validar_y_obtener_terminal(request) -> dict:
+    def validar_y_obtener_terminal(ip_address: str) -> dict:
         """
-        Valida y obtiene la información del terminal utilizando la IP 
-        de la solicitud.
-
-        Cadena de resolución de IP (en orden de prioridad):
-          1. X-Terminal-IP  — enviada por el frontend (WebRTC / parámetro URL)
-          2. X-Real-IP      — puesta por Nginx con la IP real del cliente
-          3. X-Forwarded-For — cabecera estándar de proxy (primera IP)
-          4. remote_addr    — IP del socket (puede ser el contenedor Nginx en Docker)
+        Valida y obtiene la información del terminal utilizando la IP.
         """
-        # 1. Extraer IP siguiendo la cadena de prioridad
-        x_terminal_ip  = request.headers.get('X-Terminal-IP', '').strip()
-        x_real_ip      = request.headers.get('X-Real-IP', '').strip()
-        x_forwarded    = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-
-        ip_address = (
-            x_terminal_ip
-            or x_real_ip
-            or x_forwarded
-            or request.remote_addr
-        )
-
-        # Limpiar formato IPv6 mapeado a IPv4 (::ffff:192.168.x.x → 192.168.x.x)
-        if ip_address:
-            ip_address = ip_address.replace('::ffff:', '').strip()
 
         # 2. Bypass NAT de Docker Desktop (SÓLO desarrollo)
         # En producción, DEV_DEFAULT_TERMINAL_IP NO debe estar definido.

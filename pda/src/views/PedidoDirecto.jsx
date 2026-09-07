@@ -8,34 +8,7 @@ import { getClientes } from '../api/devolucionesService';
 import { getPedidoDirectoEnCurso, crearCabeceraPedidoDirecto, grabarLineaPedidoDirecto, getLineasPedidoDirecto, getStockLotes } from '../api/preparacionService';
 import { validarUbicacion } from '../api/reubicacionesService';
 import { usePermissions } from '../hooks/usePermissions';
-import { formatFechaES } from '../utils/dateUtils';
-
-const parseShorthandDate = (input) => {
-  if (!input) return '';
-  if (input.includes('-') || input.includes('/')) return input;
-
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-
-  const clean = input.replace(/\D/g, '');
-
-  if (clean.length === 1 || clean.length === 2) {
-    const dd = clean.padStart(2, '0');
-    return `${currentYear}-${currentMonth}-${dd}`;
-  } else if (clean.length === 4) {
-    const dd = clean.substring(0, 2);
-    const mm = clean.substring(2, 4);
-    return `${currentYear}-${mm}-${dd}`;
-  } else if (clean.length === 6) {
-    const dd = clean.substring(0, 2);
-    const mm = clean.substring(2, 4);
-    const aa = clean.substring(4, 6);
-    return `20${aa}-${mm}-${dd}`;
-  }
-
-  return input;
-};
+import { formatFechaES, parseShorthandDate } from '../utils/dateUtils';
 
 export default function PedidoDirecto() {
   const navigate = useNavigate();

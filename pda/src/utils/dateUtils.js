@@ -59,9 +59,7 @@ export const toYYYYMMDD = (dateVal) => {
  */
 export const parseShorthandDate = (input) => {
   if (!input) return '';
-  if (input.includes('-') || input.includes('/')) {
-    return formatFechaES(input);
-  }
+  if (input.includes('-') || input.includes('/')) return input;
   
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -71,24 +69,19 @@ export const parseShorthandDate = (input) => {
   
   if (clean.length === 1 || clean.length === 2) {
     const dd = clean.padStart(2, '0');
-    return `${dd}-${currentMonth}-${currentYear}`;
+    return `${currentYear}-${currentMonth}-${dd}`;
   } else if (clean.length === 4) {
     const dd = clean.substring(0, 2);
     const mm = clean.substring(2, 4);
-    return `${dd}-${mm}-${currentYear}`;
+    return `${currentYear}-${mm}-${dd}`;
   } else if (clean.length === 6) {
     const dd = clean.substring(0, 2);
     const mm = clean.substring(2, 4);
     const aa = clean.substring(4, 6);
-    return `${dd}-${mm}-20${aa}`;
-  } else if (clean.length === 8) {
-    const dd = clean.substring(0, 2);
-    const mm = clean.substring(2, 4);
-    const yyyy = clean.substring(4, 8);
-    return `${dd}-${mm}-${yyyy}`;
+    return `20${aa}-${mm}-${dd}`;
   }
   
-  return formatFechaES(input);
+  return input;
 };
 
 /**

@@ -7,34 +7,8 @@ import { useKeyboard } from '../contexts/KeyboardContext';
 import { getClientes, getParametros, crearCabecera, grabarLineaDevolucion, getDevolucionEnCurso, getLineasDevolucion } from '../api/devolucionesService';
 import { validarUbicacion } from '../api/reubicacionesService';
 import { usePermissions } from '../hooks/usePermissions';
-import { formatFechaES } from '../utils/dateUtils';
-
-const parseShorthandDate = (input) => {
-  if (!input) return '';
-  if (input.includes('-') || input.includes('/')) return input;
-
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-
-  const clean = input.replace(/\D/g, '');
-
-  if (clean.length === 1 || clean.length === 2) {
-    const dd = clean.padStart(2, '0');
-    return `${currentYear}-${currentMonth}-${dd}`;
-  } else if (clean.length === 4) {
-    const dd = clean.substring(0, 2);
-    const mm = clean.substring(2, 4);
-    return `${currentYear}-${mm}-${dd}`;
-  } else if (clean.length === 6) {
-    const dd = clean.substring(0, 2);
-    const mm = clean.substring(2, 4);
-    const aa = clean.substring(4, 6);
-    return `20${aa}-${mm}-${dd}`;
-  }
-
-  return input;
-};
+import { formatFechaES, parseShorthandDate } from '../utils/dateUtils';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function DevolucionCliente() {
   const navigate = useNavigate();
@@ -86,6 +60,13 @@ export default function DevolucionCliente() {
   // Historial de líneas grabadas en la sesión actual
   const [lineasGrabadas, setLineasGrabadas] = useState([]);
   const [showLineasGrabadas, setShowLineasGrabadas] = useState(false);
+
+  // Confirm Dialog
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    message: '',
+    onConfirm: null,
+  });
 
   // Estados de posiciones para ubicación
   const [posicionesDisponibles, setPosicionesDisponibles] = useState([]);
@@ -246,8 +227,8 @@ export default function DevolucionCliente() {
   };
 
   // Grabar línea de devolución
-  const handleGrabarLinea = async (e) => {
-    if (e) e.preventDefault();
+  const handleGrabarLinea = async (e, ignoreWarnings = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     setError(null);
     setSuccess(null);
 
@@ -267,22 +248,30 @@ export default function DevolucionCliente() {
 
     const parsedCaducidad = caducidad ? parseShorthandDate(caducidad) : null;
 
-    if (parsedCaducidad) {
+    if (parsedCaducidad && !ignoreWarnings) {
       const caducidadDate = new Date(parsedCaducidad);
       const today = new Date();
       caducidadDate.setHours(0, 0, 0, 0);
       today.setHours(0, 0, 0, 0);
 
       if (caducidadDate < today) {
-        const accept = window.confirm('El artículo está caducado (fecha inferior a hoy). ¿Desea aceptar la devolución de todas formas?');
-        if (!accept) return;
+        setConfirmDialog({
+          isOpen: true,
+          message: 'El artículo está caducado (fecha inferior a hoy). ¿Desea aceptar la devolución de todas formas?',
+          onConfirm: () => handleGrabarLinea(null, true)
+        });
+        return;
       } else if (articuloInfo.MARGENCADUCIDAD > 0) {
         const minDate = new Date(today);
         minDate.setDate(minDate.getDate() + articuloInfo.MARGENCADUCIDAD);
 
         if (caducidadDate < minDate) {
-          const accept = window.confirm(`El artículo no cumple el margen de caducidad requerido (${articuloInfo.MARGENCADUCIDAD} días). ¿Desea aceptar la devolución de todas formas?`);
-          if (!accept) return;
+          setConfirmDialog({
+            isOpen: true,
+            message: `El artículo no cumple el margen de caducidad requerido (${articuloInfo.MARGENCADUCIDAD} días). ¿Desea aceptar la devolución de todas formas?`,
+            onConfirm: () => handleGrabarLinea(null, true)
+          });
+          return;
         }
       }
     }
@@ -373,9 +362,11 @@ export default function DevolucionCliente() {
 
   const handleBack = () => {
     if (step === 3 && documentoCreado) {
-      if (window.confirm('¿Seguro que desea salir? La devolución en curso quedará guardada y pendiente.')) {
-        navigate('/devoluciones');
-      }
+      setConfirmDialog({
+        isOpen: true,
+        message: '¿Seguro que desea salir? La devolución en curso quedará guardada y pendiente.',
+        onConfirm: () => navigate('/devoluciones')
+      });
     } else {
       navigate('/devoluciones');
     }
@@ -857,6 +848,16 @@ export default function DevolucionCliente() {
           </div>
         )}
       </div>
+      
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        message={confirmDialog.message}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        onConfirm={() => {
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+          if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+        }}
+      />
     </div>
   );
 }

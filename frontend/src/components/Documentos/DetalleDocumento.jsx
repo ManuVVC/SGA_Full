@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { formatDate } from '../../utils/formatDate';
 
 const drawerStyle = {
   position: 'fixed', bottom: 0, left: 0, width: '100vw', height: '50vh',
@@ -11,13 +12,6 @@ const drawerStyle = {
 const overlayStyle = {
   position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
   background: 'rgba(0,0,0,0.5)', zIndex: 999
-};
-
-const formatDate = (dateStr) => {
-  if (!dateStr || typeof dateStr !== 'string') return dateStr ?? '';
-  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})( \d{2}:\d{2}:\d{2})?$/);
-  if (match) return `${match[3]}/${match[2]}/${match[1]}${match[4] || ''}`;
-  return dateStr;
 };
 
 /**

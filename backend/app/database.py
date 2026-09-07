@@ -51,6 +51,13 @@ class OracleDatabase:
             
         connection = instance.pool.acquire()
         
+        # Alinear el formato de fechas con el de PL/SQL Developer (DD/MM/YYYY)
+        try:
+            with connection.cursor() as cur:
+                cur.execute("ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY'")
+        except Exception as e:
+            logger.warning(f"No se pudo alterar NLS_DATE_FORMAT: {e}")
+        
         # Envolver la conexión si el log de auditoría está activado
         if current_app and current_app.config.get("AUDIT_LOG_ENABLED"):
             from .utils.db_logger import AuditConnection

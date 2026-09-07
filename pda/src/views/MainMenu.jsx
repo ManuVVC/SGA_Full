@@ -12,8 +12,18 @@ export default function MainMenu() {
   useEffect(() => {
     const fetchTerminal = async () => {
       try {
+        const cachedTerminalData = sessionStorage.getItem('sga_terminal_data');
+        if (cachedTerminalData) {
+          const parsedData = JSON.parse(cachedTerminalData);
+          if (parsedData.terminal) {
+            setTerminalPerms(parsedData.terminal.permisos || {});
+            return;
+          }
+        }
+
         const response = await apiService.get('/auth/terminal');
         if (response.status === 200 && response.data.terminal) {
+          sessionStorage.setItem('sga_terminal_data', JSON.stringify(response.data));
           setTerminalPerms(response.data.terminal.permisos || {});
         }
       } catch (err) {
@@ -36,7 +46,7 @@ export default function MainMenu() {
     { id: 4, label: 'INVENTARIO', icon: Package, path: '/inventario', show: true },
     { id: 5, label: 'DEVOLUCIONES', icon: ClipboardList, path: '/devoluciones', show: terminalPerms.PRM_DEVOLUCIONESCLIENTE },
     { id: 6, label: 'UTILIDADES', icon: Wrench, path: '/utilidades', show: true },
-  ].filter(item => item.show === true || item.show === undefined);
+  ].filter(item => item.show === true);
 
   return (
     <div className="flex flex-col flex-1 h-full bg-brand-light">

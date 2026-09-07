@@ -97,7 +97,7 @@ export default function Login() {
         }
 
         // Easter egg para Operador 1
-        if (username.trim() === '1') {
+        if (import.meta.env.VITE_ENABLE_EASTER_EGGS === 'true' && username.trim() === '1') {
           console.log('[SGA] Detectado operador 1, calculando jubilación...');
           const retirementDate = new Date('2029-12-31T00:00:00');
           const today = new Date();

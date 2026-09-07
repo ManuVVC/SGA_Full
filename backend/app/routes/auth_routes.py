@@ -1,5 +1,5 @@
 import logging
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from ..services.auth_service import AuthService
 from ..services.terminal_service import TerminalService
 from ..utils.exceptions import UserNotFoundError, InvalidPasswordError, TerminalNoAutorizado, TerminalBloqueado
@@ -7,11 +7,28 @@ from ..utils.exceptions import UserNotFoundError, InvalidPasswordError, Terminal
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
 
+def _extract_ip(req) -> str:
+    x_terminal_ip = req.headers.get('X-Terminal-IP', '').strip()
+    x_real_ip = req.headers.get('X-Real-IP', '').strip()
+    x_forwarded = req.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+    
+    ip_address = (
+        x_terminal_ip
+        or x_real_ip
+        or x_forwarded
+        or req.remote_addr
+        or ""
+    )
+    if ip_address:
+        ip_address = ip_address.replace('::ffff:', '').strip()
+    return ip_address
+
 
 @auth_bp.route("/terminal", methods=["GET"])
 def get_terminal_info():
     try:
-        terminal_info = TerminalService.validar_y_obtener_terminal(request)
+        ip_address = _extract_ip(request)
+        terminal_info = TerminalService.validar_y_obtener_terminal(ip_address)
         return jsonify({
             "status": "success",
             "terminal": terminal_info
@@ -40,8 +57,12 @@ def login():
         username = data.get("username")
         password = data.get("password")
 
+        ip_address = _extract_ip(request)
+        secret_key = current_app.config.get("SECRET_KEY", "change-me")
+        session_timeout = current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+
         # Llamar al servicio de autenticación
-        result = AuthService.login(username, password)
+        result = AuthService.login(username, password, ip_address, secret_key, session_timeout)
 
         return jsonify({
             "status": "success",
@@ -110,7 +131,11 @@ def login_web():
         username = data.get("nombre") or data.get("username")
         password = data.get("password")
 
-        result = AuthService.login_web(username, password)
+        ip_address = _extract_ip(request)
+        secret_key = current_app.config.get("SECRET_KEY", "change-me")
+        session_timeout = current_app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+
+        result = AuthService.login_web(username, password, ip_address, secret_key, session_timeout)
 
         return jsonify({
             "status": "success",

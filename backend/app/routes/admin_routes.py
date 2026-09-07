@@ -286,6 +286,8 @@ def get_dashboard_roturas():
 
         query = """
             SELECT
+                ps.CODDOCUMENTO as NUMDOCUMENTO,
+                ps.CODENTIDAD as CODCLIENTEAPLICACION,
                 a.CODARTICULO,
                 a.CODARTICULOAPLICACION,
                 a.NOMBREARTICULO,
@@ -303,7 +305,7 @@ def get_dashboard_roturas():
                 WHERE v.CODARTICULO = a.CODARTICULO
                   AND (v.FECHACADUCIDAD IS NULL OR v.FECHACADUCIDAD >= TRUNC(SYSDATE))
             )
-            GROUP BY a.CODARTICULO, a.CODARTICULOAPLICACION, a.NOMBREARTICULO, pr.UNIDADES_A_RECIBIR
+            GROUP BY ps.CODDOCUMENTO, ps.CODENTIDAD, a.CODARTICULO, a.CODARTICULOAPLICACION, a.NOMBREARTICULO, pr.UNIDADES_A_RECIBIR
             ORDER BY UNIDADES_A_SERVIR DESC
         """
         cursor.execute(query)
@@ -1235,13 +1237,15 @@ def get_estadisticas_operadores():
         cursor.execute("""
             SELECT
                 m.CODOPERADOR,
+                NVL(o.NOMBRE, m.CODOPERADOR) as OPERADOR,
                 COUNT(*) as LINEAS_PREPARADAS,
                 SUM(m.UNIDADES) as UNIDADES_TOTALES,
                 MIN(m.FECHA) as PRIMERA_ACTIVIDAD,
                 MAX(m.FECHA) as ULTIMA_ACTIVIDAD
             FROM GSM.TEST_MOVIMIENTOSOPERADOR m
+            LEFT JOIN TMST_OPERADORES o ON m.CODOPERADOR = o.CODOPERADOR
             WHERE m.FECHA >= :fecha_desde AND m.FECHA <= :fecha_hasta
-            GROUP BY m.CODOPERADOR
+            GROUP BY m.CODOPERADOR, o.NOMBRE
             ORDER BY UNIDADES_TOTALES DESC
         """, {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta})
 
