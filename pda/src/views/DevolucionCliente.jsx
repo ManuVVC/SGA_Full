@@ -227,8 +227,11 @@ export default function DevolucionCliente() {
   };
 
   // Grabar línea de devolución
+  const isSubmitting = useRef(false);
+
   const handleGrabarLinea = async (e, ignoreWarnings = false) => {
     if (e && e.preventDefault) e.preventDefault();
+    if (isSubmitting.current) return;
     setError(null);
     setSuccess(null);
 
@@ -278,6 +281,7 @@ export default function DevolucionCliente() {
 
     const totalUnits = parseInt(unidades, 10) * (articuloInfo.UNIDADES || 1);
 
+    isSubmitting.current = true;
     setLoading(true);
     try {
       // Determinar ubicación final
@@ -357,6 +361,7 @@ export default function DevolucionCliente() {
       setError(err.message || err.response?.data?.message || 'Error al grabar línea.');
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

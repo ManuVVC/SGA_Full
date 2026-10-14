@@ -74,3 +74,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+
+  # ?? Frontend Kubica (Next.js)
+  kubica:
+    build:
+      context: ./Kubica
+      dockerfile: Dockerfile
+    container_name: sga_kubica
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

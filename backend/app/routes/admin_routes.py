@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import ipaddress
 from flask import Blueprint, jsonify, request
 from ..utils.session_manager import session_manager
@@ -6,12 +6,12 @@ from ..utils.session_manager import session_manager
 admin_bp = Blueprint("admin", __name__)
 logger = logging.getLogger(__name__)
 
-# Redes consideradas "locales" — solo desde estas IPs se permite acceder
+# Redes consideradas "locales" â€” solo desde estas IPs se permite acceder
 _REDES_LOCALES = [
     ipaddress.ip_network("127.0.0.0/8"),      # loopback
     ipaddress.ip_network("10.0.0.0/8"),        # clase A privada
     ipaddress.ip_network("172.16.0.0/12"),     # clase B privada (incluye Docker)
-    ipaddress.ip_network("192.168.0.0/16"),    # clase C privada (LAN típica)
+    ipaddress.ip_network("192.168.0.0/16"),    # clase C privada (LAN tÃ­pica)
 ]
 
 
@@ -34,7 +34,7 @@ def get_conexiones():
     Devuelve la lista de terminales/operadores actualmente conectados al servicio.
 
     Acceso restringido a la red local (LAN / rangos privados RFC-1918).
-    Útil para supervisión sin necesidad de acceder a los logs.
+    Ãštil para supervisiÃ³n sin necesidad de acceder a los logs.
 
     Respuesta ejemplo:
     {
@@ -74,7 +74,7 @@ def get_conexiones():
     sesiones = session_manager.get_active_sessions()
     logger.info(
         f"[SGA][Admin] Consulta de conexiones activas desde {ip_solicitante} "
-        f"— {len(sesiones)} sesión(es) activa(s)."
+        f"â€” {len(sesiones)} sesiÃ³n(es) activa(s)."
     )
 
     return jsonify({
@@ -87,7 +87,7 @@ def get_conexiones():
 @admin_bp.route("/articulos", methods=["GET"])
 def get_articulos_admin():
     """
-    Endpoint de administración para consultar el catálogo Oracle (SGA Alimentación).
+    Endpoint de administraciÃ³n para consultar el catÃ¡logo Oracle (SGA AlimentaciÃ³n).
     Acceso restringido a LAN.
     """
     ip_solicitante = (
@@ -106,7 +106,7 @@ def get_articulos_admin():
         if query:
             results = StockService.search_articulos("general", query)
         else:
-            # Por defecto devolvemos artículos de muestra desde Oracle (Alimentación)
+            # Por defecto devolvemos artÃ­culos de muestra desde Oracle (AlimentaciÃ³n)
             results = StockService.search_articulos("general", "A")[:15]
         return jsonify({
             "status": "success",
@@ -114,7 +114,7 @@ def get_articulos_admin():
             "data": results
         }), 200
     except Exception as e:
-        logger.error(f"[Admin] Error consultando catálogo en Oracle DB: {e}", exc_info=True)
+        logger.error(f"[Admin] Error consultando catÃ¡logo en Oracle DB: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -151,7 +151,7 @@ def get_almacenes():
 @admin_bp.route("/pedidos", methods=["GET"])
 def get_pedidos_admin():
     """
-    Endpoint de administración para consultar pedidos de cliente al vuelo y aparcados en la BD Oracle.
+    Endpoint de administraciÃ³n para consultar pedidos de cliente al vuelo y aparcados en la BD Oracle.
     """
     ip_solicitante = (
         request.headers.get("X-Real-IP", "").strip()
@@ -214,7 +214,7 @@ def get_dashboard_stats():
         cursor.execute("SELECT COUNT(*) FROM GSM.VMST_DOCCLIENTESVISIBLES WHERE CODESTADODOCUMENTO IN (3, 7)")
         salidas_curso = cursor.fetchone()[0] or 0
 
-        # Palets por Almacén
+        # Palets por AlmacÃ©n
         query_palets = """
             SELECT a.DESCRIPCION, ROUND(SUM(v.STOCK / NVL(tua.FACTORCONVERSION, 1)), 2) as TOTAL
             FROM GSM.VSYS_UBICACIONESARTICULO v
@@ -336,7 +336,7 @@ def get_dashboard_roturas():
 @admin_bp.route("/dashboard/caducidades", methods=["GET"])
 def get_estadisticas_caducidades():
     """
-    Devuelve los artículos próximos a caducar según el parámetro de meses.
+    Devuelve los artÃ­culos prÃ³ximos a caducar segÃºn el parÃ¡metro de meses.
     Usa VMST_UBICACIONESARTICULO.
     """
     ip_solicitante = (request.headers.get("X-Real-IP", "").strip() or request.remote_addr).replace("::ffff:", "").strip()
@@ -464,7 +464,7 @@ def get_flujos_stock():
         cols_s = [col[0].lower() for col in cursor.description]
         data_servir = [dict(zip(cols_s, row)) for row in cursor.fetchall()]
         
-        # Consolidar (en un caso real, cruzaríamos con TMST_ARTICULOS)
+        # Consolidar (en un caso real, cruzarÃ­amos con TMST_ARTICULOS)
         return jsonify({
             "status": "success",
             "pendientes_recibir": data_recibir,
@@ -523,7 +523,7 @@ def get_inbound_documentos():
             d.CODTIPODOCUMENTO
         FROM GSM.VMST_DOCUMENTOSPROVEEDOR d
         LEFT JOIN GSM.TMST_TIPOMOVIMIENTO tm ON d.CODTIPOMOVIMIENTO = tm.CODTIPOMOVIMIENTO
-        WHERE UPPER(d.DESCRIPCIONESTADO) NOT LIKE '%HISTÓRICO%' AND UPPER(d.DESCRIPCIONESTADO) NOT LIKE '%BORRADO%'
+        WHERE UPPER(d.DESCRIPCIONESTADO) NOT LIKE '%HISTÃ“RICO%' AND UPPER(d.DESCRIPCIONESTADO) NOT LIKE '%BORRADO%'
         AND d.CODTIPODOCUMENTO IN (2, 3)
         """
         
@@ -543,7 +543,7 @@ def get_inbound_documentos():
         LEFT JOIN GSM.TSYS_ESTADOSDOCUMENTO e ON c.CODESTADODOCUMENTO = e.CODESTADODOCUMENTO
         WHERE c.CODTIPODOCUMENTO = 7 
         AND c.CODESTADODOCUMENTO = 27
-        AND UPPER(e.DESCRIPCION) NOT LIKE '%HISTÓRICO%' AND UPPER(e.DESCRIPCION) NOT LIKE '%BORRADO%'
+        AND UPPER(e.DESCRIPCION) NOT LIKE '%HISTÃ“RICO%' AND UPPER(e.DESCRIPCION) NOT LIKE '%BORRADO%'
         """
 
         filtro_prov = ""
@@ -618,8 +618,8 @@ def get_inbound_documentos():
         # Fallback Mock data
         mock_data = [
             {"fechadocumento": "2026-07-31 08:30:00", "numdocumento": "PED-PRV-001", "codentidad": "P001", "nombrecomercial": "PROVEEDOR A", "numlineas": 10, "estado": "Pedido a Proveedor", "tipomovimiento": "Pedido a Proveedor", "codtipodocumento": 2},
-            {"fechadocumento": "2026-07-31 09:15:00", "numdocumento": "ENT-002", "codentidad": "P002", "nombrecomercial": "PROVEEDOR B", "numlineas": 5, "estado": "Ent. Mercancía", "tipomovimiento": "Entrada de Mercancía", "codtipodocumento": 3},
-            {"fechadocumento": "2026-07-31 10:00:00", "numdocumento": "DEV-CLI-003", "codentidad": "C001", "nombrecomercial": "CLIENTE A", "numlineas": 2, "estado": "Dev. En Curso", "tipomovimiento": "Devolución de Cliente", "codtipodocumento": 7}
+            {"fechadocumento": "2026-07-31 09:15:00", "numdocumento": "ENT-002", "codentidad": "P002", "nombrecomercial": "PROVEEDOR B", "numlineas": 5, "estado": "Ent. MercancÃ­a", "tipomovimiento": "Entrada de MercancÃ­a", "codtipodocumento": 3},
+            {"fechadocumento": "2026-07-31 10:00:00", "numdocumento": "DEV-CLI-003", "codentidad": "C001", "nombrecomercial": "CLIENTE A", "numlineas": 2, "estado": "Dev. En Curso", "tipomovimiento": "DevoluciÃ³n de Cliente", "codtipodocumento": 7}
         ]
         return jsonify({
             "status": "error", 
@@ -753,12 +753,12 @@ def get_outbound_documentos():
 
 
 # ---------------------------------------------------------------------------
-# INBOUND: Líneas de un documento de proveedor
+# INBOUND: LÃ­neas de un documento de proveedor
 # ---------------------------------------------------------------------------
 @admin_bp.route("/inbound/lineas", methods=["GET"])
 def get_inbound_lineas():
     """
-    Devuelve las líneas de un documento de proveedor dado su NUMDOCUMENTO.
+    Devuelve las lÃ­neas de un documento de proveedor dado su NUMDOCUMENTO.
     Query param: coddocumento (NUMDOCUMENTO visible al usuario).
     """
     ip_solicitante = (
@@ -773,7 +773,7 @@ def get_inbound_lineas():
 
     coddocumento = request.args.get("coddocumento", "").strip()
     if not coddocumento:
-        return jsonify({"status": "error", "message": "Parámetro 'coddocumento' requerido."}), 400
+        return jsonify({"status": "error", "message": "ParÃ¡metro 'coddocumento' requerido."}), 400
 
     from ..database import OracleDatabase
     connection = None
@@ -782,7 +782,7 @@ def get_inbound_lineas():
         connection = OracleDatabase.get_connection()
         cursor = connection.cursor()
 
-        # Consultar líneas del documento de proveedor
+        # Consultar lÃ­neas del documento de proveedor
         cursor.execute("""
             SELECT
                 l.NUMLINEA,
@@ -802,7 +802,7 @@ def get_inbound_lineas():
         cols = [col[0].lower() for col in cursor.description]
         data = [dict(zip(cols, row)) for row in cursor.fetchall()]
 
-        # Convertir posibles valores nulos a cadena vacía
+        # Convertir posibles valores nulos a cadena vacÃ­a
         for r in data:
             r["codarticuloaplicacion"] = r.get("codarticuloaplicacion") or ""
             r["nombrearticulo"] = r.get("nombrearticulo") or ""
@@ -823,12 +823,12 @@ def get_inbound_lineas():
 
 
 # ---------------------------------------------------------------------------
-# OUTBOUND: Líneas de un pedido de cliente
+# OUTBOUND: LÃ­neas de un pedido de cliente
 # ---------------------------------------------------------------------------
 @admin_bp.route("/outbound/lineas", methods=["GET"])
 def get_outbound_lineas():
     """
-    Devuelve las líneas de un pedido de cliente dado su NUMDOCUMENTO.
+    Devuelve las lÃ­neas de un pedido de cliente dado su NUMDOCUMENTO.
     Query param: coddocumento (NUMDOCUMENTO visible al usuario).
     """
     ip_solicitante = (
@@ -843,7 +843,7 @@ def get_outbound_lineas():
 
     coddocumento = request.args.get("coddocumento", "").strip()
     if not coddocumento:
-        return jsonify({"status": "error", "message": "Parámetro 'coddocumento' requerido."}), 400
+        return jsonify({"status": "error", "message": "ParÃ¡metro 'coddocumento' requerido."}), 400
 
     from ..database import OracleDatabase
     connection = None
@@ -852,7 +852,7 @@ def get_outbound_lineas():
         connection = OracleDatabase.get_connection()
         cursor = connection.cursor()
 
-        # Consultar líneas del pedido de cliente
+        # Consultar lÃ­neas del pedido de cliente
         cursor.execute("""
             SELECT
                 l.NUMLINEA,
@@ -871,7 +871,7 @@ def get_outbound_lineas():
         cols = [col[0].lower() for col in cursor.description]
         data = [dict(zip(cols, row)) for row in cursor.fetchall()]
 
-        # Convertir posibles valores nulos a cadena vacía
+        # Convertir posibles valores nulos a cadena vacÃ­a
         for r in data:
             r["codarticuloaplicacion"] = r.get("codarticuloaplicacion") or ""
             r["nombrearticulo"] = r.get("nombrearticulo") or ""
@@ -892,18 +892,18 @@ def get_outbound_lineas():
 
 
 # ---------------------------------------------------------------------------
-# INVENTARIO: Stock por ubicación con paginación
+# INVENTARIO: Stock por ubicaciÃ³n con paginaciÃ³n
 # ---------------------------------------------------------------------------
 @admin_bp.route("/inventario/stock", methods=["GET"])
 def get_inventario_stock():
     """
-    Consulta stock por ubicación con paginación y filtros opcionales.
+    Consulta stock por ubicaciÃ³n con paginaciÃ³n y filtros opcionales.
     Query params:
       - q       : texto libre (busca en NOMBREARTICULO y CODARTICULOAPLICACION)
-      - almacen : código de almacén (opcional)
-      - pagina  : número de página, por defecto 1
-      - tamano  : registros por página, por defecto 50 (máx. 500)
-    Usa paginación Oracle mediante doble subconsulta con ROWNUM.
+      - almacen : cÃ³digo de almacÃ©n (opcional)
+      - pagina  : nÃºmero de pÃ¡gina, por defecto 1
+      - tamano  : registros por pÃ¡gina, por defecto 50 (mÃ¡x. 500)
+    Usa paginaciÃ³n Oracle mediante doble subconsulta con ROWNUM.
     """
     ip_solicitante = (
         request.headers.get("X-Real-IP", "").strip()
@@ -915,14 +915,14 @@ def get_inventario_stock():
     if not _es_ip_local(ip_solicitante):
         return jsonify({"status": "error", "message": "Acceso restringido a LAN."}), 403
 
-    # Parámetros de paginación y filtrado
+    # ParÃ¡metros de paginaciÃ³n y filtrado
     q = request.args.get("q", "").strip()
     almacen = request.args.get("almacen", "").strip()
     try:
         pagina = max(1, int(request.args.get("pagina", 1)))
         tamano = max(1, min(500, int(request.args.get("tamano", 50))))
     except ValueError:
-        return jsonify({"status": "error", "message": "Los parámetros 'pagina' y 'tamano' deben ser enteros."}), 400
+        return jsonify({"status": "error", "message": "Los parÃ¡metros 'pagina' y 'tamano' deben ser enteros."}), 400
 
     offset_inicio = (pagina - 1) * tamano + 1
     offset_fin = pagina * tamano
@@ -934,7 +934,7 @@ def get_inventario_stock():
         connection = OracleDatabase.get_connection()
         cursor = connection.cursor()
 
-        # Construir cláusulas WHERE dinámicas
+        # Construir clÃ¡usulas WHERE dinÃ¡micas
         condiciones = ["v.STOCK > 0"]
         params = {}
 
@@ -951,7 +951,7 @@ def get_inventario_stock():
 
         where_clause = " AND ".join(condiciones)
 
-        # Paginación Oracle: doble subconsulta con ROWNUM
+        # PaginaciÃ³n Oracle: doble subconsulta con ROWNUM
         query = f"""
             SELECT * FROM (
                 SELECT inner_q.*, ROWNUM as rn FROM (
@@ -1022,11 +1022,11 @@ def get_inventario_stock():
 
 
 # ---------------------------------------------------------------------------
-# INVENTARIO: Conceptos Estadísticos
+# INVENTARIO: Conceptos EstadÃ­sticos
 # ---------------------------------------------------------------------------
 @admin_bp.route("/conceptos-estadisticos", methods=["GET"])
 def get_conceptos_estadisticos():
-    """Devuelve la lista de conceptos estadísticos para los filtros."""
+    """Devuelve la lista de conceptos estadÃ­sticos para los filtros."""
     ip_solicitante = (request.headers.get("X-Real-IP", "").strip() or request.remote_addr or "").replace("::ffff:", "").strip()
     if not _es_ip_local(ip_solicitante):
         return jsonify({"status": "error", "message": "Acceso restringido a LAN."}), 403
@@ -1059,11 +1059,11 @@ def get_conceptos_estadisticos():
 @admin_bp.route("/inventario/movimientos", methods=["GET"])
 def get_inventario_movimientos():
     """
-    Consulta movimientos de stock en un rango de fechas (máx. 500 registros).
+    Consulta movimientos de stock en un rango de fechas (mÃ¡x. 500 registros).
     Query params:
-      - fecha_desde : DD/MM/YYYY (por defecto: hace 7 días)
+      - fecha_desde : DD/MM/YYYY (por defecto: hace 7 dÃ­as)
       - fecha_hasta : DD/MM/YYYY (por defecto: hoy)
-      - almacen     : código de almacén (opcional)
+      - almacen     : cÃ³digo de almacÃ©n (opcional)
     """
     ip_solicitante = (
         request.headers.get("X-Real-IP", "").strip()
@@ -1098,7 +1098,7 @@ def get_inventario_movimientos():
             else datetime.now()
         )
     except ValueError:
-        return jsonify({"status": "error", "message": "Formato de fecha inválido. Use YYYY-MM-DD."}), 400
+        return jsonify({"status": "error", "message": "Formato de fecha invÃ¡lido. Use YYYY-MM-DD."}), 400
 
     connection = None
     cursor = None
@@ -1106,7 +1106,7 @@ def get_inventario_movimientos():
         connection = OracleDatabase.get_connection()
         cursor = connection.cursor()
 
-        # Condiciones dinámicas de filtrado
+        # Condiciones dinÃ¡micas de filtrado
         condiciones = [
             "m.FECHAEJECUTIVA >= :fecha_desde",
             "m.FECHAEJECUTIVA <= :fecha_hasta"
@@ -1188,7 +1188,7 @@ def get_inventario_movimientos():
 
 
 # ---------------------------------------------------------------------------
-# ESTADÍSTICAS: Productividad de operadores
+# ESTADÃSTICAS: Productividad de operadores
 # ---------------------------------------------------------------------------
 @admin_bp.route("/estadisticas/operadores", methods=["GET"])
 def get_estadisticas_operadores():
@@ -1226,7 +1226,7 @@ def get_estadisticas_operadores():
             else datetime.now().replace(hour=23, minute=59, second=59, microsecond=0)
         )
     except ValueError:
-        return jsonify({"status": "error", "message": "Formato de fecha inválido. Use YYYY-MM-DD."}), 400
+        return jsonify({"status": "error", "message": "Formato de fecha invÃ¡lido. Use YYYY-MM-DD."}), 400
 
     connection = None
     cursor = None
@@ -1252,7 +1252,7 @@ def get_estadisticas_operadores():
         cols = [col[0].lower() for col in cursor.description]
         data = [dict(zip(cols, row)) for row in cursor.fetchall()]
 
-        # Formatear fechas y garantizar nulos numéricos a 0
+        # Formatear fechas y garantizar nulos numÃ©ricos a 0
         for r in data:
             r["codoperador"] = r.get("codoperador") or ""
             r["lineas_preparadas"] = r.get("lineas_preparadas") or 0
@@ -1283,13 +1283,13 @@ def get_estadisticas_operadores():
 
 
 # ---------------------------------------------------------------------------
-# DASHBOARD: KPI de movimientos del día actual
+# DASHBOARD: KPI de movimientos del dÃ­a actual
 # ---------------------------------------------------------------------------
 @admin_bp.route("/dashboard/movimientos-hoy", methods=["GET"])
 def get_dashboard_movimientos_hoy():
     """
     Devuelve los KPIs de entradas y salidas desde TRUNC(SYSDATE).
-    No requiere parámetros.
+    No requiere parÃ¡metros.
     """
     ip_solicitante = (
         request.headers.get("X-Real-IP", "").strip()
@@ -1324,7 +1324,7 @@ def get_dashboard_movimientos_hoy():
         cols = [col[0].lower() for col in cursor.description]
         data = [dict(zip(cols, row)) for row in cursor.fetchall()]
 
-        # Asegurar que los valores nulos numéricos sean 0
+        # Asegurar que los valores nulos numÃ©ricos sean 0
         for r in data:
             r["movimientos"] = r.get("movimientos") or 0
             r["unidades"] = r.get("unidades") or 0
@@ -1346,7 +1346,7 @@ def get_dashboard_movimientos_hoy():
 @admin_bp.route("/filtros", methods=["GET"])
 def get_filtros():
     """
-    Endpoint para recuperar la lista de filtros guardados de un módulo.
+    Endpoint para recuperar la lista de filtros guardados de un mÃ³dulo.
     Query param: def (CODDEFFILTRO). Ej: ?def=12
     """
     ip_solicitante = (
@@ -1361,7 +1361,7 @@ def get_filtros():
 
     cod_def = request.args.get("def")
     if not cod_def or not cod_def.isdigit():
-        return jsonify({"status": "error", "message": "Parámetro 'def' requerido y numérico."}), 400
+        return jsonify({"status": "error", "message": "ParÃ¡metro 'def' requerido y numÃ©rico."}), 400
 
     try:
         from ..services.filter_service import FilterService
@@ -1375,12 +1375,23 @@ def get_filtros():
         logging.getLogger(__name__).error(f"[Admin] Error consultando filtros: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@admin_bp.route("/filtros/maestros", methods=["GET"])
+def get_filtros_maestros():
+    """Retorna la lista maestra de definiciones de filtros (TSYS_DEFINICIONFILTROS) para el configurador."""
+    try:
+        from ..database import OracleDatabase
+        query = "SELECT CODDEFFILTRO, DESCRIPCION FROM GSM.TSYS_DEFINICIONFILTROS ORDER BY DESCRIPCION"
+        data = OracleDatabase.execute_query(query)
+        return jsonify({"status": "success", "data": data}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @admin_bp.route("/filtros/definicion", methods=["GET"])
 def get_definicion_campos_filtro():
     """Retorna los metadatos de los campos de filtro permitidos."""
     cod_def = request.args.get("def")
     if not cod_def or not cod_def.isdigit():
-        return jsonify({"status": "error", "message": "Parámetro 'def' requerido y numérico."}), 400
+        return jsonify({"status": "error", "message": "ParÃ¡metro 'def' requerido y numÃ©rico."}), 400
 
     from ..services.filter_service import FilterService
     campos = FilterService.get_definicion_campos(int(cod_def))
@@ -1396,7 +1407,7 @@ def guardar_filtro():
     cod_operador = data.get("cod_operador", 1) # Default admin operador
 
     if not cod_def_filtro or not descripcion or not custom_values:
-        return jsonify({"status": "error", "message": "Faltan parámetros requeridos"}), 400
+        return jsonify({"status": "error", "message": "Faltan parÃ¡metros requeridos"}), 400
 
     from ..services.filter_service import FilterService
     res = FilterService.crear_filtro(int(cod_def_filtro), descripcion, int(cod_operador), custom_values)
@@ -1456,7 +1467,7 @@ def ejecutar_informe():
     if not (upper_sql.startswith("SELECT ") or upper_sql.startswith("WITH ")):
         return jsonify({"status": "error", "message": "Consulta rechazada. La consulta debe iniciar con SELECT o WITH."}), 400
     
-    # 2. INYECCIÓN DEL FILTRO DINÁMICO
+    # 2. INYECCIÃ“N DEL FILTRO DINÃMICO
     bind_params = {}
     cond_sql = ""
     prm = {}
@@ -1465,7 +1476,7 @@ def ejecutar_informe():
     custom_filters = data.get("custom_filters")
     
     if custom_filters and coddeffiltro and str(coddeffiltro).isdigit():
-        # Usa el filtro dinámico enviado desde el frontend sin guardar
+        # Usa el filtro dinÃ¡mico enviado desde el frontend sin guardar
         cond_sql, prm = FilterService.build_custom_filter_condition(int(coddeffiltro), custom_filters, bind_param_prefix="f_custom_")
     elif codfiltro and str(codfiltro).isdigit():
         # Usa un filtro pre-guardado de la base de datos
@@ -1478,11 +1489,11 @@ def ejecutar_informe():
         else:
             pass
             
-    # Removemos {FILTROS_DINAMICOS} si quedó suelto porque el usuario no seleccionó un filtro
+    # Removemos {FILTROS_DINAMICOS} si quedÃ³ suelto porque el usuario no seleccionÃ³ un filtro
     sql_query = sql_query.replace("{FILTROS_DINAMICOS}", "")
 
-    # 3. LÍMITE DE FILAS PARA PREVENIR OOM
-    # Si no usa paginación Oracle 12c+
+    # 3. LÃMITE DE FILAS PARA PREVENIR OOM
+    # Si no usa paginaciÃ³n Oracle 12c+
     if "FETCH FIRST " not in upper_sql:
         sql_query = f"SELECT * FROM ({sql_query}) WHERE ROWNUM <= 1000"
 
@@ -1517,3 +1528,393 @@ def ejecutar_informe():
         
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error ejecutando SQL: {str(e)}"}), 500
+
+# ==========================================
+# INFORMES CONFIGURABLES (NUEVO SISTEMA)
+# ==========================================
+
+@admin_bp.route("/informes-config", methods=["GET"])
+def get_informes_config():
+    from ..services.informes_config_service import InformesConfigService
+    solo_visibles = request.args.get("solo_visibles") == "1"
+    try:
+        data = InformesConfigService.get_all(solo_visibles)
+        return jsonify({"status": "success", "data": data}), 200
+    except Exception as e:
+        logger.error(f"Error obteniendo informes configurables: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/<int:id_informe>", methods=["GET"])
+def get_informe_config(id_informe):
+    from ..services.informes_config_service import InformesConfigService
+    try:
+        data = InformesConfigService.get_by_id(id_informe)
+        if not data:
+            return jsonify({"status": "error", "message": "Informe no encontrado"}), 404
+        return jsonify({"status": "success", "data": data}), 200
+    except Exception as e:
+        logger.error(f"Error obteniendo informe {id_informe}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def _normalize_informe_keys(data):
+    """Normaliza las claves del JSON (MAYÃšSCULAS â†’ minÃºsculas) para el repositorio."""
+    if not data:
+        return {}
+    key_map = {
+        "NOMBRE": "nombre", "TITULO": "titulo", "DESCRIPCION": "descripcion",
+        "CATEGORIA": "categoria", "SQL_QUERY": "sql_query", "CODDEFFILTRO": "coddeffiltro",
+        "COLUMNAS_CONFIG": "columnas_config", "ORDER_BY": "order_by",
+        "VISIBLE_USUARIOS": "visible_usuarios"
+    }
+    normalized = {}
+    for k, v in data.items():
+        new_key = key_map.get(k, k.lower())
+        normalized[new_key] = v
+    return normalized
+
+@admin_bp.route("/informes-config", methods=["POST"])
+def create_informe_config():
+    from ..services.informes_config_service import InformesConfigService
+    data = _normalize_informe_keys(request.json)
+    try:
+        new_id = InformesConfigService.create(data)
+        return jsonify({"status": "success", "data": {"id": new_id}}), 200
+    except Exception as e:
+        logger.error(f"Error creando informe: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/<int:id_informe>", methods=["PUT"])
+def update_informe_config(id_informe):
+    from ..services.informes_config_service import InformesConfigService
+    data = _normalize_informe_keys(request.json)
+    try:
+        InformesConfigService.update(id_informe, data)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        logger.error(f"Error actualizando informe {id_informe}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/<int:id_informe>", methods=["DELETE"])
+def delete_informe_config(id_informe):
+    from ..services.informes_config_service import InformesConfigService
+    try:
+        InformesConfigService.delete(id_informe)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        logger.error(f"Error eliminando informe {id_informe}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/ejecutar", methods=["POST"])
+def ejecutar_informe_config():
+    from ..services.informes_config_service import InformesConfigService
+    data = request.json
+    id_informe = data.get("id_informe")
+    codfiltro = data.get("codfiltro")
+    custom_filters = data.get("custom_filters")
+    if not id_informe:
+        return jsonify({"status": "error", "message": "id_informe es requerido"}), 400
+    try:
+        result = InformesConfigService.ejecutar_informe(id_informe, filtros=codfiltro, custom_filters=custom_filters)
+        result["status"] = "success"
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error ejecutando informe {id_informe}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/columnas", methods=["GET"])
+def get_columnas_tabla():
+    ip_solicitante = (
+        request.headers.get("X-Real-IP", "").strip()
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or request.remote_addr
+        or ""
+    ).replace("::ffff:", "").strip()
+    if not _es_ip_local(ip_solicitante):
+        return jsonify({"status": "error", "message": "Acceso restringido a LAN."}), 403
+
+    tabla = request.args.get("tabla")
+    if not tabla:
+        return jsonify({"status": "error", "message": "ParÃ¡metro 'tabla' es requerido"}), 400
+    
+    from ..services.informes_config_service import InformesConfigService
+    try:
+        columnas = InformesConfigService.get_columnas_tabla(tabla)
+        return jsonify({"status": "success", "data": columnas}), 200
+    except Exception as e:
+        logger.error(f"Error introspecciÃ³n de tabla {tabla}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/tablas", methods=["GET"])
+def get_tablas_disponibles():
+    ip_solicitante = (
+        request.headers.get("X-Real-IP", "").strip()
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or request.remote_addr
+        or ""
+    ).replace("::ffff:", "").strip()
+    if not _es_ip_local(ip_solicitante):
+        return jsonify({"status": "error", "message": "Acceso restringido a LAN."}), 403
+
+    from ..services.informes_config_service import InformesConfigService
+    try:
+        tablas = InformesConfigService.get_tablas_disponibles()
+        return jsonify({"status": "success", "data": tablas}), 200
+    except Exception as e:
+        logger.error(f"Error obteniendo tablas disponibles: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/preferencias", methods=["GET"])
+def get_preferencias_usuario():
+    id_informe = request.args.get("informe")
+    codoperador = request.args.get("operador")
+    if not id_informe or not codoperador:
+        return jsonify({"status": "error", "message": "ParÃ¡metros 'informe' y 'operador' requeridos"}), 400
+    
+    from ..services.informes_config_service import InformesConfigService
+    try:
+        prefs = InformesConfigService.get_preferencias_usuario(id_informe, codoperador)
+        return jsonify({"status": "success", "data": prefs}), 200
+    except Exception as e:
+        logger.error(f"Error obteniendo preferencias de informe: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/informes-config/preferencias", methods=["POST"])
+def save_preferencias_usuario():
+    data = request.json
+    id_informe = data.get("id_informe")
+    codoperador = data.get("codoperador")
+    columnas_visibles = data.get("columnas_visibles", "[]")
+    orden_columnas = data.get("orden_columnas", "[]")
+    
+    if not id_informe or not codoperador:
+        return jsonify({"status": "error", "message": "id_informe y codoperador requeridos"}), 400
+        
+    from ..services.informes_config_service import InformesConfigService
+    try:
+        InformesConfigService.save_preferencias_usuario(id_informe, codoperador, columnas_visibles, orden_columnas)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        logger.error(f"Error guardando preferencias de informe: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/operadores", methods=["GET"])
+def get_operadores_list():
+    try:
+        from app.database import OracleDatabase
+        query = "SELECT CODOPERADOR, NOMBRE FROM TMST_OPERADORES ORDER BY NOMBRE"
+        rows = OracleDatabase.execute_query(query)
+        return jsonify({"status": "success", "data": rows}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/pedidos/asignar", methods=["POST"])
+def asignar_pedidos_operador():
+    from app.database import OracleDatabase
+    data = request.json
+    cod_operador = data.get("cod_operador")
+    documentos = data.get("documentos", [])
+    
+    if not cod_operador or not documentos:
+        return jsonify({"status": "error", "message": "Faltan datos (cod_operador, documentos)"}), 400
+        
+    try:
+        # En muchos SGA, la asignacion implica cambiar el operario en cabecera
+        with OracleDatabase.get_cursor(commit=True) as cursor:
+            for doc in documentos:
+                cursor.execute(
+                    "UPDATE TMST_DOCUMENTOSCLIENTES SET CODOPERADOR = :1 WHERE CODDOCUMENTO = :2",
+                    [cod_operador, doc]
+                )
+        return jsonify({"status": "success", "message": f"Asignados {len(documentos)} pedidos"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
+
+
+
+@admin_bp.route("/inventario/pasillos", methods=["GET"])
+def get_pasillos_totales():
+    from app.database import OracleDatabase
+    almacen = request.args.get("almacen", "10") # Por defecto 10
+    try:
+        with OracleDatabase.get_cursor() as cursor:
+            # Pasillo está en caracteres 4 y 5: 10-01-...
+            query = """
+            SELECT 
+                SUBSTR(u.NOMBRECORTO, 4, 2) AS PASILLO,
+                COUNT(DISTINCT u.CODUBICACION) AS TOTAL_UBICACIONES,
+                COUNT(DISTINCT v.NOMBRECORTO) AS OCUPADAS,
+                NVL(SUM(v.STOCK), 0) AS TOTAL_STOCK,
+                NVL(SUM(v.CAJAS), 0) AS TOTAL_CAJAS
+            FROM GSM.TMST_UBICACIONES u
+            LEFT JOIN (
+                SELECT NOMBRECORTO, STOCK, CAJAS 
+                FROM GSM.VMST_UBICACIONESARTICULO
+                WHERE CODALMACEN = :almacen_v
+            ) v ON u.NOMBRECORTO = v.NOMBRECORTO
+            WHERE u.NOMBRECORTO LIKE :almacen || '-%'
+            GROUP BY SUBSTR(u.NOMBRECORTO, 4, 2)
+            ORDER BY PASILLO
+            """
+            cursor.execute(query, {"almacen": str(almacen), "almacen_v": str(almacen)})
+            data = [{
+                "pasillo": r[0], 
+                "total": r[1],
+                "ocupadas": r[2],
+                "total_stock": r[3],
+                "total_cajas": r[4],
+                "porcentaje": (r[2] / r[1] * 100) if r[1] > 0 else 0
+            } for r in cursor.fetchall()]
+        return jsonify({"status": "success", "data": data}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+@admin_bp.route("/inventario/pasillo_detalle", methods=["GET"])
+def get_pasillo_detalle():
+    from app.database import OracleDatabase
+    almacen = request.args.get("almacen", "10")
+    pasillo = request.args.get("pasillo")
+    if not pasillo:
+        return jsonify({"status": "error", "message": "pasillo is required"}), 400
+
+    try:
+        with OracleDatabase.get_cursor() as cursor:
+            query = """
+                        SELECT 
+                u.NOMBRECORTO,
+                v.STOCK,
+                v.CAJAS,
+                v.CODARTICULOAPLICACION,
+                v.NOMBREARTICULO
+            FROM GSM.TMST_UBICACIONES u
+            LEFT JOIN (
+                SELECT NOMBRECORTO, STOCK, CAJAS, CODARTICULOAPLICACION, NOMBREARTICULO
+                FROM GSM.VMST_UBICACIONESARTICULO
+                WHERE CODALMACEN = :almacen_v
+            ) v ON u.NOMBRECORTO = v.NOMBRECORTO
+            WHERE u.NOMBRECORTO LIKE :almacen || '-' || :pasillo || '-%'
+            """
+            cursor.execute(query, {"almacen": str(almacen), "almacen_v": str(almacen), "pasillo": str(pasillo)})
+            
+            # Group by NOMBRECORTO in Python
+            ubicaciones_map = {}
+            for r in cursor.fetchall():
+                nombre = r[0]
+                stock = r[1] or 0
+                cajas = r[2] or 0
+                cod_articulo = r[3]
+                descripcion = r[4] or "Desconocido"
+
+                if nombre not in ubicaciones_map:
+                    ubicaciones_map[nombre] = {
+                        "stock_total": 0,
+                        "cajas_total": 0,
+                        "articulos": []
+                    }
+                
+                if cod_articulo:
+                    ubicaciones_map[nombre]["stock_total"] += stock
+                    ubicaciones_map[nombre]["cajas_total"] += cajas
+                    ubicaciones_map[nombre]["articulos"].append({
+                        "codigo": cod_articulo,
+                        "descripcion": descripcion,
+                        "stock": stock,
+                        "cajas": cajas
+                    })
+
+            data = []
+            for nombre, ubi_data in ubicaciones_map.items():
+                parts = nombre.split('-')
+                columna = 0
+                altura = 0
+                posicion = 0
+                
+                if len(parts) >= 5:
+                    try:
+                        columna = int(parts[2])
+                        altura = int(parts[3])
+                        posicion = int(parts[4])
+                    except ValueError:
+                        pass
+                elif len(parts) >= 4:
+                    try:
+                        columna = int(parts[2])
+                        altura = int(parts[3])
+                    except ValueError:
+                        pass
+                
+                # Consolidate articles by code (if duplicates exist)
+                art_dict = {}
+                for art in ubi_data["articulos"]:
+                    cod = art["codigo"]
+                    if cod not in art_dict:
+                        art_dict[cod] = art.copy()
+                    else:
+                        art_dict[cod]["stock"] += art["stock"]
+                        art_dict[cod]["cajas"] += art["cajas"]
+                
+                articulos_list = list(art_dict.values())
+                
+                data.append({
+                    "nombre": nombre,
+                    "columna": columna,
+                    "altura": altura,
+                    "posicion": posicion,
+                    "stock": ubi_data["stock_total"],
+                    "cajas": ubi_data["cajas_total"],
+                    "skus": len(articulos_list),
+                    "ocupada": ubi_data["stock_total"] > 0,
+                    "articulos": articulos_list
+                })
+
+        return jsonify({"status": "success", "data": data}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@admin_bp.route("/inventario/caducidades", methods=["GET"])
+def get_caducidades():
+    from app.database import OracleDatabase
+    almacen = request.args.get("almacen", "10")
+    meses = request.args.get("meses", "1")
+    
+    try:
+        meses = int(meses)
+    except ValueError:
+        meses = 1
+        
+    try:
+        with OracleDatabase.get_cursor() as cursor:
+            query = """
+            SELECT 
+                NOMBRECORTO as UBICACION,
+                CODARTICULOAPLICACION as CODARTICULO,
+                NOMBREARTICULO,
+                NVL(NUMEROLOTE, CODNUMEROLOTE) AS LOTE,
+                STOCK,
+                CAJAS,
+                FECHACADUCIDAD
+            FROM GSM.VMST_UBICACIONESARTICULO
+            WHERE CODALMACEN = :almacen
+              AND FECHACADUCIDAD IS NOT NULL
+              AND FECHACADUCIDAD <= ADD_MONTHS(SYSDATE, :meses)
+              AND STOCK > 0
+            ORDER BY FECHACADUCIDAD ASC
+            """
+            cursor.execute(query, {"almacen": str(almacen), "meses": meses})
+            
+            cols = [col[0].lower() for col in cursor.description]
+            data = [dict(zip(cols, row)) for row in cursor.fetchall()]
+            
+            # Format dates
+            for r in data:
+                r["ubicacion"] = r.get("ubicacion") or ""
+                r["codarticulo"] = r.get("codarticulo") or ""
+                r["nombrearticulo"] = r.get("nombrearticulo") or ""
+                r["lote"] = r.get("lote") or ""
+                if r.get("fechacaducidad"):
+                    r["fechacaducidad"] = r["fechacaducidad"].strftime("%Y-%m-%d")
+                    
+        return jsonify({"status": "success", "data": data}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500

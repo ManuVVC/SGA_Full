@@ -292,8 +292,11 @@ export default function PedidoDirecto() {
   };
 
   // Grabar línea y realizar salida de stock
+  const isSubmitting = useRef(false);
+
   const handleGrabarLinea = async (e) => {
     if (e) e.preventDefault();
+    if (isSubmitting.current) return;
     setError(null);
     setSuccess(null);
 
@@ -325,6 +328,7 @@ export default function PedidoDirecto() {
     const parsedCaducidad = caducidad ? parseShorthandDate(caducidad) : null;
     const totalUnits = parseFloat(unidades) * (articuloInfo.UNIDADES || 1);
 
+    isSubmitting.current = true;
     setLoading(true);
     try {
       let docId = documentoCreado?.cod_documento;
@@ -380,6 +384,7 @@ export default function PedidoDirecto() {
       setError(err.message || 'Error al grabar línea en el pedido directo.');
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

@@ -417,7 +417,11 @@ export const usePreparacionPedido = (inputRef) => {
     ejecutarCarga(cant);
   };
 
+  const isSubmitting = useRef(false);
+
   const ejecutarCarga = async (cantToLoad) => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -448,6 +452,7 @@ export const usePreparacionPedido = (inputRef) => {
       setError(String(err));
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 
@@ -472,6 +477,8 @@ export const usePreparacionPedido = (inputRef) => {
 
   // Manejador de la decisión SUMAR / SUSTITUIR
   const handleSumaSustitucion = async (accion) => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -489,6 +496,7 @@ export const usePreparacionPedido = (inputRef) => {
       setFase(FASE.CONFIRMAR_SUMA_SUSTITUCION);
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

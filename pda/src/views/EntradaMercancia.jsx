@@ -252,7 +252,11 @@ export default function EntradaMercancia() {
     }
   };
 
+  const isSubmitting = useRef(false);
+
   const handleGrabarLinea = async () => {
+    if (isSubmitting.current) return;
+    
     if (!articuloInfo || !unidades) {
       setError('El artículo y las unidades son obligatorios');
       return;
@@ -290,6 +294,7 @@ export default function EntradaMercancia() {
       }
     }
 
+    isSubmitting.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -341,6 +346,7 @@ export default function EntradaMercancia() {
       setError(err.response?.data?.message || 'Error grabando línea');
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

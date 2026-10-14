@@ -43,11 +43,11 @@ class PedidosRepository:
                 WHERE CODESTADODOCUMENTO = 7
             """
             params = {}
-            if not permisos.get("PRM_RECUPERARDOCOTROOPERARIO"):
+            if not permisos.get("PRM_RECUPERARDOCOTROOPERARIO") and cod_operador is not None:
                 query += " AND CODOPERADOR = :cod_operador"
                 params["cod_operador"] = cod_operador
                 
-            if not permisos.get("PRM_RECUPERARDOCOTROTERMINAL"):
+            if not permisos.get("PRM_RECUPERARDOCOTROTERMINAL") and cod_terminal is not None:
                 query += " AND CODTERMINAL = :cod_terminal"
                 params["cod_terminal"] = cod_terminal
                 
@@ -81,13 +81,16 @@ class PedidosRepository:
                 LEFT JOIN TMST_TIPOMOVIMIENTO t ON t.CODTIPOMOVIMIENTO = v.CODTIPOMOVIMIENTO
                 LEFT JOIN TMST_CLIENTES c ON c.CODCLIENTE = v.CODCLIENTE
                 WHERE v.CODESTADODOCUMENTO = 3
-                  AND v.CODOPERADOR = :cod_operador
-                  AND v.CODTERMINAL = :cod_terminal
             """
-            rows = OracleDatabase.execute_query(query, {
-                "cod_operador": cod_operador,
-                "cod_terminal": cod_terminal
-            }, as_dict=False)
+            params = {}
+            if cod_operador is not None:
+                query += " AND v.CODOPERADOR = :cod_operador"
+                params["cod_operador"] = cod_operador
+            if cod_terminal is not None:
+                query += " AND v.CODTERMINAL = :cod_terminal"
+                params["cod_terminal"] = cod_terminal
+                
+            rows = OracleDatabase.execute_query(query, params, as_dict=False)
             return [{
                 "cod_documento": r[0],
                 "num_documento": r[1],

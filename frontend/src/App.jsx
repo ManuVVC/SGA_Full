@@ -15,6 +15,7 @@ import Salidas from './views/Salidas';
 import Devoluciones from './views/Devoluciones';
 import Inventario from './views/Inventario';
 import MapaAlmacen from './views/MapaAlmacen';
+import MapaVolumen from './views/MapaVolumen';
 import Informes from './views/Informes';
 
 function App() {
@@ -114,6 +115,7 @@ function App() {
           <Route path="/devoluciones" element={<Devoluciones />} />
           <Route path="/inventario" element={<Inventario />} />
           <Route path="/mapa" element={<MapaAlmacen />} />
+          <Route path="/mapa-volumen" element={<MapaVolumen />} />
           <Route path="/informes" element={<Informes isAdmin={isAdmin} />} />
         </Routes>
       </Layout>

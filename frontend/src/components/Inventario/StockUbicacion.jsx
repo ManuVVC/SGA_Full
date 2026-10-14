@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Download } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import DetalleStock from './DetalleStock';
+import { exportGridToExcel } from '../../utils/exportExcel';
 
 const columnDefs = [
   { headerName: 'Ubicación',     field: 'ubicacion',      flex: 1, sortable: true, filter: true },
@@ -79,7 +80,7 @@ export default function StockUbicacion() {
     }
   };
 
-  const handleExportar = () => { gridRef.current?.api.exportDataAsCsv({ fileName: 'stock.csv' }); };
+  const handleExportar = () => { gridRef.current?.api && exportGridToExcel(gridRef.current.api, 'stock'); };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
@@ -109,7 +110,7 @@ export default function StockUbicacion() {
             <div style={{ display: 'flex', gap: '1rem' }}>
               {rowData.length > 0 && (
                 <button onClick={handleExportar} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
-                  <Download size={16} /> Exportar CSV
+                  <Download size={16} /> Exportar Excel
                 </button>
               )}
               <div style={{ display: 'flex', gap: '0.5rem' }}>

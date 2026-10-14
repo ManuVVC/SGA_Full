@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import adminApi from '../api/adminApi';
 import { Activity, Download, RefreshCw } from 'lucide-react';
 import { formatDate } from '../utils/formatDate';
+import { exportJsonToExcel } from '../utils/exportExcel';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -163,8 +164,8 @@ export default function Dashboard() {
                 <option value={6}>6 Meses</option>
                 <option value={12}>1 Año</option>
               </select>
-              <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={() => gridRef.current?.api?.exportDataAsCsv({fileName: 'caducidades.csv'})}>
-                <Download size={14} /> Exportar CSV
+              <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={() => exportJsonToExcel(caducidadesList, 'caducidades')}>
+                <Download size={14} /> Exportar Excel
               </button>
               <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => setActiveDashboardView(null)}>Cerrar</button>
             </div>
@@ -216,8 +217,8 @@ export default function Dashboard() {
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ color: 'var(--danger)' }}><Activity size={20}/> Roturas de Stock</h3>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={() => gridRef.current?.api?.exportDataAsCsv({fileName: 'roturas.csv'})}>
-                <Download size={14} /> Exportar CSV
+              <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={() => exportJsonToExcel(roturasList, 'roturas')}>
+                <Download size={14} /> Exportar Excel
               </button>
               <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => setActiveDashboardView(null)}>Cerrar</button>
             </div>

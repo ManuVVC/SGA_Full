@@ -195,10 +195,14 @@ export default function AjustesStock() {
     setTimeout(() => cantidadRef.current?.focus(), 100);
   };
 
+  const isSubmitting = useRef(false);
+
   const ejecutarAjuste = async (e) => {
     e.preventDefault();
+    if (isSubmitting.current) return;
     if (!selectedConcepto || !cantidadInput) return;
     
+    isSubmitting.current = true;
     setLoading(true);
     setError('');
     try {
@@ -222,6 +226,7 @@ export default function AjustesStock() {
       setError(err.response?.data?.error || 'Error de conexión');
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

@@ -1,12 +1,13 @@
 import logging
+from typing import Dict, List, Any
 from ..repositories.stock_repo import StockRepository
-from ..utils.exceptions import ArticuloNotFoundError
+from ..utils.exceptions import ArticuloNotFoundError, EanNoEncontrado
 
 logger = logging.getLogger(__name__)
 
 class StockService:
     @staticmethod
-    def consultar_stock_articulo(cod_articulo: str) -> dict:
+    def consultar_stock_articulo(cod_articulo: str) -> Dict[str, Any]:
         """
         Consulta el catálogo para verificar la existencia del artículo.
         Si existe, obtiene su stock detallado por ubicación.
@@ -17,18 +18,15 @@ class StockService:
         if not cod_articulo:
             raise ArticuloNotFoundError("El código del artículo no puede estar vacío.")
 
-        # 1. Verificar existencia en el maestro de artículos
         articulo = StockRepository.get_articulo_por_codigo(cod_articulo)
         if not articulo:
             raise ArticuloNotFoundError(f"El artículo '{cod_articulo}' no existe en el maestro del sistema.")
 
-        # 2. Consultar el stock por ubicación
         cod_articulo_int = articulo["CODARTICULO"]
         ubicaciones = StockRepository.get_stock_por_articulo(cod_articulo_int)
 
-        # 3. Calcular el stock total y verificar si tiene stock
         stock_total = sum(item["cantidad"] for item in ubicaciones)
-        tiene_stock = len(ubicaciones) > 0 and stock_total > 0
+        tiene_stock = bool(ubicaciones) and stock_total > 0
 
         resultado = {
             "articulo": {
@@ -50,7 +48,7 @@ class StockService:
         return resultado
 
     @staticmethod
-    def actualizar_configuracion_ubicacion(cod_ubicacion: int, bloqueo_entrada: int, bloqueo_salida: int, ubicar_docs: int) -> dict:
+    def actualizar_configuracion_ubicacion(cod_ubicacion: int, bloqueo_entrada: int, bloqueo_salida: int, ubicar_docs: int) -> Dict[str, Any]:
         """
         Actualiza los parámetros de configuración de una ubicación.
         """
@@ -66,7 +64,7 @@ class StockService:
         return {"status": "success", "message": "Configuración actualizada correctamente"}
 
     @staticmethod
-    def consultar_stock_ubicacion(cod_ubicacion: int) -> dict:
+    def consultar_stock_ubicacion(cod_ubicacion: int) -> Dict[str, Any]:
         """
         Consulta el contenido (stock) de una ubicación.
         Retorna la lista de artículos, lotes y cantidades almacenadas ahí.
@@ -79,14 +77,13 @@ class StockService:
         
         return {
             "cod_ubicacion": cod_ubicacion,
-            "tiene_stock": len(articulos) > 0,
+            "tiene_stock": bool(articulos),
             "stock_total": stock_total,
             "articulos": articulos
         }
 
     @staticmethod
-    def consultar_stock_ean(ean_leido: str) -> dict:
-        from ..utils.exceptions import EanNoEncontrado
+    def consultar_stock_ean(ean_leido: str) -> Dict[str, Any]:
         if not ean_leido:
             raise EanNoEncontrado("El código EAN no puede estar vacío.")
 
@@ -97,43 +94,35 @@ class StockService:
         cod_articulo_int = articulo["CODARTICULO"]
         ubicaciones = StockRepository.get_stock_por_articulo(cod_articulo_int)
 
-        resultado = {
+        return {
             "articulo_comercial": articulo["CODARTICULOAPLICACION"],
             "nombre": articulo["NOMBREARTICULO"],
             "cod_real_fabricante": articulo.get("CODREALFABRICANTE"),
             "ubicaciones": ubicaciones
         }
 
-        return resultado
-
     @staticmethod
-    def search_articulos(search_type: str, query: str) -> list:
+    def search_articulos(search_type: str, query: str) -> List[Dict[str, Any]]:
         if not query:
             return []
         
         articulos = StockRepository.search_articulos(search_type, query)
         
-        # Formatear salida para el frontend
-        resultados = []
-        for a in articulos:
-            resultados.append({
-                "cod_articulo": a["CODARTICULO"],
-                "cod_articulo_aplicacion": a["CODARTICULOAPLICACION"],
-                "nombre": a["NOMBREARTICULO"],
-                "cod_real_fabricante": a.get("CODREALFABRICANTE"),
-                "factor_conversion": a["FACTORCONVERSION"] if "FACTORCONVERSION" in a else a.get("FACTOR_EAN"),
-                "PRM_TRAZABILIDAD": a.get("PRM_TRAZABILIDAD", 0),
-                "GESTIONARCADUCIDAD": a.get("GESTIONARCADUCIDAD", 0),
-                "MARGENCADUCIDAD": a.get("MARGENCADUCIDAD", 0),
-                "FECHADESCATALOGACION": a.get("FECHADESCATALOGACION")
-            })
-            
-        return resultados
+        return [{
+            "cod_articulo": a["CODARTICULO"],
+            "cod_articulo_aplicacion": a["CODARTICULOAPLICACION"],
+            "nombre": a["NOMBREARTICULO"],
+            "cod_real_fabricante": a.get("CODREALFABRICANTE"),
+            "factor_conversion": a.get("FACTORCONVERSION", a.get("FACTOR_EAN")),
+            "PRM_TRAZABILIDAD": a.get("PRM_TRAZABILIDAD", 0),
+            "GESTIONARCADUCIDAD": a.get("GESTIONARCADUCIDAD", 0),
+            "MARGENCADUCIDAD": a.get("MARGENCADUCIDAD", 0),
+            "FECHADESCATALOGACION": a.get("FECHADESCATALOGACION")
+        } for a in articulos]
 
     @staticmethod
-    def consultar_eans_articulo(cod_articulo: int) -> list:
+    def consultar_eans_articulo(cod_articulo: int) -> List[Any]:
         if not cod_articulo:
             return []
             
-        eans = StockRepository.get_eans_por_articulo(cod_articulo)
-        return eans
+        return StockRepository.get_eans_por_articulo(cod_articulo)

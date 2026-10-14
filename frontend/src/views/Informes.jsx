@@ -4,12 +4,15 @@ import { FileText, PlusCircle, Database, Download, Search } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { formatDate } from '../utils/formatDate';
 import ProductividadOperadores from '../components/Estadisticas/ProductividadOperadores';
+import VisorInforme from '../components/Informes/VisorInforme';
+import ConfiguradorVistas from '../components/Informes/ConfiguradorVistas';
+import { exportGridToExcel } from '../utils/exportExcel';
 
 export default function Informes({ isAdmin }) {
   const gridRef = useRef();
 
-  // Pestaña activa de informes: 'sql' | 'productividad'
-  const [activeInformesTab, setActiveInformesTab] = useState('sql');
+  // Pestaña activa de informes: 'visor' | 'configurador' | 'sql' | 'productividad'
+  const [activeInformesTab, setActiveInformesTab] = useState('visor');
   
   // Data: Informes Libres
   const [informesList, setInformesList] = useState([]);
@@ -129,9 +132,7 @@ export default function Informes({ isAdmin }) {
   const handleExportExcel = () => {
     if (gridRef.current && gridRef.current.api) {
       const filename = (activeInforme?.nombre || 'export').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      gridRef.current.api.exportDataAsCsv({
-        fileName: `informe_${filename}.csv`
-      });
+      exportGridToExcel(gridRef.current.api, `informe_${filename}`);
     }
   };
 
@@ -144,7 +145,9 @@ export default function Informes({ isAdmin }) {
       {/* Pestañas de Informes */}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         {[
-          { key: 'sql', label: 'Consultas SQL' },
+          { key: 'visor', label: 'Informes' },
+          ...(isAdmin ? [{ key: 'configurador', label: 'Configurador' }] : []),
+          ...(isAdmin ? [{ key: 'sql', label: 'SQL Avanzado' }] : []),
           { key: 'productividad', label: 'Productividad' },
         ].map(({ key, label }) => (
           <button
@@ -165,6 +168,20 @@ export default function Informes({ isAdmin }) {
           </button>
         ))}
       </div>
+
+      {/* Pestaña: Visor */}
+      {activeInformesTab === 'visor' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <VisorInforme isAdmin={isAdmin} />
+        </div>
+      )}
+
+      {/* Pestaña: Configurador */}
+      {isAdmin && activeInformesTab === 'configurador' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <ConfiguradorVistas />
+        </div>
+      )}
 
       {/* Pestaña: Productividad */}
       {activeInformesTab === 'productividad' && (
@@ -292,7 +309,7 @@ export default function Informes({ isAdmin }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <h4 style={{ margin: 0, color: 'var(--text-muted)' }}>{informeResults.total} resultados</h4>
                         <button className="btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={handleExportExcel}>
-                          <Download size={14} /> Exportar CSV
+                          <Download size={14} /> Exportar Excel
                         </button>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-card-hover)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-md)' }}>

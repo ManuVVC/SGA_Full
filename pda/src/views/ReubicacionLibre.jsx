@@ -189,7 +189,11 @@ export default function ReubicacionLibre() {
     }
   };
 
+  const isSubmitting = useRef(false);
+
   const procesarGrabacion = async () => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
     try {
       setLoading(true);
       const resGrabar = await grabarReubicacion(
@@ -212,6 +216,7 @@ export default function ReubicacionLibre() {
       setError(err.response?.data?.message || 'Error al intentar grabar la reubicación.');
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

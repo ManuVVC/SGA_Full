@@ -3,6 +3,7 @@ import axios from 'axios';
 import { AgGridReact } from 'ag-grid-react';
 import { Download } from 'lucide-react';
 import { formatDate } from '../../utils/formatDate';
+import { exportGridToExcel } from '../../utils/exportExcel';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -45,7 +46,7 @@ export default function ProductividadOperadores() {
     }
   };
 
-  const handleExportar = () => gridRef.current?.api?.exportDataAsCsv({ fileName: 'productividad_operadores.csv' });
+  const handleExportar = () => gridRef.current?.api && exportGridToExcel(gridRef.current.api, 'productividad_operadores');
 
   const totalLineas   = rowData.reduce((acc, r) => acc + (r.lineas_preparadas  ?? 0), 0);
   const totalUnidades = rowData.reduce((acc, r) => acc + (r.unidades_totales ?? 0), 0);
@@ -68,7 +69,7 @@ export default function ProductividadOperadores() {
         {rowData.length > 0 && (
           <button onClick={handleExportar}
             style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '0.4rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.82rem' }}>
-            <Download size={14} /> Exportar CSV
+            <Download size={14} /> Exportar Excel
           </button>
         )}
       </div>

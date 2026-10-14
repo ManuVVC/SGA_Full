@@ -438,135 +438,174 @@ class PreparacionRepository:
                          cod_dato_maestro: int = None,
                          tipo_codigo_introducido: int = None,
                          cod_facturacion: str = None,
-                         cod_operacion_terminal: int = 1) -> None:
+                         cod_operacion_terminal: int = 1,
+                         cursor=None) -> None:
         """
         Registra la mercancía preparada de una línea llamando a SPPRP_CARGARMERCANCIATERMINAL.
+        Soporta inyección de un cursor para integrarse en transacciones más grandes (ACID).
         """
+        if cursor is not None:
+            try:
+                PreparacionRepository._cargar_mercancia_internal(
+                    cursor, cod_ubicacion_origen, cod_articulo, fecha_caducidad, cod_terminal,
+                    unidades, cod_documento, num_linea, numero_lote, cod_tipo_dato_maestro,
+                    cod_dato_maestro, tipo_codigo_introducido, cod_facturacion, cod_operacion_terminal
+                )
+            except Exception as e:
+                logger.error(f"Error en cargar_mercancia con cursor inyectado: {e}", exc_info=True)
+                raise Exception(f"Error al cargar mercancía: {str(e)}")
+        else:
+            connection = None
+            internal_cursor = None
+            try:
+                connection = OracleDatabase.get_connection()
+                internal_cursor = connection.cursor()
+                PreparacionRepository._cargar_mercancia_internal(
+                    internal_cursor, cod_ubicacion_origen, cod_articulo, fecha_caducidad, cod_terminal,
+                    unidades, cod_documento, num_linea, numero_lote, cod_tipo_dato_maestro,
+                    cod_dato_maestro, tipo_codigo_introducido, cod_facturacion, cod_operacion_terminal
+                )
+                connection.commit()
+            except Exception as e:
+                if connection:
+                    connection.rollback()
+                logger.error(f"Error en cargar_mercancia: {e}", exc_info=True)
+                raise Exception(f"Error al cargar mercancía: {str(e)}")
+            finally:
+                if internal_cursor:
+                    internal_cursor.close()
+                if connection:
+                    connection.close()
+
+    @staticmethod
+    def _cargar_mercancia_internal(cursor, cod_ubicacion_origen: int, cod_articulo: int,
+                                   fecha_caducidad, cod_terminal: int,
+                                   unidades: float, cod_documento: int, num_linea: int,
+                                   numero_lote: str = None, cod_tipo_dato_maestro: int = None,
+                                   cod_dato_maestro: int = None,
+                                   tipo_codigo_introducido: int = None,
+                                   cod_facturacion: str = None,
+                                   cod_operacion_terminal: int = 1) -> None:
+        fecha_cad_val = None
+        if fecha_caducidad:
+            from datetime import datetime
+            if isinstance(fecha_caducidad, str):
+                try:
+                    fecha_cad_val = datetime.strptime(fecha_caducidad, '%Y-%m-%d').date()
+                except ValueError:
+                    fecha_cad_val = None
+            else:
+                fecha_cad_val = fecha_caducidad
+
+        # Buscar si el terminal ya tiene una ubicación asignada para esta operación y documento
+        cod_ubic_terminal = None
         try:
-            with OracleDatabase.get_cursor(commit=True) as cursor:
-                fecha_cad_val = None
-                if fecha_caducidad:
-                    from datetime import datetime
-                    if isinstance(fecha_caducidad, str):
-                        try:
-                            fecha_cad_val = datetime.strptime(fecha_caducidad, '%Y-%m-%d').date()
-                        except ValueError:
-                            fecha_cad_val = None
-                    else:
-                        fecha_cad_val = fecha_caducidad
+            cursor.execute("""
+                SELECT CODUBICACION 
+                FROM TMST_UBICACIONESTERMINAL 
+                WHERE CODTERMINAL = :1 
+                  AND CODOPERACIONTERMINAL = :2 
+                  AND CODDOCUMENTO = :3
+            """, [cod_terminal, cod_operacion_terminal, cod_documento])
+            row_ubic = cursor.fetchone()
+            if row_ubic:
+                cod_ubic_terminal = row_ubic[0]
+        except Exception as ex:
+            logger.warning(f"No se pudo obtener la ubicación del terminal: {ex}")
 
-                # Buscar si el terminal ya tiene una ubicación asignada para esta operación y documento
-                cod_ubic_terminal = None
+        cod_fact_val = cod_facturacion
+        if not tipo_codigo_introducido or tipo_codigo_introducido == 0:
+            tipo_codigo_introducido = 0
+            if not cod_fact_val:
                 try:
-                    cursor.execute("""
-                        SELECT CODUBICACION 
-                        FROM TMST_UBICACIONESTERMINAL 
-                        WHERE CODTERMINAL = :1 
-                          AND CODOPERACIONTERMINAL = :2 
-                          AND CODDOCUMENTO = :3
-                    """, [cod_terminal, cod_operacion_terminal, cod_documento])
-                    row_ubic = cursor.fetchone()
-                    if row_ubic:
-                        cod_ubic_terminal = row_ubic[0]
+                    cursor.execute("SELECT CODARTICULOAPLICACION FROM TMST_ARTICULOS WHERE CODARTICULO = :1", [cod_articulo])
+                    row_art = cursor.fetchone()
+                    if row_art and row_art[0]:
+                        cod_fact_val = str(row_art[0])
                 except Exception as ex:
-                    logger.warning(f"No se pudo obtener la ubicación del terminal: {ex}")
+                    logger.warning(f"No se pudo obtener CODARTICULOAPLICACION para el interno: {ex}")
 
-                cod_fact_val = cod_facturacion
-                if not tipo_codigo_introducido or tipo_codigo_introducido == 0:
-                    tipo_codigo_introducido = 0
-                    if not cod_fact_val:
-                        try:
-                            cursor.execute("SELECT CODARTICULOAPLICACION FROM TMST_ARTICULOS WHERE CODARTICULO = :1", [cod_articulo])
-                            row_art = cursor.fetchone()
-                            if row_art and row_art[0]:
-                                cod_fact_val = str(row_art[0])
-                        except Exception as ex:
-                            logger.warning(f"No se pudo obtener CODARTICULOAPLICACION para el interno: {ex}")
+        cursor.callproc('GSM.SPPRP_CARGARMERCANCIATERMINAL', [
+            cod_ubicacion_origen,       # P_CODUBICACIONORIGEN
+            cod_articulo,               # P_CODARTICULO
+            fecha_cad_val,              # P_FECHACADUCIDAD
+            cod_terminal,               # P_CODTERMINAL
+            cod_operacion_terminal,     # P_CODOPERACIONTERMINAL
+            unidades,                   # P_UNIDADES
+            0,                          # P_PESO
+            None,                       # P_CODPALET
+            cod_documento,              # P_CODDOCUMENTO
+            num_linea,                  # P_NUMLINEA
+            cod_fact_val,               # P_CODFACTURACION
+            numero_lote,                # P_NUMEROLOTE
+            None,                       # P_CODORDENREUBICACION
+            '',                         # P_CADCODNUMEROSDESERIE
+            cod_tipo_dato_maestro,      # P_CODTIPODATOMAESTRO
+            cod_dato_maestro,           # P_CODDATOMAESTRO
+            tipo_codigo_introducido,    # P_TIPOCODIGOINTRODUCIDO
+            cod_ubic_terminal,          # P_CODUBICACIONTERMINAL
+        ])
 
-                cursor.callproc('GSM.SPPRP_CARGARMERCANCIATERMINAL', [
-                    cod_ubicacion_origen,       # P_CODUBICACIONORIGEN
-                    cod_articulo,               # P_CODARTICULO
-                    fecha_cad_val,              # P_FECHACADUCIDAD
-                    cod_terminal,               # P_CODTERMINAL
-                    cod_operacion_terminal,     # P_CODOPERACIONTERMINAL
-                    unidades,                   # P_UNIDADES
-                    0,                          # P_PESO
-                    None,                       # P_CODPALET
-                    cod_documento,              # P_CODDOCUMENTO
-                    num_linea,                  # P_NUMLINEA
-                    cod_fact_val,               # P_CODFACTURACION
-                    numero_lote,                # P_NUMEROLOTE
-                    None,                       # P_CODORDENREUBICACION
-                    '',                         # P_CADCODNUMEROSDESERIE
-                    cod_tipo_dato_maestro,      # P_CODTIPODATOMAESTRO
-                    cod_dato_maestro,           # P_CODDATOMAESTRO
-                    tipo_codigo_introducido,    # P_TIPOCODIGOINTRODUCIDO
-                    cod_ubic_terminal,          # P_CODUBICACIONTERMINAL
-                ])
+        # Obtener CODHUECO para registrar el recorrido en la preparación
+        cod_hueco_origen = None
+        try:
+            cursor.execute("SELECT CODHUECO FROM TMST_UBICACIONES WHERE CODUBICACION = :1", [cod_ubicacion_origen])
+            row_hueco = cursor.fetchone()
+            if row_hueco:
+                cod_hueco_origen = row_hueco[0]
+        except Exception as ex:
+            logger.warning(f"No se pudo obtener CODHUECO para SPPRP_SAVERECORRIDOPREPARACION: {ex}")
 
-                # Obtener CODHUECO para registrar el recorrido en la preparación
-                cod_hueco_origen = None
-                try:
-                    cursor.execute("SELECT CODHUECO FROM TMST_UBICACIONES WHERE CODUBICACION = :1", [cod_ubicacion_origen])
-                    row_hueco = cursor.fetchone()
-                    if row_hueco:
-                        cod_hueco_origen = row_hueco[0]
-                except Exception as ex:
-                    logger.warning(f"No se pudo obtener CODHUECO para SPPRP_SAVERECORRIDOPREPARACION: {ex}")
+        # Registrar recorrido en preparación de pedidos
+        cursor.callproc('GSM.SPPRP_SAVERECORRIDOPREPARACION', [
+            cod_documento,         # P_CODDOCUMENTO
+            num_linea,             # P_NUMLINEA
+            cod_terminal,          # P_CODTERMINAL
+            cod_hueco_origen,      # P_CODHUECO
+            cod_ubicacion_origen,  # P_CODUBICACION
+            cod_articulo,          # P_CODARTICULO
+            fecha_cad_val,         # P_FECHACADUCIDAD
+            numero_lote,           # P_NUMEROLOTE
+            unidades,              # P_CANTPREPARADA
+            0,                     # P_PESO
+            0,                     # P_CANTDEVUELTA
+            '',                    # P_CADCODNUMEROSDESERIE
+        ])
 
-                # Registrar recorrido en preparación de pedidos
-                cursor.callproc('GSM.SPPRP_SAVERECORRIDOPREPARACION', [
-                    cod_documento,         # P_CODDOCUMENTO
-                    num_linea,             # P_NUMLINEA
-                    cod_terminal,          # P_CODTERMINAL
-                    cod_hueco_origen,      # P_CODHUECO
-                    cod_ubicacion_origen,  # P_CODUBICACION
-                    cod_articulo,          # P_CODARTICULO
-                    fecha_cad_val,         # P_FECHACADUCIDAD
-                    numero_lote,           # P_NUMEROLOTE
-                    unidades,              # P_CANTPREPARADA
-                    0,                     # P_PESO
-                    0,                     # P_CANTDEVUELTA
-                    '',                    # P_CADCODNUMEROSDESERIE
-                ])
+        # Actualizar la línea del documento cliente con la cantidad preparada total y datos de identificación
+        if cod_documento and num_linea:
+            cant_preparada_total = 0
+            try:
+                cursor.execute("""
+                    SELECT NVL(SUM(CantPreparada) - SUM(CantDevuelta), 0)
+                    FROM TPRP_RecorridoPreparacionDoc
+                    WHERE CodDocumento = :1 AND NumLinea = :2
+                """, [cod_documento, num_linea])
+                row_tot = cursor.fetchone()
+                if row_tot and row_tot[0] is not None:
+                    cant_preparada_total = float(row_tot[0])
+            except Exception as ex_tot:
+                logger.warning(f"No se pudo calcular la suma de CantPreparada en TPRP_RecorridoPreparacionDoc: {ex_tot}")
 
-                # Actualizar la línea del documento cliente con la cantidad preparada total y datos de identificación
-                if cod_documento and num_linea:
-                    cant_preparada_total = 0
-                    try:
-                        cursor.execute("""
-                            SELECT NVL(SUM(CantPreparada) - SUM(CantDevuelta), 0)
-                            FROM TPRP_RecorridoPreparacionDoc
-                            WHERE CodDocumento = :1 AND NumLinea = :2
-                        """, [cod_documento, num_linea])
-                        row_tot = cursor.fetchone()
-                        if row_tot and row_tot[0] is not None:
-                            cant_preparada_total = float(row_tot[0])
-                    except Exception as ex_tot:
-                        logger.warning(f"No se pudo calcular la suma de CantPreparada en TPRP_RecorridoPreparacionDoc: {ex_tot}")
-
-                    cursor.execute("""
-                        UPDATE TMST_LineasDocumentoCliente
-                        SET CantPreparada = :cant_prep,
-                            CantSegundaUnidadPreparada = NVL(CantSegundaUnidadPreparada, 0),
-                            CodTipoUnidad = NVL(CodTipoUnidad, 1),
-                            FactorConversionTipoUnidad = NVL(FactorConversionTipoUnidad, 1),
-                            TipoConvFactConvSegunUnidadAlm = NVL(TipoConvFactConvSegunUnidadAlm, 0),
-                            FactorConverSegunUnidadAlmacen = NVL(FactorConverSegunUnidadAlmacen, 0),
-                            TipoCodigoIntroducido = :tipo_cod,
-                            CodigoIntroducido = :cod_intro,
-                            DespreciarPendiente = NVL(DespreciarPendiente, 0)
-                        WHERE CodDocumento = :cod_doc AND NumLinea = :num_linea
-                    """, {
-                        "cant_prep": cant_preparada_total,
-                        "tipo_cod": tipo_codigo_introducido if tipo_codigo_introducido is not None else 0,
-                        "cod_intro": cod_fact_val or '',
-                        "cod_doc": cod_documento,
-                        "num_linea": num_linea
-                    })
-        except Exception as e:
-            logger.error(f"Error en SPPRP_CARGARMERCANCIATERMINAL: {e}", exc_info=True)
-            raise Exception(f"Error al cargar mercancía: {str(e)}")
+            cursor.execute("""
+                UPDATE TMST_LineasDocumentoCliente
+                SET CantPreparada = :cant_prep,
+                    CantSegundaUnidadPreparada = NVL(CantSegundaUnidadPreparada, 0),
+                    CodTipoUnidad = NVL(CodTipoUnidad, 1),
+                    FactorConversionTipoUnidad = NVL(FactorConversionTipoUnidad, 1),
+                    TipoConvFactConvSegunUnidadAlm = NVL(TipoConvFactConvSegunUnidadAlm, 0),
+                    FactorConverSegunUnidadAlmacen = NVL(FactorConverSegunUnidadAlmacen, 0),
+                    TipoCodigoIntroducido = :tipo_cod,
+                    CodigoIntroducido = :cod_intro,
+                    DespreciarPendiente = NVL(DespreciarPendiente, 0)
+                WHERE CodDocumento = :cod_doc AND NumLinea = :num_linea
+            """, {
+                "cant_prep": cant_preparada_total,
+                "tipo_cod": tipo_codigo_introducido if tipo_codigo_introducido is not None else 0,
+                "cod_intro": cod_fact_val or '',
+                "cod_doc": cod_documento,
+                "num_linea": num_linea
+            })
 
     @staticmethod
     def get_pedido_directo_en_curso(cod_operador: int, cod_terminal: int) -> dict:
@@ -618,139 +657,157 @@ class PreparacionRepository:
         2. Incrementa y obtiene el NUMDOCUMENTO en TSYS_CONTADORES.
         3. Obtiene la serie del parámetro 1767 o fallback.
         4. Inserta en TMST_CODDOCUMENTOS y TMST_DOCUMENTOSCLIENTES con CODESTADODOCUMENTO = 3.
+        Manejo explícito de transacciones para asegurar ACID.
         """
+        connection = None
+        cursor = None
         try:
-            with OracleDatabase.get_cursor(commit=True) as cursor:
-                # 1. Obtener CODCONTADOR del tipo movimiento 10
-                cursor.execute("SELECT CODCONTADOR FROM GSM.TMST_TIPOMOVIMIENTO WHERE CODTIPOMOVIMIENTO = 10")
-                row_cont = cursor.fetchone()
-                cod_contador = int(row_cont[0]) if row_cont and row_cont[0] is not None else 2
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
 
-                # 2. Obtener siguiente número de documento
-                out_val = cursor.var(oracledb.NUMBER)
-                cursor.execute(
-                    "UPDATE GSM.TSYS_CONTADORES SET VALOR = VALOR + 1 WHERE CODCONTADOR = :1 RETURNING VALOR INTO :2",
-                    [cod_contador, out_val]
-                )
-                val_res = out_val.getvalue()
-                num_documento = int(val_res[0] if isinstance(val_res, list) else val_res)
+            # 1. Obtener CODCONTADOR del tipo movimiento 10
+            cursor.execute("SELECT CODCONTADOR FROM GSM.TMST_TIPOMOVIMIENTO WHERE CODTIPOMOVIMIENTO = 10")
+            row_cont = cursor.fetchone()
+            cod_contador = int(row_cont[0]) if row_cont and row_cont[0] is not None else 2
 
-                # 3. Serie
-                cursor.execute("SELECT VALOR FROM GSM.TSYS_PARAMETROSXAMBITO WHERE CODPARAMETRO = 1767")
-                row_serie = cursor.fetchone()
-                serie = row_serie[0] if row_serie and row_serie[0] else 'A'
+            # 2. Obtener siguiente número de documento
+            out_val = cursor.var(oracledb.NUMBER)
+            cursor.execute(
+                "UPDATE GSM.TSYS_CONTADORES SET VALOR = VALOR + 1 WHERE CODCONTADOR = :1 RETURNING VALOR INTO :2",
+                [cod_contador, out_val]
+            )
+            val_res = out_val.getvalue()
+            num_documento = int(val_res[0] if isinstance(val_res, list) else val_res)
 
-                # CODEMPRESA mínimo
-                cursor.execute("SELECT MIN(CODEMPRESA) FROM GSM.TMST_EMPRESAS")
-                row_emp = cursor.fetchone()
-                cod_empresa = int(row_emp[0]) if row_emp and row_emp[0] else 1
+            # 3. Serie
+            cursor.execute("SELECT VALOR FROM GSM.TSYS_PARAMETROSXAMBITO WHERE CODPARAMETRO = 1767")
+            row_serie = cursor.fetchone()
+            serie = row_serie[0] if row_serie and row_serie[0] else 'A'
 
-                cod_operador = int(payload.get('CODOPERADOR', 1))
-                cod_terminal = int(payload.get('CODTERMINAL', 1))
-                cod_cliente = payload.get('CODCLIENTE')
-                cif = payload.get('CIF')
-                razonsocial = payload.get('RAZONSOCIAL')
-                nombrecomercial = payload.get('NOMBRECOMERCIAL')
-                direccion = payload.get('DIRECCION')
-                poblacion = payload.get('POBLACION')
-                observaciones = payload.get('OBSERVACIONES')
-                fecha_doc = payload.get('FECHADOCUMENTO')
+            # CODEMPRESA mínimo
+            cursor.execute("SELECT MIN(CODEMPRESA) FROM GSM.TMST_EMPRESAS")
+            row_emp = cursor.fetchone()
+            cod_empresa = int(row_emp[0]) if row_emp and row_emp[0] else 1
 
-                from datetime import datetime
-                if fecha_doc:
-                    try:
-                        fecha_doc_date = datetime.strptime(fecha_doc, '%Y-%m-%d')
-                        fecha_doc_val = datetime.combine(fecha_doc_date.date(), datetime.now().time())
-                    except ValueError:
-                        fecha_doc_val = datetime.now()
-                else:
+            cod_operador = int(payload.get('CODOPERADOR', 1))
+            cod_terminal = int(payload.get('CODTERMINAL', 1))
+            cod_cliente = payload.get('CODCLIENTE')
+            cif = payload.get('CIF')
+            razonsocial = payload.get('RAZONSOCIAL')
+            nombrecomercial = payload.get('NOMBRECOMERCIAL')
+            direccion = payload.get('DIRECCION')
+            poblacion = payload.get('POBLACION')
+            observaciones = payload.get('OBSERVACIONES')
+            fecha_doc = payload.get('FECHADOCUMENTO')
+
+            from datetime import datetime
+            if fecha_doc:
+                try:
+                    fecha_doc_date = datetime.strptime(fecha_doc, '%Y-%m-%d')
+                    fecha_doc_val = datetime.combine(fecha_doc_date.date(), datetime.now().time())
+                except ValueError:
                     fecha_doc_val = datetime.now()
+            else:
+                fecha_doc_val = datetime.now()
 
-                cod_comercial = None
-                if cod_cliente:
-                    cursor.execute("SELECT CODVENDEDOR FROM GSM.TMST_CLIENTES WHERE CODCLIENTE = :1", [cod_cliente])
-                    row_vend = cursor.fetchone()
-                    cod_comercial = row_vend[0] if row_vend and row_vend[0] is not None else None
+            cod_comercial = None
+            if cod_cliente:
+                cursor.execute("SELECT CODVENDEDOR FROM GSM.TMST_CLIENTES WHERE CODCLIENTE = :1", [cod_cliente])
+                row_vend = cursor.fetchone()
+                cod_comercial = row_vend[0] if row_vend and row_vend[0] is not None else None
 
-                # 4. Insertar en TMST_CODDOCUMENTOS
-                cod_doc_var = cursor.var(oracledb.NUMBER)
-                query_coddoc = """
-                    INSERT INTO GSM.TMST_CODDOCUMENTOS 
-                    (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO, CODPRIORIDAD, ULTIMOCODCONCEPTOESTADISTICO, ULTIMOCODOPERADOR, CODTIPOMOVIMIENTOANTERIOR, CODZONAALMACEN, CODDOCUMENTOORIGEN, CODDOCUMENTOPADRE)
-                    VALUES (0, :1, :2, EXTRACT(YEAR FROM SYSDATE), :3, 2, 10, 3, 2, 31, :4, 0, -1, 0, 0)
-                    RETURNING CODDOCUMENTO INTO :5
-                """
-                cursor.execute(query_coddoc, [cod_empresa, num_documento, serie, cod_operador, cod_doc_var])
-                cod_res = cod_doc_var.getvalue()
-                cod_documento = int(cod_res[0] if isinstance(cod_res, list) else cod_res)
+            # 4. Insertar en TMST_CODDOCUMENTOS
+            cod_doc_var = cursor.var(oracledb.NUMBER)
+            query_coddoc = """
+                INSERT INTO GSM.TMST_CODDOCUMENTOS 
+                (CODDOCUMENTO, CODEMPRESA, NUMDOCUMENTO, EJERCICIO, SERIE, CODTIPODOCUMENTO, CODTIPOMOVIMIENTO, CODESTADODOCUMENTO, CODPRIORIDAD, ULTIMOCODCONCEPTOESTADISTICO, ULTIMOCODOPERADOR, CODTIPOMOVIMIENTOANTERIOR, CODZONAALMACEN, CODDOCUMENTOORIGEN, CODDOCUMENTOPADRE)
+                VALUES (0, :1, :2, EXTRACT(YEAR FROM SYSDATE), :3, 2, 10, 3, 2, 31, :4, 0, -1, 0, 0)
+                RETURNING CODDOCUMENTO INTO :5
+            """
+            cursor.execute(query_coddoc, [cod_empresa, num_documento, serie, cod_operador, cod_doc_var])
+            cod_res = cod_doc_var.getvalue()
+            cod_documento = int(cod_res[0] if isinstance(cod_res, list) else cod_res)
 
-                # 5. Insertar en TMST_DOCUMENTOSCLIENTES
-                query_doccli = """
-                    INSERT INTO GSM.TMST_DOCUMENTOSCLIENTES
-                    (CODDOCUMENTO, CODCLIENTE, CIF, RAZONSOCIAL, NOMBRECOMERCIAL, DIRECCION, POBLACION, FECHADOCUMENTO, FECHAINICIOPREPARACION, CODOPERADOR, CODTERMINAL, OBSERVACIONES, CODCOMERCIAL, ORIGEN, NUMBULTOS, FUERCEB)
-                    VALUES (:1, :2, :3, :4, :5, :6, :7, :8, SYSDATE, :9, :10, :11, :12, 0, 0, 0)
-                """
-                cursor.execute(query_doccli, [
-                    cod_documento, cod_cliente, cif, razonsocial, nombrecomercial,
-                    direccion, poblacion, fecha_doc_val, cod_operador, cod_terminal, observaciones, cod_comercial
-                ])
+            # 5. Insertar en TMST_DOCUMENTOSCLIENTES
+            query_doccli = """
+                INSERT INTO GSM.TMST_DOCUMENTOSCLIENTES
+                (CODDOCUMENTO, CODCLIENTE, CIF, RAZONSOCIAL, NOMBRECOMERCIAL, DIRECCION, POBLACION, FECHADOCUMENTO, FECHAINICIOPREPARACION, CODOPERADOR, CODTERMINAL, OBSERVACIONES, CODCOMERCIAL, ORIGEN, NUMBULTOS, FUERCEB)
+                VALUES (:1, :2, :3, :4, :5, :6, :7, :8, SYSDATE, :9, :10, :11, :12, 0, 0, 0)
+            """
+            cursor.execute(query_doccli, [
+                cod_documento, cod_cliente, cif, razonsocial, nombrecomercial,
+                direccion, poblacion, fecha_doc_val, cod_operador, cod_terminal, observaciones, cod_comercial
+            ])
 
-                logger.info(f"Cabecera de Pedido Directo creada con CODDOCUMENTO: {cod_documento}, NUMDOCUMENTO: {num_documento}")
-                return {
-                    "cod_documento": cod_documento,
-                    "num_documento": num_documento,
-                    "serie": serie
-                }
+            connection.commit()
+            logger.info(f"Cabecera de Pedido Directo creada con CODDOCUMENTO: {cod_documento}, NUMDOCUMENTO: {num_documento}")
+            return {
+                "cod_documento": cod_documento,
+                "num_documento": num_documento,
+                "serie": serie
+            }
         except Exception as e:
+            if connection:
+                connection.rollback()
             logger.error(f"Error al crear cabecera de pedido directo: {e}", exc_info=True)
             raise e
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
 
     @staticmethod
     def grabar_linea_pedido_directo(payload: dict) -> dict:
         """
         Graba una línea de un pedido directo.
+        Se asegura que todo el proceso ocurra de manera atómica (ACID) compartiendo el mismo cursor.
         """
+        connection = None
+        cursor = None
         try:
-            with OracleDatabase.get_cursor(commit=True) as cursor:
-                cod_documento = int(payload['CODDOCUMENTO'])
-                cod_articulo = int(payload['CODARTICULO'])
-                unidades = float(payload['UNIDADES'])
-                num_lote = payload.get('NUMEROLOTE')
-                fecha_caducidad = payload.get('FECHACADUCIDAD')
-                cod_ubicacion_origen = int(payload['CODUBICACION'])
-                cod_terminal = int(payload.get('CODTERMINAL', 1))
-                cod_operador = int(payload.get('CODOPERADOR', 1))
-                tipo_codigo_intro = payload.get('TIPOCODIGOINTRODUCIDO', 0)
-                if tipo_codigo_intro is not None:
-                    tipo_codigo_intro = int(tipo_codigo_intro)
-                codigo_intro = payload.get('CODIGOINTRODUCIDO', '')
-                cod_facturacion = payload.get('EAN', codigo_intro)
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
 
+            cod_documento = int(payload['CODDOCUMENTO'])
+            cod_articulo = int(payload['CODARTICULO'])
+            unidades = float(payload['UNIDADES'])
+            num_lote = payload.get('NUMEROLOTE')
+            fecha_caducidad = payload.get('FECHACADUCIDAD')
+            cod_ubicacion_origen = int(payload['CODUBICACION'])
+            cod_terminal = int(payload.get('CODTERMINAL', 1))
+            cod_operador = int(payload.get('CODOPERADOR', 1))
+            tipo_codigo_intro = payload.get('TIPOCODIGOINTRODUCIDO', 0)
+            if tipo_codigo_intro is not None:
+                tipo_codigo_intro = int(tipo_codigo_intro)
+            codigo_intro = payload.get('CODIGOINTRODUCIDO', '')
+            cod_facturacion = payload.get('EAN', codigo_intro)
+
+            cursor.execute(
+                "SELECT CODLINEADOCUMENTOCLIENTE, NUMLINEA FROM GSM.TMST_LINEASDOCUMENTOCLIENTE WHERE CODDOCUMENTO = :1 AND CODARTICULO = :2",
+                [cod_documento, cod_articulo]
+            )
+            row_linea = cursor.fetchone()
+            if row_linea:
+                cod_linea = row_linea[0]
+                num_linea = int(row_linea[1])
+                # No modificamos CANTSOLICITADA; cargar_mercancia se encargará de actualizar CANTPREPARADA
+            else:
                 cursor.execute(
-                    "SELECT CODLINEADOCUMENTOCLIENTE, NUMLINEA FROM GSM.TMST_LINEASDOCUMENTOCLIENTE WHERE CODDOCUMENTO = :1 AND CODARTICULO = :2",
-                    [cod_documento, cod_articulo]
+                    "SELECT NVL(MAX(NUMLINEA), 0) + 1 FROM GSM.TMST_LINEASDOCUMENTOCLIENTE WHERE CODDOCUMENTO = :1",
+                    [cod_documento]
                 )
-                row_linea = cursor.fetchone()
-                if row_linea:
-                    cod_linea = row_linea[0]
-                    num_linea = int(row_linea[1])
-                    # No modificamos CANTSOLICITADA; cargar_mercancia se encargará de actualizar CANTPREPARADA
-                else:
-                    cursor.execute(
-                        "SELECT NVL(MAX(NUMLINEA), 0) + 1 FROM GSM.TMST_LINEASDOCUMENTOCLIENTE WHERE CODDOCUMENTO = :1",
-                        [cod_documento]
-                    )
-                    num_linea = int(cursor.fetchone()[0])
-                    cursor.execute("SELECT NOMBREARTICULO FROM GSM.TMST_ARTICULOS WHERE CODARTICULO = :1", [cod_articulo])
-                    row_art = cursor.fetchone()
-                    nombre_articulo = row_art[0] if row_art and row_art[0] else ''
+                num_linea = int(cursor.fetchone()[0])
+                cursor.execute("SELECT NOMBREARTICULO FROM GSM.TMST_ARTICULOS WHERE CODARTICULO = :1", [cod_articulo])
+                row_art = cursor.fetchone()
+                nombre_articulo = row_art[0] if row_art and row_art[0] else ''
 
-                    query_insert = """
-                        INSERT INTO GSM.TMST_LINEASDOCUMENTOCLIENTE
-                        (CODLINEADOCUMENTOCLIENTE, CODDOCUMENTO, NUMLINEA, CODARTICULO, NOMBREARTICULO, CANTSOLICITADA, CANTSOLICITADAORIGINAL, CANTPREPARADA, PRECIO, REPASADA, PRM_VALORADO, DESPRECIARPENDIENTE, CODTIPOUNIDAD, FACTORCONVERSIONTIPOUNIDAD, NUMLINEADOCUMENTOPADRE, CANTTIPOUNIDAD, CANTSEGUNDAUNIDADALMACEN, TIPOCONVFACTCONVSEGUNUNIDADALM, FACTORCONVERSEGUNUNIDADALMACEN, CANTSEGUNDAUNIDADPREPARADA, TIPOCODIGOINTRODUCIDO, CODIGOINTRODUCIDO)
-                        VALUES (GSM.SQ_CODLINEADOCUMENTOCLIENTE.NEXTVAL, :1, :2, :3, :4, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0.0, 0.0, 0, 0.0, 0.0, :5, :6)
-                    """
-                    cursor.execute(query_insert, [cod_documento, num_linea, cod_articulo, nombre_articulo, tipo_codigo_intro, codigo_intro])
+                query_insert = """
+                    INSERT INTO GSM.TMST_LINEASDOCUMENTOCLIENTE
+                    (CODLINEADOCUMENTOCLIENTE, CODDOCUMENTO, NUMLINEA, CODARTICULO, NOMBREARTICULO, CANTSOLICITADA, CANTSOLICITADAORIGINAL, CANTPREPARADA, PRECIO, REPASADA, PRM_VALORADO, DESPRECIARPENDIENTE, CODTIPOUNIDAD, FACTORCONVERSIONTIPOUNIDAD, NUMLINEADOCUMENTOPADRE, CANTTIPOUNIDAD, CANTSEGUNDAUNIDADALMACEN, TIPOCONVFACTCONVSEGUNUNIDADALM, FACTORCONVERSEGUNUNIDADALMACEN, CANTSEGUNDAUNIDADPREPARADA, TIPOCODIGOINTRODUCIDO, CODIGOINTRODUCIDO)
+                    VALUES (GSM.SQ_CODLINEADOCUMENTOCLIENTE.NEXTVAL, :1, :2, :3, :4, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0.0, 0.0, 0, 0.0, 0.0, :5, :6)
+                """
+                cursor.execute(query_insert, [cod_documento, num_linea, cod_articulo, nombre_articulo, tipo_codigo_intro, codigo_intro])
 
             PreparacionRepository.cargar_mercancia(
                 cod_ubicacion_origen=cod_ubicacion_origen,
@@ -765,17 +822,26 @@ class PreparacionRepository:
                 cod_dato_maestro=None,
                 tipo_codigo_introducido=tipo_codigo_intro,
                 cod_facturacion=cod_facturacion,
-                cod_operacion_terminal=6
+                cod_operacion_terminal=6,
+                cursor=cursor
             )
 
+            connection.commit()
             return {
                 "status": "success",
                 "num_linea": num_linea,
                 "cod_documento": cod_documento
             }
         except Exception as e:
+            if connection:
+                connection.rollback()
             logger.error(f"Error al grabar línea de pedido directo: {e}", exc_info=True)
             raise e
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
 
     @staticmethod
     def get_lineas_pedido_directo(cod_documento: int) -> list:
@@ -860,110 +926,128 @@ class PreparacionRepository:
         Si se pasa registros_seleccionados, se anulan cantidades parciales específicas.
         Si no, se anula toda la mercancía pendiente de la línea.
         Usa la lógica estándar de SGA: cargar cantidad negativa y registrar devolución.
+        Se aplica gestión de transacciones completa para evitar datos huérfanos.
         """
+        connection = None
+        cursor = None
         try:
-            with OracleDatabase.get_cursor(commit=True) as cursor:
-                def _parse_fecha(f):
-                    if not f: return None
-                    from datetime import datetime
-                    if isinstance(f, str):
-                        try:
-                            return datetime.strptime(f, '%Y-%m-%d').date()
-                        except:
-                            return None
-                    return f
+            connection = OracleDatabase.get_connection()
+            cursor = connection.cursor()
 
-                regs_to_process = []
-                if registros_seleccionados:
-                    regs_to_process = registros_seleccionados
-                else:
-                    # Descarga total: obtener todos los registros pendientes
-                    cursor.execute("""
-                        SELECT R.CODUBICACION, R.FECHACADUCIDAD, LOT.NUMEROLOTE, (NVL(R.CANTPREPARADA, 0) - NVL(R.CANTDEVUELTA, 0)) AS CANT
-                        FROM GSM.TPRP_RECORRIDOPREPARACIONDOC R
-                        LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES LOT ON LOT.CODNUMEROLOTE = R.CODNUMEROLOTE
-                        WHERE R.CODDOCUMENTO = :cod_doc AND R.NUMLINEA = :num_linea
-                          AND (NVL(R.CANTPREPARADA, 0) - NVL(R.CANTDEVUELTA, 0)) > 0
-                    """, {"cod_doc": cod_documento, "num_linea": num_linea})
-                    for row in cursor.fetchall():
-                        regs_to_process.append({
-                            'codubicacion': row[0],
-                            'fechacaducidad': row[1],
-                            'numerolote': row[2] or '',
-                            'cantidad': float(row[3])
-                        })
-
-                if not regs_to_process:
-                    logger.warning(f"No hay stock pendiente para descargar doc={cod_documento} linea={num_linea}")
-                    return
-
-                total_anulado = 0.0
-
-                for reg in regs_to_process:
-                    cantidad = float(reg.get('cantidad', 0))
-                    if cantidad <= 0:
-                        continue
-
-                    fecha_caducidad = _parse_fecha(reg.get('fechacaducidad'))
-                    cod_ubicacion = reg['codubicacion']
-                    num_lote = reg.get('numerolote') or ''
-
-                    # 1. Mover stock físicamente (cantidades en negativo)
-                    cursor.callproc('GSM.SPPRP_CARGARMERCANCIATERMINAL', [
-                        cod_ubicacion,
-                        cod_articulo,
-                        fecha_caducidad,
-                        cod_terminal,
-                        1,                     # OperacionTerminal (1)
-                        cantidad * -1.0,       # Unidades negativas para revertir
-                        0,                     # Peso
-                        None,                  # CodPalet
-                        cod_documento,
-                        num_linea,
-                        None,                  # CodFacturacion
-                        num_lote,
-                        None,                  # CodOrdenReubicacion
-                        None,                  # CadCodNumerosDeSerie
-                        None,                  # CodTipoDatoMaestro
-                        None,                  # CodDatoMaestro
-                        None,                  # TipoCodigoIntroducido
-                        None                   # CodUbicacionTerminal
-                    ])
-
-                    # Obtener CodHueco para el recorrido
-                    cod_hueco = None
+            def _parse_fecha(f):
+                if not f: return None
+                from datetime import datetime
+                if isinstance(f, str):
                     try:
-                        cursor.execute("SELECT CODHUECO FROM TMST_UBICACIONES WHERE CODUBICACION = :1", [cod_ubicacion])
-                        row_hueco = cursor.fetchone()
-                        if row_hueco: cod_hueco = row_hueco[0]
-                    except: pass
+                        return datetime.strptime(f, '%Y-%m-%d').date()
+                    except:
+                        return None
+                return f
 
-                    # 2. Dejar constancia en el recorrido
-                    cursor.callproc('GSM.SPPRP_SAVERECORRIDOPREPARACION', [
-                        cod_documento,
-                        num_linea,
-                        cod_terminal,
-                        cod_hueco,
-                        cod_ubicacion,
-                        cod_articulo,
-                        fecha_caducidad,
-                        num_lote,
-                        cantidad * -1.0,       # CantPreparada
-                        0,                     # Peso
-                        cantidad,              # CantDevuelta
-                        None                   # CadCodNumerosDeSerie
-                    ])
-
-                    total_anulado += cantidad
-
-                # 3. Recalcular CANTPREPARADA para asegurar integridad perfecta
+            regs_to_process = []
+            if registros_seleccionados:
+                regs_to_process = registros_seleccionados
+            else:
+                # Descarga total: obtener todos los registros pendientes
                 cursor.execute("""
-                    UPDATE GSM.TMST_LINEASDOCUMENTOCLIENTE
-                    SET CANTPREPARADA = GREATEST(0, NVL(CANTPREPARADA, 0) - :cant)
-                    WHERE CODDOCUMENTO = :cod_doc AND NUMLINEA = :num_linea
-                """, {"cant": total_anulado, "cod_doc": cod_documento, "num_linea": num_linea})
+                    SELECT R.CODUBICACION, R.FECHACADUCIDAD, LOT.NUMEROLOTE, (NVL(R.CANTPREPARADA, 0) - NVL(R.CANTDEVUELTA, 0)) AS CANT
+                    FROM GSM.TPRP_RECORRIDOPREPARACIONDOC R
+                    LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES LOT ON LOT.CODNUMEROLOTE = R.CODNUMEROLOTE
+                    WHERE R.CODDOCUMENTO = :cod_doc AND R.NUMLINEA = :num_linea
+                      AND (NVL(R.CANTPREPARADA, 0) - NVL(R.CANTDEVUELTA, 0)) > 0
+                """, {"cod_doc": cod_documento, "num_linea": num_linea})
+                for row in cursor.fetchall():
+                    regs_to_process.append({
+                        'codubicacion': row[0],
+                        'fechacaducidad': row[1],
+                        'numerolote': row[2] or '',
+                        'cantidad': float(row[3])
+                    })
 
-                logger.info(f"Descarga: doc={cod_documento} linea={num_linea} terminal={cod_terminal} cant_anulada={total_anulado}")
+            if not regs_to_process:
+                logger.warning(f"No hay stock pendiente para descargar doc={cod_documento} linea={num_linea}")
+                return
+
+            total_anulado = 0.0
+
+            # Optimización de problema N+1: Obtenemos todos los huecos en una sola consulta
+            ubicaciones_ids = list({reg['codubicacion'] for reg in regs_to_process if reg.get('codubicacion')})
+            huecos_map = {}
+            if ubicaciones_ids:
+                # Usamos una cláusula IN con placeholders y limitamos la longitud de la lista en memoria si fuera necesario.
+                placeholders = ','.join([f":{i+1}" for i in range(len(ubicaciones_ids))])
+                cursor.execute(f"SELECT CODUBICACION, CODHUECO FROM TMST_UBICACIONES WHERE CODUBICACION IN ({placeholders})", ubicaciones_ids)
+                for r in cursor.fetchall():
+                    huecos_map[r[0]] = r[1]
+
+            for reg in regs_to_process:
+                cantidad = float(reg.get('cantidad', 0))
+                if cantidad <= 0:
+                    continue
+
+                fecha_caducidad = _parse_fecha(reg.get('fechacaducidad'))
+                cod_ubicacion = reg['codubicacion']
+                num_lote = reg.get('numerolote') or ''
+
+                # 1. Mover stock físicamente (cantidades en negativo)
+                cursor.callproc('GSM.SPPRP_CARGARMERCANCIATERMINAL', [
+                    cod_ubicacion,
+                    cod_articulo,
+                    fecha_caducidad,
+                    cod_terminal,
+                    1,                     # OperacionTerminal (1)
+                    cantidad * -1.0,       # Unidades negativas para revertir
+                    0,                     # Peso
+                    None,                  # CodPalet
+                    cod_documento,
+                    num_linea,
+                    None,                  # CodFacturacion
+                    num_lote,
+                    None,                  # CodOrdenReubicacion
+                    None,                  # CadCodNumerosDeSerie
+                    None,                  # CodTipoDatoMaestro
+                    None,                  # CodDatoMaestro
+                    None,                  # TipoCodigoIntroducido
+                    None                   # CodUbicacionTerminal
+                ])
+
+                # Buscar en el mapa precargado para evitar la consulta en bucle (N+1 query problem resuelto)
+                cod_hueco = huecos_map.get(cod_ubicacion)
+
+                # 2. Dejar constancia en el recorrido
+                cursor.callproc('GSM.SPPRP_SAVERECORRIDOPREPARACION', [
+                    cod_documento,
+                    num_linea,
+                    cod_terminal,
+                    cod_hueco,
+                    cod_ubicacion,
+                    cod_articulo,
+                    fecha_caducidad,
+                    num_lote,
+                    cantidad * -1.0,       # CantPreparada
+                    0,                     # Peso
+                    cantidad,              # CantDevuelta
+                    None                   # CadCodNumerosDeSerie
+                ])
+
+                total_anulado += cantidad
+
+            # 3. Recalcular CANTPREPARADA para asegurar integridad perfecta
+            cursor.execute("""
+                UPDATE GSM.TMST_LINEASDOCUMENTOCLIENTE
+                SET CANTPREPARADA = GREATEST(0, NVL(CANTPREPARADA, 0) - :cant)
+                WHERE CODDOCUMENTO = :cod_doc AND NUMLINEA = :num_linea
+            """, {"cant": total_anulado, "cod_doc": cod_documento, "num_linea": num_linea})
+
+            connection.commit()
+            logger.info(f"Descarga: doc={cod_documento} linea={num_linea} terminal={cod_terminal} cant_anulada={total_anulado}")
         except Exception as e:
+            if connection:
+                connection.rollback()
             logger.error(f"Error en descargar_mercancia: {e}", exc_info=True)
             raise Exception(f"Error al descargar mercancía: {str(e)}")
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()

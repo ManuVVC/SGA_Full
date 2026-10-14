@@ -1,36 +1,37 @@
 import logging
 from datetime import datetime
+from typing import List, Dict, Any, Optional
+
 from ..repositories.ajustes_stock_repo import StockAjustesRepository
 
 logger = logging.getLogger(__name__)
 
 class StockAjustesService:
     @staticmethod
-    def get_conceptos():
+    def get_conceptos() -> List[Dict[str, Any]]:
         return StockAjustesRepository.get_conceptos()
 
     @staticmethod
-    def get_lotes(cod_ubicacion: int, cod_articulo: int):
-        # Retrieve lotes and format date if needed
+    def get_lotes(cod_ubicacion: int, cod_articulo: int) -> List[Dict[str, Any]]:
         lotes = StockAjustesRepository.get_lotes_articulo_ubicacion(cod_ubicacion, cod_articulo)
         for lote in lotes:
-            if lote.get('FECHACADUCIDAD'):
-                # Format to YYYY-MM-DD for easier frontend handling
-                lote['FECHACADUCIDAD_STR'] = lote['FECHACADUCIDAD'].strftime('%Y-%m-%d')
-            else:
-                lote['FECHACADUCIDAD_STR'] = ''
+            fecha = lote.get('FECHACADUCIDAD')
+            lote['FECHACADUCIDAD_STR'] = fecha.strftime('%Y-%m-%d') if fecha else ''
         return lotes
 
     @staticmethod
-    def ejecutar_ajuste(payload: dict, cod_operador: int, cod_terminal: int):
-        # Format the data according to the repo expectations
-        fecha_caducidad_str = payload.get('fechaCaducidad')
-        fecha_caducidad_date = None
-        if fecha_caducidad_str:
-            try:
-                fecha_caducidad_date = datetime.strptime(fecha_caducidad_str, '%Y-%m-%d')
-            except ValueError:
-                fecha_caducidad_date = None
+    def _parse_fecha_caducidad(fecha_str: Optional[str]) -> Optional[datetime]:
+        if not fecha_str:
+            return None
+        try:
+            return datetime.strptime(fecha_str, '%Y-%m-%d')
+        except ValueError:
+            logger.warning(f"Invalid date format: {fecha_str}")
+            return None
+
+    @staticmethod
+    def ejecutar_ajuste(payload: Dict[str, Any], cod_operador: int, cod_terminal: int) -> Dict[str, Any]:
+        fecha_caducidad_date = StockAjustesService._parse_fecha_caducidad(payload.get('fechaCaducidad'))
 
         datos = {
             'cod_terminal': cod_terminal,
@@ -48,8 +49,9 @@ class StockAjustesService:
             'cod_dato_maestro': 0
         }
 
-        # Ejecutamos en el repositorio
-        resultado = StockAjustesRepository.ejecutar_ajuste(datos)
-        
-        # Opcionalmente se puede devolver un status success
-        return {"status": "success", "result_code": resultado}
+        try:
+            resultado = StockAjustesRepository.ejecutar_ajuste(datos)
+            return {"status": "success", "result_code": resultado}
+        except Exception as e:
+            logger.error(f"Error executing adjustment: {e}", exc_info=True)
+            raise

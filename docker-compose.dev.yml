@@ -53,3 +53,19 @@ services:
     environment:
       - NODE_ENV=development
 
+
+  # ?? Frontend Kubica con hot-reload
+  kubica:
+    container_name: sga_kubica_dev
+    # Para dev, podemos simplemente montar el volumen y arrancar con npm run dev
+    build:
+      context: ./Kubica
+      dockerfile: Dockerfile
+      target: deps
+    volumes:
+      - ./Kubica:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    environment:
+      - NODE_ENV=development

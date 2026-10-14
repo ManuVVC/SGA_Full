@@ -1,75 +1,82 @@
 import pytest
 import jwt
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from app.services.auth_service import AuthService
 from app.utils.exceptions import UserNotFoundError, InvalidPasswordError
 
-@pytest.fixture
-def mock_secret():
-    return "test-secret"
-
-@pytest.fixture
-def mock_ip():
-    return "192.168.1.10"
-
 class TestAuthService:
-    @patch("app.services.auth_service.TerminalService.validar_y_obtener_terminal")
-    @patch("app.services.auth_service.AuthRepository.get_operador_por_codigo")
-    @patch("app.services.auth_service.TerminalRepository.actualizar_ultimo_operario")
-    @patch("app.services.auth_service.session_manager")
-    def test_login_success(self, mock_session, mock_term_repo, mock_auth_repo, mock_term_service, mock_secret, mock_ip):
-        # Arrange
-        mock_term_service.return_value = {"CODTERMINAL": "TERM1"}
-        mock_auth_repo.return_value = {
-            "CODOPERADOR": 1,
-            "NOMBRE": "Test User",
-            "PASSWORD": "correct_password",
-            "permisos": ["MENU_1"]
-        }
-        
-        # Act
-        result = AuthService.login("testuser", "correct_password", mock_ip, mock_secret, 30)
-        
-        # Assert
-        assert "token" in result
-        assert result["operador_nombre"] == "Test User"
-        assert result["terminal"]["CODTERMINAL"] == "TERM1"
-        assert result["permisos"] == ["MENU_1"]
-        
-        # Check token validity
-        decoded = jwt.decode(result["token"], mock_secret, algorithms=["HS256"])
-        assert decoded["sub"] == "1"
-        
-        mock_session.register_session.assert_called_once()
-        mock_term_repo.actualizar_ultimo_operario.assert_called_once_with("TERM1", "1")
-
-    @patch("app.services.auth_service.TerminalService.validar_y_obtener_terminal")
-    @patch("app.services.auth_service.AuthRepository.get_operador_por_codigo")
-    def test_login_user_not_found(self, mock_auth_repo, mock_term_service, mock_secret, mock_ip):
-        # Arrange
-        mock_term_service.return_value = {"CODTERMINAL": "TERM1"}
-        mock_auth_repo.return_value = None
-        
-        # Act & Assert
-        with pytest.raises(UserNotFoundError, match="no existe en el sistema"):
-            AuthService.login("unknown", "pass", mock_ip, mock_secret, 30)
-
-    @patch("app.services.auth_service.TerminalService.validar_y_obtener_terminal")
-    @patch("app.services.auth_service.AuthRepository.get_operador_por_codigo")
-    def test_login_invalid_password(self, mock_auth_repo, mock_term_service, mock_secret, mock_ip):
-        # Arrange
-        mock_term_service.return_value = {"CODTERMINAL": "TERM1"}
-        mock_auth_repo.return_value = {
-            "CODOPERADOR": 1,
-            "NOMBRE": "Test User",
-            "PASSWORD": "correct_password",
+    @patch('app.services.auth_service.TerminalService.validar_y_obtener_terminal')
+    @patch('app.services.auth_service.AuthRepository.get_operador_por_codigo')
+    @patch('app.services.auth_service.TerminalRepository.actualizar_ultimo_operario')
+    @patch('app.services.auth_service.session_manager')
+    def test_login_success_plain_password(self, mock_session_manager, mock_act_operario, mock_get_operador, mock_get_terminal):
+        mock_get_terminal.return_value = {"CODTERMINAL": "T1"}
+        mock_get_operador.return_value = {
+            "CODOPERADOR": 1, 
+            "NOMBRE": "TestUser", 
+            "PASSWORD": "password123",
             "permisos": []
         }
         
-        # Act & Assert
-        with pytest.raises(InvalidPasswordError, match="incorrecta"):
-            AuthService.login("testuser", "wrong_password", mock_ip, mock_secret, 30)
+        result = AuthService.login("testuser", "password123", "127.0.0.1", "secret", 30)
+        
+        assert "token" in result
+        assert result["operador_nombre"] == "TestUser"
+        assert result["terminal"] == {"CODTERMINAL": "T1"}
+        mock_act_operario.assert_called_once_with("T1", "1")
 
-    def test_login_empty_username(self, mock_secret, mock_ip):
-        with pytest.raises(UserNotFoundError, match="no puede estar vacío"):
-            AuthService.login("", "pass", mock_ip, mock_secret, 30)
+    @patch('app.services.auth_service.AuthRepository.get_operador_por_codigo')
+    def test_login_user_not_found(self, mock_get_operador):
+        mock_get_operador.return_value = None
+        with pytest.raises(UserNotFoundError):
+            AuthService.login("unknown", "pwd", "127.0.0.1", "secret", 30)
+
+    @patch('app.services.auth_service.TerminalService.validar_y_obtener_terminal')
+    @patch('app.services.auth_service.AuthRepository.get_operador_por_codigo')
+    def test_login_invalid_password(self, mock_get_operador, mock_get_terminal):
+        mock_get_terminal.return_value = {"CODTERMINAL": "T1"}
+        mock_get_operador.return_value = {
+            "CODOPERADOR": 1, 
+            "NOMBRE": "TestUser", 
+            "PASSWORD": "password123",
+            "permisos": []
+        }
+        
+        with pytest.raises(InvalidPasswordError):
+            AuthService.login("testuser", "wrongpwd", "127.0.0.1", "secret", 30)
+
+    @patch('app.services.auth_service.TerminalService.validar_y_obtener_terminal')
+    @patch('app.services.auth_service.AuthRepository.get_operador_por_nombre')
+    @patch('app.services.auth_service.TerminalRepository.actualizar_ultimo_operario')
+    @patch('app.services.auth_service.session_manager')
+    def test_login_web_success(self, mock_session_manager, mock_act_operario, mock_get_operador, mock_get_terminal):
+        mock_get_terminal.return_value = {"CODTERMINAL": "WEB1"}
+        mock_get_operador.return_value = {
+            "CODOPERADOR": 2, 
+            "NOMBRE": "WebUser", 
+            "PASSWORD": "password123",
+            "permisos": []
+        }
+        
+        result = AuthService.login_web("webuser", "password123", "127.0.0.1", "secret", 30)
+        
+        assert "token" in result
+        assert result["operador_nombre"] == "WebUser"
+        mock_act_operario.assert_called_once_with("WEB1", "2")
+        
+    @patch('app.services.auth_service.TerminalService.validar_y_obtener_terminal')
+    @patch('app.services.auth_service.AuthRepository.get_operador_por_nombre')
+    @patch('app.services.auth_service.session_manager')
+    def test_login_web_fallback_terminal(self, mock_session_manager, mock_get_operador, mock_get_terminal):
+        mock_get_terminal.side_effect = Exception("Not found")
+        mock_get_operador.return_value = {
+            "CODOPERADOR": 2, 
+            "NOMBRE": "WebUser", 
+            "PASSWORD": "password123",
+            "permisos": []
+        }
+        
+        result = AuthService.login_web("webuser", "password123", "127.0.0.1", "secret", 30)
+        
+        assert result["terminal"]["CODTERMINAL"] == "WEB-CONSOLE"

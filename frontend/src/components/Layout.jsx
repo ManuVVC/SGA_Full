@@ -69,6 +69,9 @@ export default function Layout({
           <Link to="/mapa" onClick={closeSidebarOnMobile} className={`nav-item ${activeNav === 'mapa' ? 'active' : ''}`} style={{textDecoration: 'none', color: 'inherit'}}>
             <Map size={20} className="shrink-0" /> <span className="nav-text">Mapa Almacén</span>
           </Link>
+          <Link to="/mapa-volumen" onClick={closeSidebarOnMobile} className={`nav-item ${activeNav === 'mapa-volumen' ? 'active' : ''}`} style={{textDecoration: 'none', color: 'inherit'}}>
+            <Package size={20} className="shrink-0" /> <span className="nav-text">Mapa Volumen</span>
+          </Link>
           <Link to="/informes" onClick={closeSidebarOnMobile} className={`nav-item ${activeNav === 'informes' ? 'active' : ''}`} style={{textDecoration: 'none', color: 'inherit'}}>
             <FileText size={20} className="shrink-0" /> <span className="nav-text">Informes</span>
           </Link>
@@ -93,6 +96,8 @@ export default function Layout({
               {activeNav === 'salidas' && 'Gestión de Expediciones'}
               {activeNav === 'devoluciones' && 'Gestión de Devoluciones'}
               {activeNav === 'inventario' && 'Estado del Stock'}
+              {activeNav === 'mapa' && 'Mapa del Almacén'}
+              {activeNav === 'mapa-volumen' && 'Mapa de Volúmenes'}
               {activeNav === 'informes' && 'Informes Manuales'}
             </div>
           </div>

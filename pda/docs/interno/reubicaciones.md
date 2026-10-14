@@ -88,3 +88,10 @@ Se modificó la comprobación en el cliente PDA para que evalúe si el artículo
 // Evalúa si el artículo gestiona lote o fecha de caducidad
 const gestionaLote = (article.PRM_TRAZABILIDAD !== 0) || (article.GESTIONARCADUCIDAD !== 0);
 ```
+
+### Prevención de Doble Envío de Peticiones de Reubicación
+**Problema:**
+Se reportaron casos de duplicidad de stock (ej: artículo 801611) al pulsar múltiples veces el botón de "Confirmar Reubicación", lo cual enviaba múltiples peticiones HTTP `/api/reubicaciones/grabar` antes de que la PDA bloquease el botón mediante el estado `loading`.
+
+**Solución:**
+Se implementó un patrón de "debounce" (bloqueo sincrónico) usando una referencia `useRef` de React (`isSubmitting`) en los componentes `ReubicacionLibre.jsx` y `ReubicacionEntrada.jsx`. Al pulsar el botón, la ejecución se bloquea inmediatamente si `isSubmitting.current` es verdadero, evitando así el doble envío independientemente del tiempo de renderizado del componente.
