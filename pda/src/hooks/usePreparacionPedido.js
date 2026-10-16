@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   obtenerDocumento, getCabeceraPedido, getPrimeraLinea,
   siguienteLinea, cargarMercancia, getLineasPendientes,
@@ -6,6 +6,12 @@ import {
   getPermisosPreparacion, validarUbicacion, getStockLotes,
   getRecorridoLinea, descargarLinea
 } from '../api/preparacionService';
+import {
+  playScanSuccess,
+  playLineCompleted,
+  playWarningFeedback,
+  playErrorFeedback
+} from '../utils/feedbackUtils';
 
 export const FASE = {
   CARGANDO: 'CARGANDO',
@@ -24,13 +30,21 @@ export const FASE = {
 export const usePreparacionPedido = (inputRef) => {
   const [fase, setFase] = useState(FASE.CARGANDO);
   const [faseAnterior, setFaseAnterior] = useState(null);
+  const [isStepModalOpen, setIsStepModalOpen] = useState(true);
+  const [mismaUbicacionMantenida, setMismaUbicacionMantenida] = useState(false);
+
   const [showPosicionModal, setShowPosicionModal] = useState(false);
   const [posicionesDisponibles, setPosicionesDisponibles] = useState([]);
   const [ubicacionPendienteModal, setUbicacionPendienteModal] = useState('');
   const [cabecera, setCabecera] = useState(null);
   const [lineaActual, setLineaActual] = useState(null);
   const [lineasPendientes, setLineasPendientes] = useState([]);
-  const [permisos, setPermisos] = useState({ solicitar_ubicacion: 0, solicitar_articulo: 0, solicitar_cantidad: -1, puede_servir_mas: 0 });
+  const [permisos, setPermisos] = useState({
+    solicitar_ubicacion: 0,
+    solicitar_articulo: 0,
+    solicitar_cantidad: -1,
+    puede_servir_mas: 0
+  });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -57,7 +71,21 @@ export const usePreparacionPedido = (inputRef) => {
   const [lineaParaDescargar, setLineaParaDescargar] = useState(null);
   const [recorridoDescarga, setRecorridoDescarga] = useState([]);
   const [loadingDescarga, setLoadingDescarga] = useState(false);
-  const [registrosAAnular, setRegistrosAAnular] = useState([]); // array de { ...rec, cantidadAAnular: number, selected: boolean }
+  const [registrosAAnular, setRegistrosAAnular] = useState([]);
+
+  // Abrir automáticamente el modal de paso cada vez que cambia a una fase operativa
+  useEffect(() => {
+    if (
+      fase === FASE.CONFIRMAR_UBICACION ||
+      fase === FASE.CONFIRMAR_ARTICULO ||
+      fase === FASE.SELECCIONAR_LOTE ||
+      fase === FASE.INTRODUCIR_CANTIDAD ||
+      fase === FASE.CONFIRMAR_EXCESO ||
+      fase === FASE.CONFIRMAR_SUMA_SUSTITUCION
+    ) {
+      setIsStepModalOpen(true);
+    }
+  }, [fase, lineaActual]);
 
   const handleLongPressLinea = useCallback((linea) => {
     if (!linea) return;
@@ -73,7 +101,6 @@ export const usePreparacionPedido = (inputRef) => {
     try {
       const recorrido = await getRecorridoLinea(cabecera.cod_documento, linea.numlinea);
       setRecorridoDescarga(recorrido);
-      // Inicializar los registros a anular (por defecto todos seleccionados con su cantidad máxima pendiente)
       setRegistrosAAnular(recorrido.map(rec => ({
         ...rec,
         cantidadAAnular: rec.cantpreparada - (rec.cantdevuelta || 0),
@@ -90,7 +117,6 @@ export const usePreparacionPedido = (inputRef) => {
     if (!lineaParaDescargar || !cabecera) return;
     setLoadingDescarga(true);
     try {
-      // Filtrar solo los seleccionados y mapear al formato esperado por el backend
       const registros = registrosAAnular
         .map(r => ({
           ...r,
@@ -104,7 +130,6 @@ export const usePreparacionPedido = (inputRef) => {
           cantidad: r.parsedCant
         }));
 
-      // Si no hay ninguno seleccionado o todas las cantidades son 0, no hacer nada
       if (registros.length === 0) {
         setLoadingDescarga(false);
         return;
@@ -119,7 +144,6 @@ export const usePreparacionPedido = (inputRef) => {
       setLineaParaDescargar(null);
       setRecorridoDescarga([]);
       setRegistrosAAnular([]);
-      // Recargar el listado completo de líneas
       const lineas = await getLineasPendientes(cabecera.cod_documento);
       setLineasPendientes(lineas);
     } catch (e) {
@@ -136,6 +160,7 @@ export const usePreparacionPedido = (inputRef) => {
       case FASE.SELECCIONAR_LOTE: return 3;
       case FASE.INTRODUCIR_CANTIDAD: return 4;
       case FASE.CONFIRMAR_EXCESO: return 5;
+      case FASE.CONFIRMAR_SUMA_SUSTITUCION: return 5;
       default: return 0;
     }
   };
@@ -170,25 +195,52 @@ export const usePreparacionPedido = (inputRef) => {
     }
   };
 
-  const aplicarLinea = async (linea) => {
+  const aplicarLinea = async (linea, opciones = {}) => {
+    const { ubicacionPrevia = null } = opciones;
+
     setLineaActual(linea);
     setInputVal('');
     setCantidad('');
-    setUbicacionConfirmada(null);
+    setShowPosicionModal(false);
+    setPosicionesDisponibles([]);
     setLotesDisponibles([]);
     setLoteSeleccionado(null);
     setCantidadPendiente(null);
     setFactorEanSeleccionado(1);
     setTipoCodigoIntroducido(0);
     setCodFacturacion(linea.codarticuloaplicacion || null);
+    setIsStepModalOpen(true);
 
-    // Actualizamos la cantidad de líneas pendientes
-    await cargarLineasPendientes(cabecera.cod_documento);
+    // Actualizamos las líneas pendientes en segundo plano (sin bloquear el inicio del escaneo)
+    if (cabecera?.cod_documento) {
+      cargarLineasPendientes(cabecera.cod_documento);
+    }
+
+    // Comprobar si venimos de confirmar una línea en exactamente la misma ubicación física
+    const esMismoHueco =
+      ubicacionPrevia &&
+      ubicacionPrevia.codubicacion &&
+      linea.codubicacion &&
+      String(ubicacionPrevia.codubicacion) === String(linea.codubicacion);
+
+    if (esMismoHueco) {
+      setUbicacionConfirmada(ubicacionPrevia);
+      setMismaUbicacionMantenida(true);
+      avanzarDesdeUbicacion(ubicacionPrevia, linea, permisos);
+      return;
+    }
+
+    setMismaUbicacionMantenida(false);
+    setUbicacionConfirmada(null);
 
     if (permisos.solicitar_ubicacion === -1) {
       setFase(FASE.CONFIRMAR_UBICACION);
     } else {
-      const ubi = { codubicacion: linea.codubicacion, codhueco: linea.codhueco };
+      const ubi = {
+        codubicacion: linea.codubicacion,
+        codhueco: linea.codhueco,
+        descripcion: linea.nombreubicacion || linea.descripcion || linea.codhueco
+      };
       setUbicacionConfirmada(ubi);
       avanzarDesdeUbicacion(ubi, linea, permisos);
     }
@@ -237,7 +289,7 @@ export const usePreparacionPedido = (inputRef) => {
     }
   }, [cabecera, permisos]);
 
-  const navegarLinea = useCallback(async (tipoAvance) => {
+  const navegarLinea = useCallback(async (tipoAvance, opciones = {}) => {
     if (!lineaActual || !cabecera) return;
     setLoading(true);
     setError(null);
@@ -252,7 +304,6 @@ export const usePreparacionPedido = (inputRef) => {
         cant_solicitada: lineaActual.cantsolicitada,
       });
       if (!linea) {
-        // Comprobar si realmente quedan líneas en el pedido
         const numLineas = await getNumLineasPendientes(cabecera.cod_documento);
 
         if (numLineas === 0) {
@@ -264,7 +315,7 @@ export const usePreparacionPedido = (inputRef) => {
         }
         return;
       }
-      await aplicarLinea(linea);
+      await aplicarLinea(linea, opciones);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -274,7 +325,11 @@ export const usePreparacionPedido = (inputRef) => {
 
   const handleConfirmarUbicacion = async (posicionOverride = null) => {
     const escaneado = posicionOverride ? ubicacionPendienteModal : inputVal.trim();
-    if (!escaneado) { setError('Introduce la ubicación'); return; }
+    if (!escaneado) {
+      playErrorFeedback();
+      setError('Introduce o escanea la ubicación');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -282,6 +337,7 @@ export const usePreparacionPedido = (inputRef) => {
       const result = await validarUbicacion(escaneado, lineaActual?.codubicacion, posicionOverride);
 
       if (result.status === 'necesita_posicion') {
+        playWarningFeedback();
         setPosicionesDisponibles(result.opciones);
         setUbicacionPendienteModal(escaneado);
         setShowPosicionModal(true);
@@ -290,19 +346,26 @@ export const usePreparacionPedido = (inputRef) => {
       }
 
       if (!result.valida) {
-        setError(result.message || `La ubicación ${escaneado} no es válida o no existe.`);
+        playErrorFeedback();
+        setError(result.message || `La ubicación ${escaneado} no es válida o no coincide con la solicitada.`);
         if (!posicionOverride) setInputVal('');
         setShowPosicionModal(false);
         setLoading(false);
         return;
       }
 
+      playScanSuccess();
       setShowPosicionModal(false);
-      const ubi = { codubicacion: result.codubicacion, codhueco: result.codhueco, descripcion: result.descripcion };
+      const ubi = {
+        codubicacion: result.codubicacion,
+        codhueco: result.codhueco,
+        descripcion: result.descripcion
+      };
       setUbicacionConfirmada(ubi);
       setInputVal('');
       avanzarDesdeUbicacion(ubi, lineaActual, permisos);
     } catch (err) {
+      playErrorFeedback();
       setError(String(err));
     } finally {
       setLoading(false);
@@ -323,10 +386,12 @@ export const usePreparacionPedido = (inputRef) => {
     const selCodArticulo = String(article.CODARTICULO || '').trim();
 
     if (selCodArticulo !== codArticulo) {
-      setError(`Artículo no pedido.`);
+      playErrorFeedback();
+      setError(`Artículo incorrecto (${article.CODARTICULOAPLICACION || selCodArticulo}). Se esperaba ${lineaActual.codarticuloaplicacion}.`);
       return;
     }
 
+    playScanSuccess();
     setError(null);
     const factor = article.UNIDADES ? parseFloat(article.UNIDADES) : 1;
     setFactorEanSeleccionado(factor);
@@ -337,15 +402,16 @@ export const usePreparacionPedido = (inputRef) => {
       setTipoCodigoIntroducido(0);
       setCodFacturacion(article.CODARTICULOAPLICACION || lineaActual.codarticuloaplicacion || null);
     }
-    verificarStockYLotes(ubicacionConfirmada.codubicacion, lineaActual);
+    verificarStockYLotes(ubicacionConfirmada.codubicacion, lineaActual, article.gs1Data || null);
   };
 
-  const verificarStockYLotes = async (cod_ubicacion, linea) => {
+  const verificarStockYLotes = async (cod_ubicacion, linea, gs1Data = null) => {
     setLoading(true);
     setError(null);
     try {
       const lotes = await getStockLotes(cod_ubicacion, linea.codarticulo);
       if (!lotes || lotes.length === 0) {
+        playErrorFeedback();
         setError('El artículo no tiene stock disponible en esta ubicación.');
         setFase(FASE.CONFIRMAR_UBICACION);
         return;
@@ -353,10 +419,27 @@ export const usePreparacionPedido = (inputRef) => {
 
       setLotesDisponibles(lotes);
 
+      // Si el código GS1-128 incluye cantidad válida, pre-rellenarla
+      if (gs1Data?.cantidad && parseFloat(gs1Data.cantidad) > 0) {
+        setCantidad(String(gs1Data.cantidad));
+      }
+
       if (linea.prm_trazabilidad || linea.gestionar_caducidad) {
         if (lotes.length === 1) {
           setLoteSeleccionado(lotes[0]);
           setFase(FASE.INTRODUCIR_CANTIDAD);
+        } else if (gs1Data?.lote) {
+          // Buscar si el lote extraído del GS1-128 coincide con alguno disponible en la ubicación
+          const gs1LoteNorm = String(gs1Data.lote).trim().toUpperCase();
+          const loteCoincidente = lotes.find(
+            l => String(l.numerolote || l.codnumerolote || '').trim().toUpperCase() === gs1LoteNorm
+          );
+          if (loteCoincidente) {
+            setLoteSeleccionado(loteCoincidente);
+            setFase(FASE.INTRODUCIR_CANTIDAD);
+          } else {
+            setFase(FASE.SELECCIONAR_LOTE);
+          }
         } else {
           setFase(FASE.SELECCIONAR_LOTE);
         }
@@ -364,6 +447,7 @@ export const usePreparacionPedido = (inputRef) => {
         setFase(FASE.INTRODUCIR_CANTIDAD);
       }
     } catch (err) {
+      playErrorFeedback();
       setError(String(err));
     } finally {
       setLoading(false);
@@ -371,12 +455,39 @@ export const usePreparacionPedido = (inputRef) => {
   };
 
   const handleSeleccionarLote = (lote) => {
+    playScanSuccess();
+    setError(null);
     setLoteSeleccionado(lote);
     setFase(FASE.INTRODUCIR_CANTIDAD);
   };
 
-  const handleConfirmarCantidad = () => {
-    let cant = parseFloat(String(cantidad).replace(',', '.'));
+  // Cálculos reactivos de stock y cantidad sugerida para el modal de cantidad
+  const stockDisponibleActual = loteSeleccionado
+    ? (parseFloat(loteSeleccionado.stock) || 0)
+    : lotesDisponibles.reduce((sum, l) => sum + (parseFloat(l.stock) || 0), 0);
+
+  const cantidadPendienteLinea = lineaActual
+    ? Math.max(0, (parseFloat(lineaActual.cantsolicitada) || 0) - (parseFloat(lineaActual.cantpreparada) || 0))
+    : 0;
+
+  const maxUnidadesPreparables = stockDisponibleActual > 0
+    ? Math.min(cantidadPendienteLinea, stockDisponibleActual)
+    : cantidadPendienteLinea;
+
+  const cantidadSugeridaInput = factorEanSeleccionado > 1
+    ? (maxUnidadesPreparables >= factorEanSeleccionado
+        ? Math.floor((maxUnidadesPreparables / factorEanSeleccionado) * 1000) / 1000
+        : 0)
+    : maxUnidadesPreparables;
+
+  const handleConfirmarCantidad = (cantidadOverride = null) => {
+    // Si se invoca desde un evento de formulario o click sin valor numérico explícito, ignorar el objeto SyntheticEvent
+    const valorBruto =
+      cantidadOverride !== null && typeof cantidadOverride !== 'object'
+        ? cantidadOverride
+        : cantidad;
+
+    let cant = parseFloat(String(valorBruto).replace(',', '.'));
 
     const cantidadFaltante = lineaActual.cantsolicitada - (lineaActual.cantpreparada || 0);
 
@@ -384,7 +495,8 @@ export const usePreparacionPedido = (inputRef) => {
       cant = cantidadFaltante > 0 ? cantidadFaltante : 0;
     } else {
       if (isNaN(cant) || cant <= 0) {
-        setError('Introduce una cantidad válida');
+        playErrorFeedback();
+        setError('Introduce una cantidad válida mayor que 0');
         return;
       }
       cant = cant * factorEanSeleccionado;
@@ -398,6 +510,7 @@ export const usePreparacionPedido = (inputRef) => {
     }
 
     if (cant > stockMax) {
+      playErrorFeedback();
       setError(`La cantidad (${cant}) supera el stock disponible en la ubicación/lote (${stockMax}).`);
       return;
     }
@@ -405,10 +518,12 @@ export const usePreparacionPedido = (inputRef) => {
     const totalPreparadoFinal = (lineaActual.cantpreparada || 0) + cant;
     if (totalPreparadoFinal > lineaActual.cantsolicitada) {
       if (permisos.puede_servir_mas === -1) {
+        playWarningFeedback();
         setCantidadPendiente(cant);
         setFase(FASE.CONFIRMAR_EXCESO);
         return;
       } else {
+        playErrorFeedback();
         setError(`No puedes preparar más de lo solicitado. Solicitado: ${lineaActual.cantsolicitada}, Ya preparado: ${lineaActual.cantpreparada || 0}, Intentando añadir: ${cant}.`);
         return;
       }
@@ -427,7 +542,6 @@ export const usePreparacionPedido = (inputRef) => {
     try {
       const stockItem = loteSeleccionado || (lotesDisponibles.length > 0 ? lotesDisponibles[0] : null);
 
-      // ── Comprobar si ya hay unidades preparadas en el terminal para esta línea ──
       const unidsPrev = await getUnidsPreparadas({
         cod_documento:   cabecera.cod_documento,
         num_linea:       lineaActual.numlinea,
@@ -440,7 +554,7 @@ export const usePreparacionPedido = (inputRef) => {
       const yaPreparadas = unidsPrev.unidades_preparadas || 0;
 
       if (yaPreparadas > 0) {
-        // Hay unidades previas → preguntar al operario
+        playWarningFeedback();
         setUnidadesYaPreparadas(yaPreparadas);
         setCantidadPendiente(cantToLoad);
         setFase(FASE.CONFIRMAR_SUMA_SUSTITUCION);
@@ -449,6 +563,7 @@ export const usePreparacionPedido = (inputRef) => {
 
       await _realizarCarga(cantToLoad, stockItem);
     } catch (err) {
+      playErrorFeedback();
       setError(String(err));
     } finally {
       setLoading(false);
@@ -456,26 +571,28 @@ export const usePreparacionPedido = (inputRef) => {
     }
   };
 
-  // Ejecuta la carga real tras resolver SUMAR / SUSTITUIR
   const _realizarCarga = async (cantToLoad, stockItem) => {
     stockItem = stockItem || loteSeleccionado || (lotesDisponibles.length > 0 ? lotesDisponibles[0] : null);
+    const ubicacionActualConfirmada = ubicacionConfirmada;
+
     await cargarMercancia({
-      cod_documento:        cabecera.cod_documento,
-      cod_ubicacion:        ubicacionConfirmada.codubicacion,
-      cod_articulo:         lineaActual.codarticulo,
-      num_linea:            lineaActual.numlinea,
-      unidades:             cantToLoad,
-      fecha_caducidad:      loteSeleccionado?.fechacaducidad || null,
-      numero_lote:          loteSeleccionado?.numerolote || loteSeleccionado?.codnumerolote || null,
-      cod_tipo_dato_maestro: stockItem?.codtipodatomaestro || lineaActual.codtipodatomaestro || null,
-      cod_dato_maestro:     stockItem?.coddatomaestro || lineaActual.coddatomaestro || null,
+      cod_documento:           cabecera.cod_documento,
+      cod_ubicacion:           ubicacionConfirmada.codubicacion,
+      cod_articulo:            lineaActual.codarticulo,
+      num_linea:               lineaActual.numlinea,
+      unidades:                cantToLoad,
+      fecha_caducidad:         loteSeleccionado?.fechacaducidad || null,
+      numero_lote:             loteSeleccionado?.numerolote || loteSeleccionado?.codnumerolote || null,
+      cod_tipo_dato_maestro:   stockItem?.codtipodatomaestro || lineaActual.codtipodatomaestro || null,
+      cod_dato_maestro:        stockItem?.coddatomaestro || lineaActual.coddatomaestro || null,
       tipo_codigo_introducido: tipoCodigoIntroducido,
-      cod_facturacion:      codFacturacion,
+      cod_facturacion:         codFacturacion,
     });
-    await navegarLinea(0);
+
+    playLineCompleted();
+    await navegarLinea(0, { ubicacionPrevia: ubicacionActualConfirmada });
   };
 
-  // Manejador de la decisión SUMAR / SUSTITUIR
   const handleSumaSustitucion = async (accion) => {
     if (isSubmitting.current) return;
     isSubmitting.current = true;
@@ -483,15 +600,14 @@ export const usePreparacionPedido = (inputRef) => {
     setError(null);
     try {
       const cantNueva = cantidadPendiente;
-      // SUMAR: enviar la cantidad indicada (se sumará a la ya existente)
-      // SUSTITUIR: enviar (cantNueva - yaPreparadas) para que el neto sea cantNueva
       const cantFinal = accion === 'sustituir'
         ? cantNueva - unidadesYaPreparadas
         : cantNueva;
 
-      setFase(FASE.INTRODUCIR_CANTIDAD); // volver a pantalla intermedia mientras carga
+      setFase(FASE.INTRODUCIR_CANTIDAD);
       await _realizarCarga(cantFinal, null);
     } catch (err) {
+      playErrorFeedback();
       setError(String(err));
       setFase(FASE.CONFIRMAR_SUMA_SUSTITUCION);
     } finally {
@@ -500,9 +616,37 @@ export const usePreparacionPedido = (inputRef) => {
     }
   };
 
+  // Permite al operario tocar cualquier paso completado en la barra de chips para reabrir su modal
+  const irAPaso = useCallback((targetFase) => {
+    setError(null);
+    if (targetFase === FASE.CONFIRMAR_UBICACION && permisos.solicitar_ubicacion === -1) {
+      setShowPosicionModal(false);
+      setFase(FASE.CONFIRMAR_UBICACION);
+      setIsStepModalOpen(true);
+    } else if (targetFase === FASE.CONFIRMAR_ARTICULO && ubicacionConfirmada) {
+      setFase(FASE.CONFIRMAR_ARTICULO);
+      setIsStepModalOpen(true);
+    } else if (
+      targetFase === FASE.SELECCIONAR_LOTE &&
+      ubicacionConfirmada &&
+      (lineaActual?.prm_trazabilidad || lineaActual?.gestionar_caducidad) &&
+      lotesDisponibles.length > 0
+    ) {
+      setFase(FASE.SELECCIONAR_LOTE);
+      setIsStepModalOpen(true);
+    } else if (targetFase === FASE.INTRODUCIR_CANTIDAD && ubicacionConfirmada && lotesDisponibles.length > 0) {
+      setFase(FASE.INTRODUCIR_CANTIDAD);
+      setIsStepModalOpen(true);
+    } else {
+      setIsStepModalOpen(true);
+    }
+  }, [permisos, ubicacionConfirmada, lineaActual, lotesDisponibles]);
+
   return {
     fase, setFase,
     faseAnterior, setFaseAnterior,
+    isStepModalOpen, setIsStepModalOpen,
+    mismaUbicacionMantenida, setMismaUbicacionMantenida,
     showPosicionModal, setShowPosicionModal,
     posicionesDisponibles, setPosicionesDisponibles,
     ubicacionPendienteModal, setUbicacionPendienteModal,
@@ -523,6 +667,9 @@ export const usePreparacionPedido = (inputRef) => {
     unidadesYaPreparadas, setUnidadesYaPreparadas,
     tipoCodigoIntroducido, setTipoCodigoIntroducido,
     codFacturacion, setCodFacturacion,
+    stockDisponibleActual,
+    cantidadPendienteLinea,
+    cantidadSugeridaInput,
     lineaParaUtilidades, setLineaParaUtilidades,
     showUtilidadesModal, setShowUtilidadesModal,
     lineaParaDescargar, setLineaParaDescargar,
@@ -542,6 +689,7 @@ export const usePreparacionPedido = (inputRef) => {
     handleSeleccionarLote,
     handleConfirmarCantidad,
     ejecutarCarga,
-    handleSumaSustitucion
+    handleSumaSustitucion,
+    irAPaso
   };
 };

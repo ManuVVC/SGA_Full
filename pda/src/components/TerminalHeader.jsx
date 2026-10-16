@@ -40,26 +40,39 @@ export default function TerminalHeader({ title }) {
 
   return (
     <>
-      <div className="bg-brand-olive text-white flex justify-between items-center px-2 py-2 shrink-0">
-        <div className="flex items-center gap-2">
+      <div className={`bg-brand-olive text-white flex justify-between items-center shrink-0 ${
+        screen.isLandscape ? 'px-2.5 py-1' : 'px-2 py-2'
+      }`}>
+        <div className="flex items-center gap-2 min-w-0">
           {/* Logo Placeholder */}
-          <div className="bg-white rounded px-1.5 py-0.5 flex items-center justify-center">
-            <span className="text-brand-red font-bold text-sm tracking-tight leading-none">Alifoods</span>
+          <div className="bg-white rounded px-1.5 py-0.5 flex items-center justify-center shrink-0">
+            <span className="text-brand-red font-bold text-xs sm:text-sm tracking-tight leading-none">Alifoods</span>
           </div>
-          <div className="flex flex-col leading-tight">
-            <span className="font-bold text-sm">{title}</span>
-            <span className="text-xs text-gray-200">{operadorNombre}</span>
-          </div>
+          {screen.isLandscape ? (
+            <div className="flex items-center gap-2 truncate">
+              <span className="font-bold text-xs sm:text-sm truncate">{title}</span>
+              {operadorNombre && (
+                <span className="text-[11px] text-gray-200 truncate border-l border-white/30 pl-2">
+                  {operadorNombre}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col leading-tight truncate">
+              <span className="font-bold text-sm truncate">{title}</span>
+              <span className="text-xs text-gray-200 truncate">{operadorNombre}</span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center shrink-0 ${screen.isLandscape ? 'gap-1.5' : 'gap-3'}`}>
           <button 
             onClick={toggleKeyboard}
-            className={`p-1.5 rounded-full transition-colors ${isKeyboardOpen ? 'bg-sga-secondary text-white' : 'bg-[#8b8e3a] text-gray-300'}`}
+            className={`${screen.isLandscape ? 'p-1' : 'p-1.5'} rounded-full transition-colors ${isKeyboardOpen ? 'bg-sga-secondary text-white' : 'bg-[#8b8e3a] text-gray-300'}`}
             title="Alternar teclado virtual"
           >
-            <Keyboard className="w-5 h-5" />
+            <Keyboard className={screen.isLandscape ? 'w-4 h-4' : 'w-5 h-5'} />
           </button>
-          <div className="flex flex-col items-end text-[10px] font-bold gap-0.5">
+          <div className={`flex ${screen.isLandscape ? 'flex-row items-center gap-1' : 'flex-col items-end gap-0.5'} text-[10px] font-bold`}>
             <button
               type="button"
               onClick={() => setShowScreenInfo(true)}

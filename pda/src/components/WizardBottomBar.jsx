@@ -32,8 +32,41 @@ const ICON_COLOR_CLASSES = {
  * @param {string} [className] - Clases adicionales para el contenedor de la barra
  * @param {number} [columns] - Número de columnas (si no se especifica, usa items.length o 3 como máximo)
  */
-const WizardBottomBar = ({ items = [], className = '', columns = null }) => {
+const WizardBottomBar = ({ items = [], className = '', columns = null, vertical = false }) => {
   if (!items || items.length === 0) return null;
+
+  if (vertical) {
+    return (
+      <div
+        className={`bg-white border-l p-1.5 flex flex-col justify-between gap-1.5 shrink-0 w-20 shadow-[-2px_0_10px_rgba(0,0,0,0.05)] ${className}`}
+      >
+        {items.map((item, index) => {
+          const variant = item.variant || 'default';
+          const buttonStyle = item.className || VARIANT_CLASSES[variant] || VARIANT_CLASSES.default;
+          const iconStyle = item.iconClassName || ICON_COLOR_CLASSES[variant] || ICON_COLOR_CLASSES.default;
+
+          return (
+            <button
+              key={item.id || index}
+              type="button"
+              onClick={item.onClick}
+              disabled={item.disabled || false}
+              className={`flex-1 font-bold px-1 py-1.5 rounded-lg shadow-sm flex flex-col items-center justify-center transition-colors active:scale-95 disabled:opacity-50 disabled:pointer-events-none ${buttonStyle}`}
+            >
+              {item.icon && (
+                <span className={`mb-0.5 flex-shrink-0 ${iconStyle}`}>
+                  {item.icon}
+                </span>
+              )}
+              <span className="text-[10px] uppercase tracking-tight leading-tight text-center">
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   const numCols = columns || Math.min(items.length, 4);
   const gridColsClass = {

@@ -6,7 +6,7 @@
 `TerminalService` actúa como la capa de seguridad y control de acceso para los dispositivos físicos (PDAs, terminales) que se conectan al SGA. Se basa en la identificación por dirección IP.
 
 - **Identificación de Terminal:** Consulta el `TerminalRepository` para verificar si la IP origen está registrada y autorizada.
-- **Bypass de NAT/Docker (Entorno Dev):** Existe lógica específica en la función `_es_ip_docker_o_local` para entornos de desarrollo. Si la aplicación corre en Docker y el origen aparece como IP de Gateway (ej. `172.x.x.x` o `127.0.0.1`), la IP original del cliente se pierde por el NAT. El servicio intercepta esto y utiliza la variable de entorno `DEV_DEFAULT_TERMINAL_IP` para emular una PDA específica.
+- **Bypass de NAT/Docker (Entorno Dev):** Existe lógica específica en la función `_es_ip_docker_o_local` para entornos de desarrollo. Si la aplicación corre en Docker y el origen aparece como IP de Gateway o loopback (ej. `172.16-31.x.x`, `10.x.x.x`, `127.0.0.1` o `::1`), la IP original del cliente se pierde por el NAT. El servicio intercepta esto y utiliza la variable de entorno `DEV_DEFAULT_TERMINAL_IP` para emular una PDA específica, excluyendo explícitamente el rango LAN real de los terminales (`192.168.0.0/16`) para respetar las IPs reales o forzadas mediante `?terminal_ip=`.
   > **Nota de Seguridad:** Asegurarse de que `DEV_DEFAULT_TERMINAL_IP` nunca se inyecte en Producción.
 - **Control de Bloqueos:** El servicio valida el flag `PRM_BLOQUEADO` dentro de la configuración JSON de permisos del terminal. Lanza `TerminalBloqueado` o `TerminalNoAutorizado` cortando la petición de inmediato.
 

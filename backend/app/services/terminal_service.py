@@ -7,14 +7,20 @@ from ..utils.exceptions import TerminalNoAutorizado, TerminalBloqueado
 logger = logging.getLogger(__name__)
 
 
+_RED_LAN_TERMINALES = ipaddress.ip_network("192.168.0.0/16")
+
+
 def _es_ip_docker_o_local(ip: str) -> bool:
     """
-    Verifica si una IP es de loopback o privada usando la librería estándar ipaddress.
+    Verifica si una IP es de loopback o de red interna de Docker/WSL2,
+    excluyendo la red LAN real de los terminales (192.168.0.0/16).
     """
     if not ip:
         return True
     try:
         addr = ipaddress.ip_address(ip)
+        if addr in _RED_LAN_TERMINALES:
+            return False
         return addr.is_loopback or addr.is_private
     except ValueError:
         return False

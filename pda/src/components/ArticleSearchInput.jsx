@@ -25,6 +25,8 @@ export default function ArticleSearchInput({
   disabled, 
   autoFocus, 
   compact = false,
+  suppressNumericKeyboard = false,
+  controlRef = null,
   placeholder = 'Escanear artículo...'
 }) {
   const [query, setQuery] = useState('');
@@ -80,7 +82,7 @@ export default function ArticleSearchInput({
   }, [searchType, isKeyboardOpen, disabled]);
 
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!query.trim()) return;
 
     setLoading(true);
@@ -141,6 +143,7 @@ export default function ArticleSearchInput({
   const selectArticle = (item) => {
     setShowModal(false);
     setQuery('');
+    const gs1Data = mode === 'full' ? pendingGs1Ref.current : null;
     // Normalizamos el objeto para que cualquier pantalla pueda consumirlo igual
     const normalizedArticle = {
       CODARTICULO: item.cod_articulo,
@@ -153,13 +156,13 @@ export default function ArticleSearchInput({
       MARGENCADUCIDAD: item.MARGENCADUCIDAD,
       FECHADESCATALOGACION: item.FECHADESCATALOGACION,
       searchType,
-      searchQuery: query
+      searchQuery: query,
+      gs1Data
     };
     onArticleSelected(normalizedArticle);
 
     // Propagar datos GS1 extra al padre si estamos en modo full
-    if (mode === 'full' && pendingGs1Ref.current && onGs1Parsed) {
-      const gs1Data = pendingGs1Ref.current;
+    if (mode === 'full' && gs1Data && onGs1Parsed) {
       pendingGs1Ref.current = null;
       // Pequeño retardo para que el padre procese primero el artículo
       setTimeout(() => onGs1Parsed(gs1Data), 50);
@@ -168,6 +171,32 @@ export default function ArticleSearchInput({
     }
   };
 
+  const isTextSearch = searchType === 'nombrearticulo' || searchType === 'codrealfabricante';
+  const effectiveInputMode = isKeyboardOpen
+    ? (isTextSearch ? 'text' : (suppressNumericKeyboard ? 'none' : 'numeric'))
+    : 'none';
+
+  useEffect(() => {
+    if (controlRef) {
+      controlRef.current = {
+        appendChar: (char) => {
+          setQuery((prev) => (prev + char).toUpperCase());
+          inputRef.current?.focus();
+        },
+        backspace: () => {
+          setQuery((prev) => prev.slice(0, -1));
+          inputRef.current?.focus();
+        },
+        clear: () => {
+          setQuery('');
+          inputRef.current?.focus();
+        },
+        submit: () => handleSearch(),
+        focus: () => inputRef.current?.focus(),
+        searchType
+      };
+    }
+  });
 
   return (
     <div className="w-full">
@@ -184,7 +213,7 @@ export default function ArticleSearchInput({
             <input
               ref={inputRef}
               type="text"
-              inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
+              inputMode={effectiveInputMode}
               className="flex-1 p-2 border-2 border-sga-primary rounded text-center text-sm font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300 uppercase min-w-0"
               placeholder={placeholder}
               value={query}
@@ -208,7 +237,7 @@ export default function ArticleSearchInput({
           <input
             ref={inputRef}
             type="text"
-            inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
+            inputMode={effectiveInputMode}
             className="w-full p-4 border-2 border-sga-primary rounded text-center text-xl font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all uppercase"
             placeholder={placeholder}
             value={query}
