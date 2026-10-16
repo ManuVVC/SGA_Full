@@ -83,7 +83,7 @@ export default function AjustesStock() {
         
         // Si teníamos artículo pre-cargado, validarlo automáticamente
         if (articuloInput) {
-          setTimeout(() => handleValidarArticulo(articuloInput), 300);
+          setTimeout(() => handleValidarArticulo(articuloInput, res.ubicacion), 300);
         } else {
           setTimeout(() => articuloRef.current?.focus(), 100);
         }
@@ -105,7 +105,7 @@ export default function AjustesStock() {
     handleValidarUbicacion(ubicacionInput, posicion);
   };
 
-  const handleValidarArticulo = async (val = articuloInput) => {
+  const handleValidarArticulo = async (val = articuloInput, ubiOverride = null) => {
     if (!val.trim()) return;
     setError('');
     setLoading(true);
@@ -114,7 +114,10 @@ export default function AjustesStock() {
       if (res.status === 'success' && res.articulo) {
         setArticuloData(res.articulo);
         setArticuloInput(res.articulo.CODARTICULOAPLICACION);
-        await loadLotes(ubicacionData.CODUBICACION, res.articulo.CODARTICULO, res.articulo);
+        const currentUbi = ubiOverride || ubicacionData;
+        if (currentUbi) {
+          await loadLotes(currentUbi.CODUBICACION, res.articulo.CODARTICULO, res.articulo);
+        }
       } else if (res.status === 'multiples_resultados') {
         setError('Múltiples resultados encontrados. Usa la búsqueda avanzada.');
       } else {

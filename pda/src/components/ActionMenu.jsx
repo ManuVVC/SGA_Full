@@ -21,15 +21,17 @@ export default function ActionMenu({ title, subtitle, isOpen, onClose, onInfo, o
         </div>
         
         <div className="p-4 flex flex-col gap-3">
-          <button 
-            onClick={() => { onClose(); onInfo(); }}
-            className="flex items-center gap-3 w-full p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
-          >
-            <div className="bg-blue-100 p-2 rounded-full text-blue-600">
-              <Info className="w-6 h-6" />
-            </div>
-            <span className="font-bold text-gray-700 text-lg">{infoLabel}</span>
-          </button>
+          {onInfo && (
+            <button 
+              onClick={() => { onClose(); onInfo(); }}
+              className="flex items-center gap-3 w-full p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+            >
+              <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                <Info className="w-6 h-6" />
+              </div>
+              <span className="font-bold text-gray-700 text-lg">{infoLabel}</span>
+            </button>
+          )}
 
           {hasPermission('PRM_AJUSTESDESTOCK') && (
             <button 

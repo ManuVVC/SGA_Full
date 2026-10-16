@@ -257,18 +257,87 @@ class ReubicacionesRepository:
             raise
 
     @staticmethod
-    def get_stock_ubicacion_articulo(cod_ubicacion: int, cod_articulo: int):
+    def get_stock_ubicacion_articulo(cod_ubicacion: int, cod_articulo: int, cod_numero_lote: int = None):
         """
         Consulta el stock actual de un artículo en una ubicación en TMST_UBICACIONESARTICULO.
+        Si se especifica cod_numero_lote, filtra por ese lote específico.
         """
         try:
             with db.get_cursor() as cursor:
-                query = "SELECT NVL(SUM(STOCK), 0) FROM TMST_UBICACIONESARTICULO WHERE CODUBICACION = :1 AND CODARTICULO = :2"
-                cursor.execute(query, [cod_ubicacion, cod_articulo])
+                if cod_numero_lote is not None:
+                    query = "SELECT NVL(SUM(STOCK), 0) FROM TMST_UBICACIONESARTICULO WHERE CODUBICACION = :1 AND CODARTICULO = :2 AND CODNUMEROLOTE = :3"
+                    cursor.execute(query, [cod_ubicacion, cod_articulo, cod_numero_lote])
+                else:
+                    query = "SELECT NVL(SUM(STOCK), 0) FROM TMST_UBICACIONESARTICULO WHERE CODUBICACION = :1 AND CODARTICULO = :2"
+                    cursor.execute(query, [cod_ubicacion, cod_articulo])
                 row = cursor.fetchone()
                 return row[0] if row else 0
         except Exception as e:
             logger.error(f"Error al consultar stock: {e}")
+            raise
+
+    @staticmethod
+    def get_stock_disponible(cod_ubicacion: int, cod_articulo: int, cod_numero_lote: int = None):
+        """
+        Consulta información detallada de stock disponible de un artículo en una ubicación origen,
+        incluyendo el stock total, el nombre de la ubicación, el lote y la fecha de caducidad.
+        """
+        try:
+            with db.get_cursor() as cursor:
+                if cod_numero_lote is not None:
+                    query = """
+                        SELECT NVL(SUM(UA.STOCK), 0) AS STOCK,
+                               MAX(NLP.NUMEROLOTE) AS NUMEROLOTE,
+                               MAX(NVL(UA.FECHACADUCIDAD, NLP.FECHACADUCIDAD)) AS FECHACADUCIDAD,
+                               MAX(U.NOMBRECORTO) AS UBICACION
+                        FROM GSM.TMST_UBICACIONESARTICULO UA
+                        JOIN GSM.VMST_UBICACIONES U ON UA.CODUBICACION = U.CODUBICACION
+                        LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES NLP ON UA.CODNUMEROLOTE = NLP.CODNUMEROLOTE
+                        WHERE UA.CODUBICACION = :1 AND UA.CODARTICULO = :2 AND UA.CODNUMEROLOTE = :3
+                    """
+                    cursor.execute(query, [cod_ubicacion, cod_articulo, cod_numero_lote])
+                else:
+                    query = """
+                        SELECT NVL(SUM(UA.STOCK), 0) AS STOCK,
+                               MAX(NLP.NUMEROLOTE) AS NUMEROLOTE,
+                               MAX(NVL(UA.FECHACADUCIDAD, NLP.FECHACADUCIDAD)) AS FECHACADUCIDAD,
+                               MAX(U.NOMBRECORTO) AS UBICACION,
+                               COUNT(DISTINCT UA.CODNUMEROLOTE) AS NUM_LOTES
+                        FROM GSM.TMST_UBICACIONESARTICULO UA
+                        JOIN GSM.VMST_UBICACIONES U ON UA.CODUBICACION = U.CODUBICACION
+                        LEFT JOIN GSM.TMST_NUMEROSLOTESPROVEEDORES NLP ON UA.CODNUMEROLOTE = NLP.CODNUMEROLOTE
+                        WHERE UA.CODUBICACION = :1 AND UA.CODARTICULO = :2
+                    """
+                    cursor.execute(query, [cod_ubicacion, cod_articulo])
+
+                row = cursor.fetchone()
+                if not row:
+                    return {
+                        "stock": 0.0,
+                        "lote": None,
+                        "cod_numero_lote": cod_numero_lote,
+                        "fecha_caducidad": None,
+                        "ubicacion": None
+                    }
+
+                stock = float(row[0]) if row[0] is not None else 0.0
+                lote_nombre = row[1]
+                fecha_cad = row[2].strftime('%Y-%m-%d') if row[2] else None
+                ubic_nombre = row[3]
+
+                if cod_numero_lote is None and len(row) > 4 and (row[4] or 0) > 1:
+                    lote_nombre = None
+                    fecha_cad = None
+
+                return {
+                    "stock": stock,
+                    "lote": lote_nombre,
+                    "cod_numero_lote": cod_numero_lote,
+                    "fecha_caducidad": fecha_cad,
+                    "ubicacion": ubic_nombre
+                }
+        except Exception as e:
+            logger.error(f"Error al obtener stock disponible en ubicación {cod_ubicacion}, articulo {cod_articulo}: {e}")
             raise
 
     @staticmethod

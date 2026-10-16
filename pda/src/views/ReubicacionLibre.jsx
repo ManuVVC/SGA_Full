@@ -1,15 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, AlertTriangle, Box } from 'lucide-react';
-import { validarUbicacion, validarCantidad, grabarReubicacion, obtenerLotesDisponibles } from '../api/reubicacionesService';
+import { validarUbicacion, validarCantidad, grabarReubicacion, obtenerLotesDisponibles, obtenerStockDisponible } from '../api/reubicacionesService';
 import TerminalHeader from '../components/TerminalHeader';
 import ArticleSearchInput from '../components/ArticleSearchInput';
 import { useKeyboard } from '../contexts/KeyboardContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { formatFechaES } from '../utils/dateUtils';
 
 export default function ReubicacionLibre() {
   const navigate = useNavigate();
   const { isKeyboardOpen } = useKeyboard();
+  const { hasPermission, hasOperatorPermission } = usePermissions();
+  const puedeReubicarTodoConEnter = hasPermission('PRM_PUEDEREUBICARTODOCONENTER') || hasOperatorPermission('PRM_PUEDEREUBICARTODOCONENTER');
   
   // Maquina de estados: 1 = Origen, 2 = Articulo, 3 = Cantidad, 4 = Destino
   const [step, setStep] = useState(1);
@@ -26,6 +29,7 @@ export default function ReubicacionLibre() {
   const [origenData, setOrigenData] = useState(null);
   const [articuloData, setArticuloData] = useState(null);
   const [loteData, setLoteData] = useState(null);
+  const [stockInfo, setStockInfo] = useState(null);
   const [destinoData, setDestinoData] = useState(null);
 
   // Modal para multiplicidad de posición
@@ -56,6 +60,7 @@ export default function ReubicacionLibre() {
     setOrigenData(null);
     setArticuloData(null);
     setLoteData(null);
+    setStockInfo(null);
     setDestinoData(null);
     setError(null);
   };
@@ -64,6 +69,10 @@ export default function ReubicacionLibre() {
     if (step > 1) {
       if (step === 5) setDestinoInput('');
       if (step === 4) setCantidadInput('');
+      if (step === 3) {
+        setStockInfo(null);
+        setCantidadInput('');
+      }
       if (step === 2) setOrigenInput('');
       
       setStep(step - 1);
@@ -102,6 +111,7 @@ export default function ReubicacionLibre() {
   // ----- STEP 2: ARTICULO -----
   const handleArticleSelected = async (article) => {
     setArticuloData(article);
+    setStockInfo(null);
     
     // Comprobar si gestiona lote o fecha de caducidad (se comprueba la trazabilidad o la caducidad del artículo)
     const gestionaLote = (article.PRM_TRAZABILIDAD !== 0) || (article.GESTIONARCADUCIDAD !== 0);
@@ -113,7 +123,14 @@ export default function ReubicacionLibre() {
         const res = await obtenerLotesDisponibles(origenData.CODUBICACION, article.CODARTICULO);
         if (res.status === 'success' && res.lotes && res.lotes.length > 0) {
           if (res.lotes.length === 1) {
-            setLoteData(res.lotes[0]);
+            const unicoLote = res.lotes[0];
+            setLoteData(unicoLote);
+            setStockInfo({
+              stock: unicoLote.STOCK,
+              lote: unicoLote.NUMEROLOTE,
+              fechaCaducidad: unicoLote.FECHACADUCIDAD,
+              ubicacion: origenData.UBICACION
+            });
             setStep(3);
           } else {
             setLotesDisponibles(res.lotes);
@@ -129,37 +146,101 @@ export default function ReubicacionLibre() {
       }
     } else {
       setLoteData(null);
-      setStep(3);
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await obtenerStockDisponible(origenData.CODUBICACION, article.CODARTICULO);
+        if (res.status === 'success') {
+          setStockInfo({
+            stock: res.stock,
+            lote: res.lote,
+            fechaCaducidad: res.fecha_caducidad,
+            ubicacion: res.ubicacion || origenData.UBICACION
+          });
+          setStep(3);
+        } else {
+          setError(res.message || 'Error al obtener el stock disponible.');
+        }
+      } catch (err) {
+        setError('Error al obtener el stock de la ubicación origen.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const handleSelectLote = (lote) => {
     setLoteData(lote);
+    setStockInfo({
+      stock: lote.STOCK,
+      lote: lote.NUMEROLOTE,
+      fechaCaducidad: lote.FECHACADUCIDAD,
+      ubicacion: origenData?.UBICACION
+    });
     setShowLoteModal(false);
     setStep(3);
   };
 
   // ----- STEP 3: CANTIDAD -----
+  const handleSeleccionarTodo = async () => {
+    if (!stockInfo || stockInfo.stock <= 0) {
+      setError('No hay stock disponible para reubicar.');
+      return;
+    }
+
+    const factor = articuloData?.UNIDADES && articuloData.UNIDADES > 0 ? articuloData.UNIDADES : 1;
+    const cantidadCalculada = stockInfo.stock / factor;
+    const cantFormateada = String(cantidadCalculada % 1 === 0 ? cantidadCalculada : parseFloat(cantidadCalculada.toFixed(4)));
+
+    setCantidadInput(cantFormateada);
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await validarCantidad(
+        origenData.CODUBICACION,
+        articuloData.CODARTICULO,
+        parseFloat(cantFormateada),
+        factor,
+        loteData?.CODNUMEROLOTE
+      );
+      if (res.status === 'success') {
+        setStep(4);
+      } else {
+        setError(res.message || 'Cantidad no válida');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error al validar la cantidad.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCantidadKeyDown = async (e) => {
-    if (e.key === 'Enter' && cantidadInput.trim() !== '') {
-      setError(null);
-      setLoading(true);
-      try {
-        const res = await validarCantidad(
-          origenData.CODUBICACION, 
-          articuloData.CODARTICULO, 
-          parseFloat(cantidadInput), 
-          articuloData.UNIDADES
-        );
-        if (res.status === 'success') {
-          setStep(4);
-        } else {
-          setError(res.message || 'Cantidad no válida');
+    if (e.key === 'Enter') {
+      if (cantidadInput.trim() !== '') {
+        setError(null);
+        setLoading(true);
+        try {
+          const res = await validarCantidad(
+            origenData.CODUBICACION, 
+            articuloData.CODARTICULO, 
+            parseFloat(cantidadInput), 
+            articuloData.UNIDADES,
+            loteData?.CODNUMEROLOTE
+          );
+          if (res.status === 'success') {
+            setStep(4);
+          } else {
+            setError(res.message || 'Cantidad no válida');
+          }
+        } catch (err) {
+          setError(err.response?.data?.message || 'Error al validar la cantidad.');
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        setError(err.response?.data?.message || 'Error al validar la cantidad.');
-      } finally {
-        setLoading(false);
+      } else if (puedeReubicarTodoConEnter && stockInfo && stockInfo.stock > 0) {
+        e.preventDefault();
+        await handleSeleccionarTodo();
       }
     }
   };
@@ -331,9 +412,45 @@ export default function ReubicacionLibre() {
         {/* STEP 3: Cantidad */}
         {step >= 3 && (
           <div className={`p-4 rounded shadow bg-white border-l-4 ${step === 3 ? 'border-sga-blue' : 'border-gray-300 opacity-60'}`}>
-            <label className="block text-sm font-bold text-gray-700 mb-1">3. Cantidad</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-bold text-gray-700">3. Cantidad</label>
+              {step === 3 && puedeReubicarTodoConEnter && stockInfo && stockInfo.stock > 0 && (
+                <span className="text-xs bg-blue-100 text-sga-blue px-2 py-0.5 rounded font-semibold">
+                  Enter = Todo
+                </span>
+              )}
+            </div>
             {step === 3 ? (
-              <div>
+              <div className="flex flex-col gap-3">
+                {/* Botón Reubicar TODO si el operario tiene el parámetro activo */}
+                {puedeReubicarTodoConEnter && stockInfo && stockInfo.stock > 0 && (
+                  <button 
+                    type="button"
+                    onClick={handleSeleccionarTodo}
+                    disabled={loading}
+                    className="w-full p-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg shadow font-medium text-left transition-all flex flex-col gap-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-base flex items-center gap-1.5 uppercase tracking-wide">
+                        <CheckCircle size={18} className="text-white" />
+                        Todo
+                      </span>
+                      <span className="bg-white/20 px-2.5 py-0.5 rounded text-sm font-bold">
+                        Stock: {stockInfo.stock} {articuloData?.UNIDADES > 1 ? `uds (${stockInfo.stock / articuloData.UNIDADES} cajas)` : 'uds'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-100 flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-blue-400/40">
+                      <span><b>Origen:</b> {stockInfo.ubicacion || origenData?.UBICACION}</span>
+                      {(stockInfo.lote || loteData?.NUMEROLOTE) && (
+                        <span><b>Lote:</b> {stockInfo.lote || loteData?.NUMEROLOTE}</span>
+                      )}
+                      {(stockInfo.fechaCaducidad || loteData?.FECHACADUCIDAD) && (
+                        <span><b>Cad:</b> {formatFechaES(stockInfo.fechaCaducidad || loteData?.FECHACADUCIDAD)}</span>
+                      )}
+                    </div>
+                  </button>
+                )}
+
                 <div className="flex items-center gap-2">
                   <input 
                     ref={cantidadRef}
@@ -341,7 +458,7 @@ export default function ReubicacionLibre() {
                     inputMode="numeric"
                     pattern="[0-9]*"
                     className="flex-1 border-2 border-gray-300 p-3 rounded text-lg focus:border-sga-blue focus:outline-none"
-                    placeholder="Introduzca cantidad"
+                    placeholder={puedeReubicarTodoConEnter && stockInfo?.stock > 0 ? `Todo (${stockInfo.stock / (articuloData?.UNIDADES || 1)}) o teclee cantidad...` : "Introduzca cantidad"}
                     value={cantidadInput}
                     onChange={(e) => setCantidadInput(e.target.value)}
                     onKeyDown={handleCantidadKeyDown}
@@ -354,7 +471,7 @@ export default function ReubicacionLibre() {
                   )}
                 </div>
                 {articuloData?.UNIDADES > 1 && cantidadInput && !isNaN(parseFloat(cantidadInput)) && (
-                  <div className="mt-2 text-right text-sm text-sga-blue font-bold">
+                  <div className="mt-1 text-right text-sm text-sga-blue font-bold">
                     Total a mover: {parseFloat(cantidadInput) * articuloData.UNIDADES} uds
                   </div>
                 )}
@@ -477,6 +594,7 @@ export default function ReubicacionLibre() {
               <button 
                 onClick={() => {
                   setShowLoteModal(false);
+                  setStockInfo(null);
                   setStep(2); // Volver a artículo si cancela el lote
                 }}
                 className="px-4 py-2 bg-gray-400 text-white rounded font-bold"

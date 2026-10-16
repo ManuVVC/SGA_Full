@@ -25,6 +25,8 @@ import RecuperarAparcado from './views/RecuperarAparcado';
 import FinalizarPedido from './views/FinalizarPedido';
 import PreparaPedido from './views/PreparaPedido';
 import PedidoDirecto from './views/PedidoDirecto';
+import MontarKits from './views/MontarKits';
+import DesmontarKits from './views/DesmontarKits';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function PrivateRoute({ children }) {
@@ -139,6 +141,8 @@ function App() {
                 <Route path="/utilidades" element={<PrivateRoute><SubMenuUtilidades /></PrivateRoute>} />
                 <Route path="/utilidades/nuevo-ean" element={<PrivateRoute><NuevoEan /></PrivateRoute>} />
                 <Route path="/utilidades/info-ubicacion" element={<PrivateRoute><InfoUbicacion /></PrivateRoute>} />
+                <Route path="/utilidades/montar-kits" element={<PrivateRoute><MontarKits /></PrivateRoute>} />
+                <Route path="/utilidades/desmontar-kits" element={<PrivateRoute><DesmontarKits /></PrivateRoute>} />
                 <Route path="/stock/ajustes" element={<PrivateRoute><AjustesStock /></PrivateRoute>} />
 
                 {/* Funcionalidades */}

@@ -52,3 +52,8 @@ El módulo de ajustes permite realizar modificaciones manuales sobre las cantida
 
 5. **Confirme la Operación:**
    Al presionar confirmar, el sistema registrará el movimiento usando sus credenciales de usuario para mantener un registro de auditoría. 
+
+### Acceso Rápido desde "Info Artículo"
+- **Artículos con Stock**: Mantener pulsada (long press) cualquier fila de ubicación abre el menú de acciones permitiendo saltar a *Ajustes de Stock* o *Info Ubicación*.
+- **Artículos Sin Stock en Almacén**: Cuando un artículo no tiene existencias, mantener pulsada la tarjeta con el aviso rojo *"Sin stock en almacén"* abre el menú de acciones para iniciar directamente un *Ajuste de Stock* (alta de stock). Al abrir la pantalla de ajustes con el artículo ya seleccionado, el operario únicamente debe escanear la ubicación donde desea ubicar el nuevo stock.
+

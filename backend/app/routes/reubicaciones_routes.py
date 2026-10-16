@@ -59,6 +59,7 @@ def validar_cantidad():
     cod_articulo = data.get("cod_articulo")
     cantidad = data.get("cantidad")
     unidades_conversion = data.get("unidades_conversion", 1)
+    cod_numero_lote = data.get("cod_numero_lote")
 
     if cod_ubicacion is None or cod_articulo is None or cantidad is None:
         return jsonify({"status": "error", "message": "Faltan datos obligatorios."}), 400
@@ -69,7 +70,25 @@ def validar_cantidad():
     except ValueError:
         return jsonify({"status": "error", "message": "Cantidad o unidades_conversion inválidas."}), 400
 
-    result = ReubicacionesService.validar_cantidad(cod_ubicacion, cod_articulo, cantidad, unidades_conversion)
+    result = ReubicacionesService.validar_cantidad(cod_ubicacion, cod_articulo, cantidad, unidades_conversion, cod_numero_lote)
+    
+    if result["status"] == "success":
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 400
+
+@reubicaciones_bp.route("/stock-disponible", methods=["POST"])
+@token_required
+def stock_disponible():
+    data = request.get_json() or {}
+    cod_ubicacion = data.get("cod_ubicacion")
+    cod_articulo = data.get("cod_articulo")
+    cod_numero_lote = data.get("cod_numero_lote")
+
+    if cod_ubicacion is None or cod_articulo is None:
+        return jsonify({"status": "error", "message": "Faltan datos obligatorios (cod_ubicacion, cod_articulo)."}), 400
+
+    result = ReubicacionesService.obtener_stock_disponible(cod_ubicacion, cod_articulo, cod_numero_lote)
     
     if result["status"] == "success":
         return jsonify(result), 200

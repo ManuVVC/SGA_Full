@@ -15,13 +15,28 @@ export const validarArticulo = async (articulo, tipoBusqueda = 'auto') => {
   }, {}, 'Error al validar artículo');
 };
 
-export const validarCantidad = async (codUbicacion, codArticulo, cantidad, unidadesConversion) => {
-  return mutateData('post', '/reubicaciones/validar-cantidad', {
+export const validarCantidad = async (codUbicacion, codArticulo, cantidad, unidadesConversion, codNumeroLote = null) => {
+  const payload = {
     cod_ubicacion: codUbicacion,
     cod_articulo: codArticulo,
     cantidad,
     unidades_conversion: unidadesConversion
-  }, {}, 'Error al validar cantidad');
+  };
+  if (codNumeroLote !== null && codNumeroLote !== undefined) {
+    payload.cod_numero_lote = codNumeroLote;
+  }
+  return mutateData('post', '/reubicaciones/validar-cantidad', payload, {}, 'Error al validar cantidad');
+};
+
+export const obtenerStockDisponible = async (codUbicacion, codArticulo, codNumeroLote = null) => {
+  const payload = {
+    cod_ubicacion: codUbicacion,
+    cod_articulo: codArticulo
+  };
+  if (codNumeroLote !== null && codNumeroLote !== undefined) {
+    payload.cod_numero_lote = codNumeroLote;
+  }
+  return mutateData('post', '/reubicaciones/stock-disponible', payload, {}, 'Error al obtener stock disponible');
 };
 
 export const obtenerLotesDisponibles = async (codUbicacion, codArticulo) => {

@@ -130,7 +130,7 @@ def test_validar_articulo_codigo(mock_get_ean, mock_get_codigo):
     assert resultado["status"] == "success"
     assert resultado["tipo"] == "codigo"
 
-@patch('app.utils.parametros.is_parametro_activo')
+@patch('app.services.reubicaciones_service.is_parametro_activo')
 @patch('app.services.reubicaciones_service.ReubicacionesRepository.get_articulo_por_cod_fabricante')
 @patch('app.services.reubicaciones_service.ReubicacionesRepository.get_articulo_por_codigo_interno')
 @patch('app.services.reubicaciones_service.ReubicacionesRepository.get_articulo_por_ean')
@@ -148,7 +148,7 @@ def test_validar_articulo_fabricante_multiples(mock_get_ean, mock_get_codigo, mo
     assert resultado["status"] == "multiples_resultados"
 
 @patch('app.services.reubicaciones_service.ReubicacionesRepository.get_articulo_por_descripcion')
-@patch('app.utils.parametros.is_parametro_activo')
+@patch('app.services.reubicaciones_service.is_parametro_activo')
 @patch('app.services.reubicaciones_service.ReubicacionesRepository.get_articulo_por_codigo_interno')
 @patch('app.services.reubicaciones_service.ReubicacionesRepository.get_articulo_por_ean')
 def test_validar_articulo_no_encontrado(mock_get_ean, mock_get_codigo, mock_param, mock_get_desc):
@@ -203,6 +203,55 @@ def test_validar_cantidad_valida(mock_get_stock):
     assert resultado["status"] == "success"
     assert resultado["cantidad_real"] == 15
     assert resultado["stock_disponible"] == 20
+
+@patch('app.services.reubicaciones_service.ReubicacionesRepository.get_stock_ubicacion_articulo')
+def test_validar_cantidad_con_lote(mock_get_stock):
+    # Arrange
+    mock_get_stock.return_value = 10
+    
+    # Act
+    resultado = ReubicacionesService.validar_cantidad(1, 100, 10, 1, cod_numero_lote=555)
+    
+    # Assert
+    assert resultado["status"] == "success"
+    mock_get_stock.assert_called_once_with(1, 100, 555)
+
+
+# ==========================================
+# Tests para obtener_stock_disponible
+# ==========================================
+
+@patch('app.services.reubicaciones_service.ReubicacionesRepository.get_stock_disponible')
+def test_obtener_stock_disponible_success(mock_get_stock):
+    # Arrange
+    mock_get_stock.return_value = {
+        "stock": 50.0,
+        "lote": "LOTE-ABC",
+        "cod_numero_lote": 123,
+        "fecha_caducidad": "2026-12-31",
+        "ubicacion": "UBI-01"
+    }
+    
+    # Act
+    resultado = ReubicacionesService.obtener_stock_disponible(1, 100, 123)
+    
+    # Assert
+    assert resultado["status"] == "success"
+    assert resultado["stock"] == 50.0
+    assert resultado["lote"] == "LOTE-ABC"
+    assert resultado["fecha_caducidad"] == "2026-12-31"
+
+@patch('app.services.reubicaciones_service.ReubicacionesRepository.get_stock_disponible')
+def test_obtener_stock_disponible_error(mock_get_stock):
+    # Arrange
+    mock_get_stock.side_effect = Exception("DB Error")
+    
+    # Act
+    resultado = ReubicacionesService.obtener_stock_disponible(1, 100)
+    
+    # Assert
+    assert resultado["status"] == "error"
+    assert "DB Error" in resultado["message"]
 
 
 # ==========================================

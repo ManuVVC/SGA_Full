@@ -20,11 +20,18 @@ El archivo `reubicaciones_service.py` expone la clase estática `ReubicacionesSe
 | :--- | :--- | :--- | :--- |
 | `validar_ubicacion` | `input_value: str`<br>`posicion: int` | `{ status: 'success'\|'error'\|'necesita_posicion', ... }` | Busca ubicaciones por ID numérico (`CodUbicacion`), luego alfanumérico (`NombreCorto`), y finalmente por `etiqueta`. Si una etiqueta tiene múltiples posiciones y no se pasa `posicion`, retorna `necesita_posicion`. |
 | `validar_articulo` | `input_value: str`<br>`tipo_busqueda: str` | `{ status: 'success'\|'error'\|'multiples_resultados', articulo: {...} }` | Resuelve el artículo por `ean`, `codigo`, `fabricante` (si param 1690 activo), o `descripcion`. Soporta un modo `"auto"` que evalúa todos en cascada. |
-| `validar_cantidad` | `cod_ubicacion: int`<br>`cod_articulo: int`<br>`cantidad_introducida: float`<br>`unidades_conversion: float` | `{ status: 'success'\|'error', cantidad_real: float, stock_disponible: float }` | Valida que `(cantidad_introducida * unidades_conversion) <= stock_disponible`. Retorna error si excede o si es <= 0. |
+| `validar_cantidad` | `cod_ubicacion: int`<br>`cod_articulo: int`<br>`cantidad_introducida: float`<br>`unidades_conversion: float`<br>`cod_numero_lote: int` (opcional) | `{ status: 'success'\|'error', cantidad_real: float, stock_disponible: float }` | Valida que `(cantidad_introducida * unidades_conversion) <= stock_disponible`. Si se especifica `cod_numero_lote`, valida contra el stock de ese lote. Retorna error si excede o si es <= 0. |
+| `obtener_stock_disponible` | `cod_ubicacion: int`<br>`cod_articulo: int`<br>`cod_numero_lote: int` (opcional) | `{ status: 'success'\|'error', stock: float, lote: str, cod_numero_lote: int, fecha_caducidad: str, ubicacion: str }` | Devuelve el stock disponible del artículo en la ubicación origen junto con la información del lote, fecha de caducidad y nombre de ubicación. |
 | `obtener_lotes_disponibles` | `cod_ubicacion: int`<br>`cod_articulo: int` | `{ status: 'success'\|'error', lotes: list }` | Devuelve los lotes físicos existentes en la ubicación origen. |
 | `grabar_reubicacion` | `origen: dict`<br>`destino: dict`<br>`articulo: dict`<br>`cantidad: float`<br>`terminal: int`<br>`operador: int`<br>`lote: dict` | `{ status: 'success'\|'error', message: str }` | Graba el movimiento por artículo. **Regla Crítica**: Valida que el propietario de la mercancía origen (`CODTIPODATOMAESTRO`, `CODDATOMAESTRO`) no colisione con el propietario exclusivo de la ubicación destino. |
 | `validar_palet` | `sscc: str` | `{ status: 'success'\|'error', palet: dict }` | Parsea el SSCC eliminando prefijos de GS1-128 (como `]C1`, `(00)` o `00` al inicio). Busca el palet exacto en BD. |
 | `grabar_reubicacion_palet` | `palet: dict`<br>`destino: dict`<br>`terminal: int`<br>`operador: int` | `{ status: 'success'\|'error', message: str }` | Mueve un palet completo. Aplica las mismas validaciones de colisión de propietario que el método `grabar_reubicacion`. |
+
+### Parámetro de Operario: `PRM_PUEDEREUBICARTODOCONENTER`
+*   **Definición en BD**: Columna `PRM_PUEDEREUBICARTODOCONENTER` en la tabla `GSM.TMST_OPERADORES`.
+*   **Comportamiento en Terminal PDA**:
+    *   Si el operario tiene activo este parámetro, en el paso 3 de **Reubicación Libre** (selección de cantidad), aparece un botón destacado en el recuadro que indica **"Todo"** y muestra el stock total disponible en la ubicación origen, junto con el número de lote y la fecha de caducidad correspondientes.
+    *   Al pulsar dicho botón, o al presionar la tecla **Enter** con el campo de cantidad vacío, el sistema asigna automáticamente la totalidad del stock disponible (ajustado por el factor de conversión si el artículo lo requiere) y avanza inmediatamente al paso 4 (Ubicación Destino), sin requerir teclear ningún valor numérico.
 
 ### Aspectos Arquitectónicos y de API
 1.  **Formato de Retorno**: Todos los métodos devuelven un objeto tipo diccionario estandarizado, usualmente conteniendo una clave `status` (`'success'`, `'error'`, `'necesita_posicion'`, `'multiples_resultados'`) y un `message` o el objeto de base de datos extraído. Los endpoints de FastAPI (o Flask) deben interpretar este `status` para retornar códigos HTTP 200 (OK), 400 (Bad Request) o 409 (Conflict).
@@ -36,7 +43,7 @@ El archivo `reubicaciones_service.py` expone la clase estática `ReubicacionesSe
 
 ¡Bienvenido al sistema de Reubicaciones! Este módulo te permite mover mercancía o palets completos dentro del almacén asegurando que no haya errores de inventario.
 
-### 1. Reubicar Artículos Sueltos
+### 1. Reubicar Artículos Sueltos (Reubicación Normal)
 
 Este proceso te permite tomar una cantidad específica de productos de una ubicación y dejarlos en otra.
 
@@ -44,8 +51,12 @@ Este proceso te permite tomar una cantidad específica de productos de una ubica
 1.  **Escanear Ubicación de Origen**: Lee el código de barras del hueco de donde tomarás el producto.
     *   *Nota*: Si la etiqueta representa varios huecos unidos, la pantalla te pedirá que indiques la **Posición** exacta.
 2.  **Escanear el Artículo**: Lee el código de barras (EAN), el código interno del producto o el de fabricante. Si el escáner falla, también puedes buscar por nombre/descripción.
-    *   *Nota*: Si hay lotes registrados para ese artículo, el sistema te pedirá que selecciones cuál lote vas a mover.
+    *   *Nota*: Si hay lotes registrados para ese artículo, el sistema te pedirá que selecciones cuál lote vas a mover (o lo seleccionará automáticamente si solo hay uno).
 3.  **Indicar Cantidad**: Ingresa cuántas unidades estás moviendo. El sistema te bloqueará si intentas mover más piezas de las que realmente hay registradas.
+    *   *Funcionalidad Reubicar Todo*: Si tu usuario tiene habilitado el permiso de reubicar todo con Enter (`PRM_PUEDEREUBICARTODOCONENTER`), verás en el recuadro un botón que indica **"Todo"** con el stock total disponible, lote y fecha de caducidad. Puedes:
+        *   Tocar el botón **"Todo"** para seleccionar automáticamente todo el stock disponible y avanzar al siguiente paso sin teclear nada.
+        *   Presionar la tecla **Enter** directamente en el campo de cantidad vacío para avanzar con todo el stock.
+        *   O bien teclear manualmente la cantidad deseada si solo deseas mover una parte.
 4.  **Escanear Ubicación de Destino**: Escanea dónde vas a dejar la mercancía.
 5.  **Confirmar Movimiento**: Presiona "Grabar" o "Confirmar".
     *   *Importante*: Si intentas dejar mercancía de un cliente en una ubicación reservada para *otro* cliente, el sistema mostrará un aviso de error y no te dejará continuar.

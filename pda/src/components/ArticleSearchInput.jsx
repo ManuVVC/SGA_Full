@@ -18,7 +18,15 @@ import { parseGs1 } from '../utils/gs1Parser';
  *          En "full" el callback onGs1Parsed se propaga al padre.
  *  - disabled, autoFocus
  */
-export default function ArticleSearchInput({ onArticleSelected, onGs1Parsed, mode = 'ean-only', disabled, autoFocus }) {
+export default function ArticleSearchInput({ 
+  onArticleSelected, 
+  onGs1Parsed, 
+  mode = 'ean-only', 
+  disabled, 
+  autoFocus, 
+  compact = false,
+  placeholder = 'Escanear artículo...'
+}) {
   const [query, setQuery] = useState('');
   const [searchType, setSearchType] = useState('codfacturacion');
   const [loading, setLoading] = useState(false);
@@ -163,27 +171,60 @@ export default function ArticleSearchInput({ onArticleSelected, onGs1Parsed, mod
 
   return (
     <div className="w-full">
-      <form onSubmit={handleSearch} className="flex flex-col gap-3">
-        <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} param1690Active={param1690Active} />
-        <input
-          ref={inputRef}
-          type="text"
-          inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
-          className="w-full p-4 border-2 border-sga-primary rounded text-center text-xl font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all uppercase"
-          placeholder="Escanear artículo..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value.toUpperCase())}
-          disabled={disabled || loading}
-        />
-        <button 
-          type="submit"
-          disabled={disabled || loading || !query.trim()}
-          className="w-full bg-sga-primary text-white py-3 rounded font-bold shadow disabled:opacity-50"
-        >
-          {loading ? 'BUSCANDO...' : 'BUSCAR'}
-        </button>
-        {error && <span className="text-red-600 font-bold text-sm px-1 animate-pulse">{error}</span>}
-      </form>
+      {compact ? (
+        <form onSubmit={handleSearch} className="flex flex-col gap-1.5">
+          <SearchTypeToggle 
+            value={searchType} 
+            onChange={setSearchType} 
+            inputRef={inputRef} 
+            param1690Active={param1690Active} 
+            compact={true}
+          />
+          <div className="flex gap-1.5 items-stretch">
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
+              className="flex-1 p-2 border-2 border-sga-primary rounded text-center text-sm font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300 uppercase min-w-0"
+              placeholder={placeholder}
+              value={query}
+              onChange={(e) => setQuery(e.target.value.toUpperCase())}
+              disabled={disabled || loading}
+            />
+            <button 
+              type="submit"
+              disabled={disabled || loading || !query.trim()}
+              className="bg-sga-primary text-white px-3 py-2 rounded font-bold shadow disabled:opacity-50 text-xs flex items-center justify-center gap-1 shrink-0 active:scale-95"
+            >
+              <Search className="w-4 h-4 shrink-0" />
+              <span>{loading ? '...' : 'BUSCAR'}</span>
+            </button>
+          </div>
+          {error && <span className="text-red-600 font-bold text-xs px-1 animate-pulse">{error}</span>}
+        </form>
+      ) : (
+        <form onSubmit={handleSearch} className="flex flex-col gap-3">
+          <SearchTypeToggle value={searchType} onChange={setSearchType} inputRef={inputRef} param1690Active={param1690Active} />
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode={isKeyboardOpen ? (searchType === 'nombrearticulo' || searchType === 'codrealfabricante' ? 'text' : 'numeric') : 'none'}
+            className="w-full p-4 border-2 border-sga-primary rounded text-center text-xl font-bold shadow-inner bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all uppercase"
+            placeholder={placeholder}
+            value={query}
+            onChange={(e) => setQuery(e.target.value.toUpperCase())}
+            disabled={disabled || loading}
+          />
+          <button 
+            type="submit"
+            disabled={disabled || loading || !query.trim()}
+            className="w-full bg-sga-primary text-white py-3 rounded font-bold shadow disabled:opacity-50"
+          >
+            {loading ? 'BUSCANDO...' : 'BUSCAR'}
+          </button>
+          {error && <span className="text-red-600 font-bold text-sm px-1 animate-pulse">{error}</span>}
+        </form>
+      )}
 
       {/* MODAL MULTIPLES RESULTADOS */}
       {showModal && (

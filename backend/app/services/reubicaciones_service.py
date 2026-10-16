@@ -77,15 +77,16 @@ class ReubicacionesService:
         return {"status": "error", "message": "Artículo no encontrado."}
 
     @staticmethod
-    def validar_cantidad(cod_ubicacion: int, cod_articulo: int, cantidad_introducida: float, unidades_conversion: float = 1) -> Dict[str, Any]:
+    def validar_cantidad(cod_ubicacion: int, cod_articulo: int, cantidad_introducida: float, unidades_conversion: float = 1, cod_numero_lote: Optional[int] = None) -> Dict[str, Any]:
         """
         Valida que la cantidad calculada (introducida * unidades_conversion) no supere el stock disponible.
+        Si se pasa cod_numero_lote, se valida contra el stock de ese lote específico.
         """
         cantidad_real = cantidad_introducida * unidades_conversion
         if cantidad_real <= 0:
             return {"status": "error", "message": "La cantidad debe ser mayor que cero."}
             
-        stock_disponible = ReubicacionesRepository.get_stock_ubicacion_articulo(cod_ubicacion, cod_articulo)
+        stock_disponible = ReubicacionesRepository.get_stock_ubicacion_articulo(cod_ubicacion, cod_articulo, cod_numero_lote)
         
         if cantidad_real > stock_disponible:
             return {
@@ -98,6 +99,21 @@ class ReubicacionesService:
             "cantidad_real": cantidad_real,
             "stock_disponible": stock_disponible
         }
+
+    @staticmethod
+    def obtener_stock_disponible(cod_ubicacion: int, cod_articulo: int, cod_numero_lote: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Retorna la información del stock disponible en la ubicación origen (stock total, lote, caducidad y ubicación).
+        """
+        try:
+            stock_info = ReubicacionesRepository.get_stock_disponible(cod_ubicacion, cod_articulo, cod_numero_lote)
+            return {
+                "status": "success",
+                **stock_info
+            }
+        except Exception as e:
+            logger.error(f"Error al obtener stock disponible: {e}", exc_info=True)
+            return {"status": "error", "message": str(e)}
 
     @staticmethod
     def obtener_lotes_disponibles(cod_ubicacion: int, cod_articulo: int) -> Dict[str, Any]:

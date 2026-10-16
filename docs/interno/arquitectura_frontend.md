@@ -49,3 +49,22 @@ Para que el trabajo con los datos sea eficiente en el almacén:
 2. **Validación Inmediata:** Si el operario escanea el hueco equivocado, el frontend debe emitir una alerta sonora (beep de error) y visual (pantalla roja) de forma instantánea.
 3. **Flujos Lineales ("Wizard"):** El operario no debe tener menús de navegación complejos en la PDA. El proceso debe ser: *Ir a A -> Escanear B -> Coger C -> Confirmar*.
 4. **Resiliencia:** Si la señal WiFi del almacén se pierde en un pasillo oscuro, el frontend de la PDA debe poder guardar el escaneo temporalmente e intentar enviarlo al backend de Flask cuando recupere la señal.
+5. **Diseño Adaptativo a Alturas Críticas:** Terminales industriales como Zebra TC21/TC26 o simulaciones móviles presentan resoluciones lógicas de 360×640 px que se reducen drásticamente a menos de 450 px útiles cuando se abre el teclado virtual de Android. La interfaz debe compactar dinámicamente formularios, paddings y modales para mantener la visibilidad y operabilidad táctil.
+
+---
+
+## 4. Detección y Adaptación Reactiva de Pantalla (`useDeviceScreen`)
+
+Para gestionar la adaptabilidad en tiempo real sin recargar ni romper la experiencia de usuario, el frontend de la PDA dispone del hook centralizado:
+
+*   **Ruta:** `pda/src/hooks/useDeviceScreen.js`
+*   **Capacidades:**
+    *   Escucha eventos `resize`, `orientationchange` y `window.visualViewport` (precisión milimétrica ante la apertura/cierre del teclado virtual de Android).
+    *   Proporciona dimensiones reales: `width`, `height`, `screenWidth`, `screenHeight`, `pixelRatio`.
+    *   Flags booleanos para layouts:
+        *   `isShortScreen`: `true` si el viewport útil es `< 550px`.
+        *   `isVeryShortScreen`: `true` si el viewport útil es `< 450px`.
+        *   `isNarrowScreen`: `true` si el ancho es `< 380px`.
+        *   `isLandscape`: `true` si la orientación es horizontal.
+*   **Diagnóstico Rápido en Planta:**
+    *   Al hacer clic sobre el botón `TERM: [Nº]` en el `TerminalHeader`, se despliega un modal con la resolución visible, resolución del panel, densidad DPR y diagnóstico del terminal.

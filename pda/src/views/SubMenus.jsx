@@ -76,12 +76,12 @@ export function SubMenuUtilidades() {
     { label: 'Info Ubicacion', icon: MapPin, path: '/utilidades/info-ubicacion', show: true },
     { label: 'Nuevo C.Barras', icon: QrCode, path: '/utilidades/nuevo-ean', show: hasPermission('PRM_ALTAEAN') },
     { label: 'Regula Stock', icon: RefreshCcw, path: '', show: hasPermission('PRM_REGULARIZARSTOCK') },
-    { label: 'Montar Kits', icon: Layers, path: '', show: true },
+    { label: 'Montar Kits', icon: Layers, path: '/utilidades/montar-kits', show: true },
     { label: 'Montar Palets', icon: Blocks, path: '', show: true },
     { label: 'Imp. Terminal', icon: Printer, path: '', show: true },
     { label: 'Estadisticas', icon: BarChart2, path: '', show: hasPermission('PRM_ESTADISTICAS') },
     { label: 'Mod. Min/Max Art', icon: SlidersHorizontal, path: '', show: hasPermission('PRM_PUEDEMODIFMINMAXARTICULO') },
-    { label: 'Desmontaje Kits', icon: Scissors, path: '', show: hasPermission('PRM_DESMONTARKIT') },
+    { label: 'Desmontaje Kits', icon: Scissors, path: '/utilidades/desmontar-kits', show: hasPermission('PRM_DESMONTARKIT') },
   ].filter(i => i.show);
   return <SubMenuLayout title="UTILIDADES" items={items} />;
 }

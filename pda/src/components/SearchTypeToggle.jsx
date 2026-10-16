@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScanBarcode, AlignLeft, FileText, Factory } from 'lucide-react';
 
-export default function SearchTypeToggle({ value, onChange, inputRef, param1690Active }) {
+export default function SearchTypeToggle({ value, onChange, inputRef, param1690Active, compact = false }) {
   const options = [
     { id: 'codfacturacion', label: 'EAN', icon: ScanBarcode },
     { id: 'codarticuloaplicacion', label: 'Interno', icon: FileText },
@@ -10,6 +10,36 @@ export default function SearchTypeToggle({ value, onChange, inputRef, param1690A
 
   if (param1690Active) {
     options.splice(2, 0, { id: 'codrealfabricante', label: 'Fabr.', icon: Factory });
+  }
+
+  if (compact) {
+    return (
+      <div className="flex bg-gray-200 p-0.5 rounded w-full mb-1.5 gap-0.5">
+        {options.map((opt) => {
+          const isActive = value === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                onChange(opt.id);
+                if (inputRef && inputRef.current) {
+                  inputRef.current.focus();
+                }
+              }}
+              className={`flex-1 flex items-center justify-center gap-1 py-1 px-1 rounded transition-all text-[11px] font-bold ${
+                isActive 
+                  ? 'bg-sga-primary text-white shadow-xs' 
+                  : 'text-gray-600 hover:text-sga-dark hover:bg-gray-300'
+              }`}
+            >
+              <opt.icon className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{opt.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
   }
 
   return (

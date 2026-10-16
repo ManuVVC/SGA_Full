@@ -107,8 +107,27 @@ export default function StockResults() {
 
     if (tabData.length === 0) {
       return (
-        <div className="bg-gray-50 p-6 rounded-lg text-center shadow border-l-8 border-sga-danger">
-          <span className="text-xl font-bold text-sga-danger">Sin stock en almacén</span>
+        <div className="flex flex-col gap-3 mt-4">
+          <SinStockRow
+            onLongPress={() => {
+              setSelectedUbicacionForMenu(null);
+              setShowActionMenu(true);
+            }}
+          />
+
+          {/* Action Menu cuando el artículo no tiene stock */}
+          <ActionMenu
+            title={selectedArticle.nombre}
+            subtitle={`Cód: ${selectedArticle.cod_articulo_aplicacion || selectedArticle.articulo_comercial || selectedArticle.cod_articulo} | Sin stock`}
+            isOpen={showActionMenu}
+            onClose={() => setShowActionMenu(false)}
+            onAjustes={() => navigate('/stock/ajustes', {
+              state: {
+                codArticulo: selectedArticle.cod_articulo_aplicacion || selectedArticle.articulo_comercial || selectedArticle.cod_articulo,
+                articleData: selectedArticle
+              }
+            })}
+          />
         </div>
       );
     }
@@ -126,14 +145,20 @@ export default function StockResults() {
           />
         ))}
 
-        {/* Action Menu */}
+        {/* Action Menu cuando hay stock en ubicaciones */}
         <ActionMenu
           title={selectedUbicacionForMenu?.etiqueta || selectedUbicacionForMenu?.cod_ubicacion}
           subtitle={selectedUbicacionForMenu?.etiqueta ? `Cod: ${selectedUbicacionForMenu?.cod_ubicacion}` : ''}
           isOpen={showActionMenu}
           onClose={() => setShowActionMenu(false)}
           onInfo={() => navigate('/utilidades/info-ubicacion', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion } })}
-          onAjustes={() => navigate('/stock/ajustes', { state: { codUbicacion: selectedUbicacionForMenu?.cod_ubicacion, codArticulo: tabData.articulo?.CODARTICULOAPLICACION || tabData.articulo?.CODARTICULO, articleData: tabData.articulo } })}
+          onAjustes={() => navigate('/stock/ajustes', {
+            state: {
+              codUbicacion: selectedUbicacionForMenu?.cod_ubicacion,
+              codArticulo: selectedArticle?.cod_articulo_aplicacion || selectedArticle?.articulo_comercial || selectedArticle?.cod_articulo,
+              articleData: selectedArticle
+            }
+          })}
           infoLabel="Info Ubicación"
         />
       </div>
@@ -282,3 +307,20 @@ function UbicacionRow({ ubi, onLongPress }) {
     </div>
   );
 }
+
+function SinStockRow({ onLongPress }) {
+  const longPressProps = useLongPress(onLongPress, null, { delay: 600 });
+
+  return (
+    <div
+      {...longPressProps}
+      className="bg-gray-50 p-6 rounded-lg text-center shadow border-l-8 border-sga-danger select-none active:bg-red-50 transition-colors cursor-pointer flex flex-col items-center justify-center gap-1"
+    >
+      <span className="text-xl font-bold text-sga-danger">Sin stock en almacén</span>
+      <span className="text-xs text-gray-500 font-semibold mt-1">
+        (Mantén pulsado para Ajuste de Stock)
+      </span>
+    </div>
+  );
+}
+
